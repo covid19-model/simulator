@@ -1,0 +1,13 @@
+numba==0.48.0
+numpy==1.18.2
+pandas==1.0.3
+networkx==2.4
+scipy==1.4.1
+interlap==0.2.6
+seaborn==0.10.0
+bayesian-optimization==1.1.0
+joblib==0.14.1
+geopy==1.21.0
+pathos==0.2.5
+requests==2.23.0
+folium==0.10.1

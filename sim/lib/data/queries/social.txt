@@ -1,0 +1,4 @@
+node["amenity"="bar"]
+node["amenity"="pub"]
+node["amenity"="restaurant"]
+node["amenity"="cafe"]
