@@ -1,12 +1,12 @@
 # A Spatiotemporal Epidemic Model to Quantify The Effects of Testing, Contact Tracing and Containment
 
-This repository contains scripts and notebooks to run the sampling algorithm of a high resolution spatiotemporal epidemic model, which can be used to predict the spread of COVID-19 under different testing & tracing strategies, social distancing measures and business restrictions in an arbitrary city/town.
+This repository contains scripts and notebooks to run the sampling algorithm of a high resolution spatiotemporal epidemic model, which can be used to predict the spread of COVID-19 under different testing & tracing strategies, social distancing measures and business restrictions in an arbitrary city/town. Details about the relevant theory and methods can be found in the [paper](https://arxiv.org/abs/2004.07641).
 
 ## Project description
 
 We introduce a modeling framework for studying epidemics that is specifically designed to make use of fine-grained spatiotemporal data. Motivated by the availability of data from contact tracing technologies and the current COVID-19 outbreak, our model uses marked temporal point processes to represent individual mobility patterns and the course of the disease for each individual in a population.
 
-The sampling algorithm provided in this repository can be used to predict the spread of COVID-19 under different testing & tracing strategies, social distancing measures and business restrictions, given location or contact histories of individuals. Morover, it gives a detailed representation of the disease's effect on each individual through time, distinguishing between several known states like asymptomatic, presymptomatic, symptomatic or recovered. 
+The sampling algorithm provided in this repository can be used to predict the spread of COVID-19 under different testing & tracing strategies, social distancing measures and business restrictions, given location or contact histories of individuals. Moreover, it gives a detailed representation of the disease's effect on each individual through time, distinguishing between several known states like asymptomatic, presymptomatic, symptomatic or recovered. 
 
 <p align="center">
 <img width="33%" src="./img/run0_opt_002.png">
@@ -30,7 +30,7 @@ The notebooks in this repository are focused on real COVID-19 data and mobility 
 All the experiments were executed using Python 3. In order to create a virtual environment and install the project dependencies you can run the following commands:
 
 ```bash
-virtualenv -p python3 env
+python3 -m venv env
 source env/bin/activate
 pip install -r sim/requirements.txt
 ```
@@ -81,5 +81,6 @@ If you use parts of the code in this repository for your own research purposes, 
     @article{lorch2020spatiotemporal,
         title={A Spatiotemporal Epidemic Model to Quantify the Effects of Contact Tracing, Testing, and Containment},
         author={Lars Lorch and William Trouleau and Stratis Tsirtsis and Aron Szanto and Bernhard Sch\"{o}lkopf and Manuel Gomez-Rodriguez},
+        journal={arXiv preprint arXiv:2004.07641},
         year={2020}
     }
