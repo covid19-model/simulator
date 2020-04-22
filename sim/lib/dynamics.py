@@ -853,8 +853,9 @@ class DiseaseModel(object):
             '''Generate j for sites `k` where `i` was present
             up to `self.test_smart_delta` hours before t '''
             for j in range(self.n_people):
-                if self.mob.will_be_in_contact(j, i, site=None, t=t-self.test_smart_delta):
-                    yield j   
+                if not self.state['dead'][j]:
+                    if self.mob.will_be_in_contact(j, i, site=None, t=t-self.test_smart_delta):
+                        yield j
         
         contacts = PriorityQueue()
         
@@ -865,11 +866,7 @@ class DiseaseModel(object):
             
             if is_j_not_compliant:
                 continue
-            
-            # skip if the contact j has been already tested positive
-            if self.state['posi'][j]:
-                continue
-               
+
             valid_contact = False
             s = 0
                 
