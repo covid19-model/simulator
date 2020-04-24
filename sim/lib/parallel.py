@@ -93,7 +93,7 @@ class ParallelSummary(object):
 
 def create_ParallelSummary_from_DiseaseModel(sim):
 
-    summary = ParallelSummary(sim.max_time, 1, sim.n_people, sim.mob.n_sites, sim.mob.site_loc, sim.mob.home_loc)
+    summary = ParallelSummary(sim.max_time, 1, sim.n_people, sim.mob.num_sites, sim.mob.site_loc, sim.mob.home_loc)
 
     for code in pp_legal_states:
         summary.state[code][0, :] = sim.state[code]
