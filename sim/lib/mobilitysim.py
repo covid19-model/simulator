@@ -85,7 +85,7 @@ def _simulate_individual_synthetic_trace(indiv, num_sites, max_time, home_loc, s
         t += rd.expovariate(tot_mob_rate)
         # Increment id
         id += 1
-    
+
     return data
 
 @numba.njit
@@ -102,18 +102,18 @@ def _simulate_individual_real_trace(indiv, max_time, site_type, mob_rate_per_typ
     # Site proximity to individual's home
     site_dist = site_dist**2
     site_prox = 1/(1+site_dist)
-    
+
     # Choose usual sites: Inversely proportional to squared distance among chosen type
     usual_sites=[]
     for k in range(len(mob_rate_per_type)):
         usual_sites_k=[]
         # All sites of type k
         s_args = np.where(site_type == k)[0]
-        
+
         # Number of discrete sites to choose from type k
         variety_k = variety_per_type[k]
         # Probability of sites of type k
-        site_prob = site_prox[s_args] / site_prox[s_args].sum() 
+        site_prob = site_prox[s_args] / site_prox[s_args].sum()
         done = 0
         while (done < variety_k and len(s_args) > done):
             # s_idx = np.random.choice(site_prob.shape[0], p=site_prob)
@@ -126,9 +126,9 @@ def _simulate_individual_real_trace(indiv, max_time, site_type, mob_rate_per_typ
             if site not in usual_sites_k:
                 usual_sites_k.append(site)
                 done+=1
-        
+
         usual_sites.append(usual_sites_k)
-    
+
     id = 0
     while t < max_time:
         # k = np.random.multinomial(1, pvals=site_type_prob).argmax()
@@ -140,7 +140,7 @@ def _simulate_individual_real_trace(indiv, max_time, site_type, mob_rate_per_typ
 
         # Choose a site among the usuals of type k
         site = np.random.choice(np.array(usual_sites[k]))
-        
+
         # Duration: Exponential
         dur = rd.expovariate(1/dur_mean_per_type[k])
         if t + dur > max_time:
@@ -160,7 +160,7 @@ def _simulate_individual_real_trace(indiv, max_time, site_type, mob_rate_per_typ
         t += rd.expovariate(tot_mob_rate)
         # Increment id
         id += 1
-    
+
     return data
 
 @numba.njit
@@ -170,9 +170,9 @@ def _simulate_synthetic_mobility_traces(*, num_people, num_sites, max_time, home
     rd.seed(seed)
     np.random.seed(seed-1)
     data, visit_counts = list(), list()
-    
+
     for i in range(num_people):
-        
+
         # use mobility rates of specific age group
         mob_rate_per_type = mob_rate_per_age_per_type[people_age[i]]
         data_i = _simulate_individual_synthetic_trace(
@@ -185,10 +185,10 @@ def _simulate_synthetic_mobility_traces(*, num_people, num_sites, max_time, home
             mob_rate_per_type=mob_rate_per_type,
             dur_mean_per_type=dur_mean_per_type,
             delta=delta)
-        
+
         data.extend(data_i)
         visit_counts.append(len(data_i))
-    
+
     return data, visit_counts
 
 @numba.njit
@@ -197,13 +197,13 @@ def _simulate_real_mobility_traces(*, num_people, max_time, site_type, people_ag
     rd.seed(seed)
     np.random.seed(seed-1)
     data, visit_counts = list(), list()
-    
+
     for i in range(num_people):
         # use mobility rates of specific age group
         mob_rate_per_type = mob_rate_per_age_per_type[people_age[i]]
         # use site distances from specific tiles
         site_dist = tile_site_dist[home_tile[i]]
-    
+
         data_i = _simulate_individual_real_trace(
             indiv=i,
             max_time=max_time,
@@ -213,7 +213,7 @@ def _simulate_real_mobility_traces(*, num_people, max_time, site_type, people_ag
             delta=delta,
             variety_per_type=variety_per_type,
             site_dist=site_dist)
-        
+
         data.extend(data_i)
         visit_counts.append(len(data_i))
 
@@ -283,11 +283,11 @@ class MobilitySimulator:
             Type of each site
         mob_rate_per_age_per_type: list of list of float
             Mean number of visits per time unit.
-            Rows correspond to age groups, columns correspond to site types. 
+            Rows correspond to age groups, columns correspond to site types.
         dur_mean_per_type : float
             Mean duration of a visit per site type
         home_tile : list of int
-            Tile indicator for each home 
+            Tile indicator for each home
         tile_site_dist: 2D int array
             Pairwise distances between tile centers and sites.
             Rows correspond to tiles, columns correspond to sites.
@@ -313,19 +313,19 @@ class MobilitySimulator:
         real = (home_loc is not None and people_age is not None and site_loc is not None and site_type is not None and
                 mob_rate_per_age_per_type is not None and dur_mean_per_type is not None and home_tile is not None and
                 tile_site_dist is not None and variety_per_type is not None)
-        
+
         assert (synthetic != real), 'Unable to decide on real or synthetic mobility generation based on given arguments'
 
         if synthetic:
-            
+
             self.mode = 'synthetic'
-            
+
             self.num_people = num_people
             self.num_sites = num_sites
 
             self.num_site_types = len(mob_rate_per_type)
             self.num_age_groups = num_age_groups
-            
+
             # common duration for all types
             self.dur_mean_per_type = np.array(self.num_site_types*[dur_mean])
             # common mobility rate for all age groups
@@ -361,7 +361,7 @@ class MobilitySimulator:
 
         else:
             raise ValueError('Provide more information for the generation of mobility data.')
-                
+
         self.delta = delta
         self.verbose = verbose
 
@@ -488,7 +488,7 @@ class MobilitySimulator:
         seed = seed or rd.randint(0, 2**32 - 1)
         rd.seed(seed)
         np.random.seed(seed-1)
-        
+
         if self.mode == 'synthetic':
             # Random geographical assignment of people's home on 2D grid
             self.home_loc = np.random.uniform(0.0, 1.0, size=(self.num_people, 2))
@@ -514,8 +514,8 @@ class MobilitySimulator:
                 dur_mean_per_type=self.dur_mean_per_type,
                 delta=self.delta,
                 seed=rd.randint(0, 2**32 - 1)
-                ) 
-    
+                )
+
         elif self.mode == 'real':
             all_mob_traces, self.visit_counts = _simulate_real_mobility_traces(
                 num_people=self.num_people,
@@ -552,7 +552,7 @@ class MobilitySimulator:
                 print('Checking site '+str(s+1)+'/'+str(self.num_sites), end='\r')
             if len(mob_traces_at_site[s]) == 0:
                 continue
-            
+
             # Init the interval overlap matcher
             inter = InterLap()
             inter.update(mob_traces_at_site[s])
@@ -631,30 +631,7 @@ class MobilitySimulator:
         # if self.verbose:
         #     print(f'Found {self.contact_count} contacts', flush=True)
 
-    def is_individual_at_site(self, indiv, site, t):
-        """Indicate if individual `indiv` is present at site `site` at time `t`
-            and returns interval if possible
-        Returns:
-            If true: True, Interval
-            If False: False, None
-        """
-        matches = list(self.mob_traces[indiv][site].find((t,t)))
-        if len(matches) == 1:
-            visit = matches[0]
-            # Match on (`t_form`, `t_to_shifted`), need to filter out matches
-            # after time `t_to`
-            # FIXME: This could be made easier by using the non-shifted
-            # intervals in `self.mob_traces`
-            if t < visit.t_to:
-                return True, Interval(matches[0].t_from, matches[0].t_to)
-        elif len(matches) > 1:
-            # An indiv cannot be at the site more than once at the same time
-            raise RuntimeError(("Too many matches found, that's not possible, "
-                                "you probably found a bug..."))
-        # No match
-        return False, None
-
-    def list_intervals_in_window_individual_at_site(self, indiv, site, t0, t1):
+    def list_intervals_in_window_individual_at_site(self, *, indiv, site, t0, t1):
         """Return a generator of Intervals of all visits of `indiv` is at site
            `site` that overlap with [t0, t1]
 
@@ -668,19 +645,19 @@ class MobilitySimulator:
             if visit.t_to > t0:
                 yield Interval(visit.t_from, visit.t_to)
 
-    def is_in_contact(self, indiv_i, indiv_j, site, t):
+    def is_in_contact(self, *, indiv_i, indiv_j, t, site=None):
         """Indicate if individuals `indiv_i` is within `delta` time to
         make contact with `indiv_j` at time `t` in site `site`, and return contact if possible
         """
         try:
             # Find contact matching time and check site
             contact = next(self.contacts[indiv_i][indiv_j].find((t, t)))
-            return contact.site == site, contact
+            return (site is None) or (contact.site == site), contact
 
         except StopIteration:  # No such contact, call to `next` failed
             return False, None
 
-    def will_be_in_contact(self, indiv_i, indiv_j, site, t):
+    def will_be_in_contact(self, *, indiv_i, indiv_j, t, site=None):
         """Indicate if individuals `indiv_i` will ever make contact with
         `indiv_j` in site `site` at a time greater or equal to `t`
         """
@@ -690,20 +667,19 @@ class MobilitySimulator:
             # Check site
             if site is None:
                 return True
-            elif c.site == site:
+            elif (site is None) or (c.site == site):
                 return True
-        
+
         return False
-    
-    def next_contact(self, indiv_i, indiv_j, site=None, t=np.inf):
-        """Returns the next `delta`- contact between 
+
+    def next_contact(self, *, indiv_i, indiv_j, t=np.inf, site=None):
+        """Returns the next `delta`- contact between
             `indiv_i` with `indiv_j` in site `site` at a time greater or equal to `t`
         """
         contacts_ij = self.contacts[indiv_i][indiv_j]
         # Search future contacts
         for c in contacts_ij.find((t, np.inf)):
             # Check site
-            if c.site == site:
+            if (site is None) or (c.site == site):
                 return c
         return None # No contact in the future
-
