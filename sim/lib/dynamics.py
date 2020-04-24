@@ -411,7 +411,7 @@ class DiseaseModel(object):
                 # contact exposure
                 if (infector is not None) and i_susceptible:
 
-                    is_in_contact, contact = self.mob.is_in_contact(i, infector, k, t)
+                    is_in_contact, contact = self.mob.is_in_contact(indiv_i=i, indiv_j=infector, site=k, t=t)
                     assert(is_in_contact and (k is not None))
                     i_visit_id, infector_visit_id = contact.id_tup
 
@@ -444,12 +444,12 @@ class DiseaseModel(object):
                         self.__process_exposure_event(t, i, infector)
 
                     # if any of 2), 3), 4) were true, an infection could happen 
-                    # at a later point at this location, hence sample a new event 
+                    # at a later point, hence sample a new event 
                     if (infector_contained or i_contained or site_avoided_infection):
 
                         mu_infector = self.mu if self.state['iasy'][infector] else 1.0
                         self.__push_contact_exposure_infector_to_j(
-                            t=t, infector=infector, j=i, base_rate=mu_infector, k=k)                    
+                            t=t, infector=infector, j=i, base_rate=mu_infector)                    
 
             elif event == 'ipre':
                 self.__process_presymptomatic_event(t, i)
@@ -666,26 +666,24 @@ class DiseaseModel(object):
         of person `i` (equivalent to `\mu` in model definition)
         """
 
-        def valid_j_k():
-            '''Generates tuples (j, k) for sites `k` where `infector` is present
+        def valid_j():
+            '''Generates indices j where `infector` is present
             at least `self.delta` hours before j '''
             for j in range(self.n_people):
                 if self.state['susc'][j]:
-                    for k in range(self.n_sites):
-                        if self.mob.will_be_in_contact(j, infector, k, t):
-                            yield j, k
+                    if self.mob.will_be_in_contact(indiv_i=j, indiv_j=infector, t=t, site=None):
+                        yield j
 
-        # iterate over all possible locations `k` and generate potential 
-        #  exposure event for `j` from contact with `infector`
-        for j, k in valid_j_k():
-            self.__push_contact_exposure_infector_to_j(t=t, infector=infector, j=j, base_rate=base_rate, k=k)
+        # generate potential exposure event for `j` from contact with `infector`
+        for j in valid_j():
+            self.__push_contact_exposure_infector_to_j(t=t, infector=infector, j=j, base_rate=base_rate)
 
             
 
-    def __push_contact_exposure_infector_to_j(self, t, infector, j, base_rate, k):
+    def __push_contact_exposure_infector_to_j(self, t, infector, j, base_rate):
         """
         Pushes all the next exposure event that person `infector` causes for person `j`
-        at location `k` using `base_rate` as basic infectivity of person `i` 
+        using `base_rate` as basic infectivity of person `i` 
         (equivalent to `\mu` in model definition)
         """
         tau = t
@@ -693,11 +691,11 @@ class DiseaseModel(object):
         Z = self.__kernel_term(- self.delta, 0.0, 0.0)
 
         # sample next arrival from non-homogeneous point process
-        while self.mob.will_be_in_contact(j, infector, k, tau) and not sampled_event:
+        while self.mob.will_be_in_contact(indiv_i=j, indiv_j=infector, t=tau, site=None) and not sampled_event:
             
             # check if j could get infected from infector at current `tau`
-            # i.e. there is `delta`-contact from infector to j (non-zero intensity)
-            has_infectious_contact, contact = self.mob.is_in_contact(indiv_i=j, indiv_j=infector, site=k, t=tau)
+            # i.e. there is `delta`-contact from infector to j (i.e. non-zero intensity)
+            has_infectious_contact, contact = self.mob.is_in_contact(indiv_i=j, indiv_j=infector, t=tau, site=None)
 
             # if yes: do nothing
             if has_infectious_contact:
@@ -705,39 +703,43 @@ class DiseaseModel(object):
 
             # if no:       
             else: 
-                # directly jump to next contact start of a `delta`-contact
-                next_contact = self.mob.next_contact(indiv_i=j, indiv_j=infector, site=k, t=tau)
+                # directly jump to next contact start of a `delta`-contact (memoryless property)
+                next_contact = self.mob.next_contact(indiv_i=j, indiv_j=infector, t=tau, site=None)
 
                 assert(next_contact is not None) # (while loop invariant)
                 tau = next_contact.t_from
 
             # sample event with maximum possible rate (in hours)
-            lambda_max = self.betas[self.site_type[k]] * base_rate * Z
+            lambda_max = max(self.betas) * base_rate * Z
             tau += 24.0 * np.random.exponential(scale=1.0 / lambda_max)
 
-            # thinning step: compute current lambda and do rejection sampling
-            # 1) reject if there is no more infectious contact at the new time
-            if not self.mob.is_in_contact(indiv_i=j, indiv_j=infector, site=k, t=tau)[0]:
-                continue 
+            # thinning step: compute current lambda(tau) and do rejection sampling
+            sampled_at_infectious_contact, sampled_at_contact = self.mob.is_in_contact(indiv_i=j, indiv_j=infector, t=tau, site=None)
+
+            # 1) reject w.p. 1 if there is no more infectious contact at the new time (lambda(tau) = 0)
+            if not sampled_at_infectious_contact:
+                continue
             
-            # 2) compute infectiousness integral
-            # a. query times that infector was in [tau - delta, tau] at k
+            # 2) compute infectiousness integral in lambda(tau)
+            # a. query times that infector was in [tau - delta, tau] at current site `site`
+            site = sampled_at_contact.site
             infector_present = self.mob.list_intervals_in_window_individual_at_site(
-                infector, k, tau - self.delta, tau)
+                indiv=infector, site=site, t0=tau - self.delta, t1=tau)
 
             # b. compute contributions of infector being present in [tau - delta, tau]
             intersections = [(max(tau - self.delta, interv.left), min(tau, interv.right))
                 for interv in infector_present]
-            p = 1.0 / Z * sum([self.__kernel_term(v[0], v[1], tau)
-                                for v in intersections])
+            beta_k = self.betas[self.site_type[site]]
+            p = (beta_k * base_rate * sum([self.__kernel_term(v[0], v[1], tau) for v in intersections])) \
+                / lambda_max
             
             assert(p <= 1 + 1e-8 and p >= 0)
 
-            # accept w.prob. lambda_t / lambda_max
+            # accept w.prob. lambda(t) / lambda_max
             u = np.random.uniform()
             if u <= p:
                 self.queue.push(
-                    (tau, 'expo', j, infector, k), priority=tau)
+                    (tau, 'expo', j, infector, site), priority=tau)
                 sampled_event = True
 
 
@@ -849,14 +851,19 @@ class DiseaseModel(object):
             self.__update_smart_tracing(t, i)
     
     def __update_smart_tracing(self, t, i):
+        '''
+        Updates smart tracing policy for individual `i` at time `t`.
+        Iterates over possible contacts `j`
+
+        '''
         def valid_j():
-            '''Generate j for sites `k` where `i` was present
+            '''Generate individuals j where `i` was present
             up to `self.test_smart_delta` hours before t '''
             for j in range(self.n_people):
                 if not self.state['dead'][j]:
-                    if self.mob.will_be_in_contact(j, i, site=None, t=t-self.test_smart_delta):
-                        yield j
-        
+                    if self.mob.will_be_in_contact(indiv_i=j, indiv_j=i, site=None, t=t-self.test_smart_delta):
+                        yield j   
+                
         contacts = PriorityQueue()
         
         for j in valid_j():               
@@ -867,89 +874,11 @@ class DiseaseModel(object):
             if is_j_not_compliant:
                 continue
 
-            valid_contact = False
-            s = 0
-                
-            for k in range(self.n_sites):
-
-                next_contact_obj = self.mob.next_contact(j, i, k, t=t-self.test_smart_delta)                
-
-                # while there exist more contacts
-                while next_contact_obj is not None:
-
-                    next_contact = next_contact_obj.t_from
-                    end_next_contact = next_contact_obj.t_to
-
-                    # break if next contact is >= t
-                    if next_contact >= t:
-                        break
-
-                    is_in_contact, contact = self.mob.is_in_contact(j, i, k, next_contact)
-                    assert(is_in_contact)
-                    j_visit_id, i_visit_id = contact.id_tup
-                     
-                    # Check SocialDistancing measures
-                    is_j_contained = (
-                        self.measure_list.is_contained(
-                            SocialDistancingForAllMeasure, t=next_contact,
-                            j=j, j_visit_id=j_visit_id) or 
-                        self.measure_list.is_contained(
-                            SocialDistancingForPositiveMeasure, t=next_contact,
-                            j=j, j_visit_id=j_visit_id, state_posi=self.state['posi'], state_resi=self.state['resi'], state_dead=self.state['dead']) or 
-                        self.measure_list.is_contained(
-                            SocialDistancingByAgeMeasure, t=next_contact,
-                            age=self.people_age[j], j_visit_id=j_visit_id) or 
-                        self.measure_list.is_contained(
-                            SocialDistancingForSmartTracing, t=next_contact, 
-                            j=j, j_visit_id=j_visit_id) or 
-                        self.measure_list.is_contained(
-                            SocialDistancingForKGroups, t=next_contact,
-                            j=j)
-                    ) 
-                    
-                    is_i_contained = (
-                        self.measure_list.is_contained(
-                            SocialDistancingForAllMeasure, t=next_contact,
-                            j=i, j_visit_id=i_visit_id) or 
-                        self.measure_list.is_contained(
-                            SocialDistancingByAgeMeasure, t=next_contact,
-                            age=self.people_age[i], j_visit_id=i_visit_id) or
-                        self.measure_list.is_contained(
-                            SocialDistancingForSmartTracing, t=next_contact,
-                            j=i, j_visit_id=i_visit_id) or
-                        self.measure_list.is_contained(
-                            SocialDistancingForKGroups, t=next_contact,
-                            j=i)
-                    )
-                    
-                    # check hospitalization
-                    is_i_contained = is_i_contained or (self.state['hosp'][i] and self.state_started_at['hosp'][i] < next_contact)
-                        
-                    # BetaMultiplier measures
-                    beta_fact = 1.0
-
-                    beta_mult_measure = self.measure_list.find(BetaMultiplierMeasure, t=next_contact)
-                    beta_fact *= beta_mult_measure.beta_factor(k=k, t=next_contact) if beta_mult_measure else 1.0
-                
-                    beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureByType, t=next_contact)
-                    beta_fact *= beta_mult_measure.beta_factor(typ=self.site_type[k], t=next_contact) if beta_mult_measure else 1.0 
-                        
-                    if (not is_j_contained) and (not is_i_contained):
-                        if self.smart_tracing == 'basic':
-                            valid_contact = True
-                            break
-                        elif self.smart_tracing == 'advanced':
-                            s += (min(end_next_contact, t) - next_contact) * self.betas[self.site_type[k]] * beta_fact
-                            valid_contact = True
-                    
-                    # get next contact (if it exists)
-                    next_contact_obj = self.mob.next_contact(j, i, k, t=end_next_contact+self.delta)
-
-                
+            valid_contact, s = self.__compute_empirical_survival_probability(t, i, j)
+            
             if valid_contact:
-                self.empirical_survival_probability[j] = np.exp(-s)
+                self.empirical_survival_probability[j] = s
                 if self.smart_tracing == 'basic':
-
                     contacts.push(j, priority=t)
                 elif self.smart_tracing == 'advanced':
                     contacts.push(j, priority=self.empirical_survival_probability[j])
@@ -964,4 +893,56 @@ class DiseaseModel(object):
                 self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=contact)
             if self.test_smart_action == 'test':
                 self.__apply_for_testing(t, contact)
+    
+    # compute empirical survival probability of individual j due to node i at time t
+    def __compute_empirical_survival_probability(self, t, i, j):
+        s = 0
+        valid_contact = False
+            
+        next_contact_obj = self.mob.next_contact(indiv_i=j, indiv_j=i, t=t - self.test_smart_delta, site=None)      
+        while next_contact_obj is not None:
 
+            start_next_contact = next_contact_obj.t_from
+            end_next_contact = next_contact_obj.t_to
+
+            # break if next contact is >= t
+            if start_next_contact >= t:
+                break
+
+            is_in_contact, contact = self.mob.is_in_contact(indiv_i=j, indiv_j=i, site=None, t=start_next_contact)
+            assert(is_in_contact)
+            j_visit_id, i_visit_id = contact.id_tup
+                    
+            # Check SocialDistancing measures
+            is_j_contained = self.is_person_home_from_visit_due_to_measure(t=start_next_contact, i=j, visit_id=j_visit_id)  
+            is_i_contained = self.is_person_home_from_visit_due_to_measure(t=start_next_contact, i=i, visit_id=i_visit_id)
+                
+            # check hospitalization
+            is_i_contained = is_i_contained or (
+                self.state['hosp'][i] and self.state_started_at['hosp'][i] < start_next_contact)
+                    
+            # BetaMultiplier measures
+            site = contact.site
+            beta_fact = 1.0
+
+            beta_mult_measure = self.measure_list.find(BetaMultiplierMeasure, t=start_next_contact)
+            beta_fact *= beta_mult_measure.beta_factor(k=site, t=start_next_contact) if beta_mult_measure else 1.0
+            
+            beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureByType, t=start_next_contact)
+            beta_fact *= beta_mult_measure.beta_factor(typ=self.site_type[site], t=start_next_contact) if beta_mult_measure else 1.0 
+                
+            # decide if i and j really had overlap
+            if (not is_j_contained) and (not is_i_contained):
+                if self.smart_tracing == 'basic':
+                    valid_contact = True
+                    break
+                elif self.smart_tracing == 'advanced':
+                    s += (min(end_next_contact, t) - start_next_contact) * self.betas[self.site_type[site]] * beta_fact
+                    valid_contact = True
+                
+            # get next contact (if it exists)
+            next_contact_obj = self.mob.next_contact(indiv_i=j, indiv_j=i, t=end_next_contact + self.delta, site=None)
+        
+        s = np.exp(-s)
+        
+        return valid_contact, s
