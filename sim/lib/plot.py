@@ -978,7 +978,7 @@ class Plotter(object):
             plt.close()
         return
 
-    def plot_daily_rts(self, sims, filename, start_date, titles, sigma=None,
+    def plot_daily_rts(self, sims, filename, start_date, titles=None, sigma=None,
                        r_t_range=R_T_RANGE, window=3, figsize=(6, 5),
                        subplot_adjust=None, lockdown_label='Lockdown',
                        lockdown_at=None, lockdown_label_y=None, ymax=None,
@@ -1010,15 +1010,7 @@ class Plotter(object):
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
 
-        # Trick to set the xticks like `compare_total_infections`
-        ts = np.linspace(0.0, sim.max_time, num=500, endpoint=True) / 24.0
-        ts = days_to_datetime(ts)
-        plt.plot(ts, np.zeros(len(ts)), lw=0.0)
-
-        sidx = 0
-
         for i, result in enumerate(results):
-            result = result.iloc[sidx:,:]
             index = result['ML'].index
             values = result['ML'].values
 
