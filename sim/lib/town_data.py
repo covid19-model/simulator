@@ -127,6 +127,8 @@ def generate_population(bbox, population_per_age_group, density_files=None, tile
     # probability of being in each age group
     age_proportions = np.divide(population_per_age_group, sum(population_per_age_group))
 
+    # TODO: Households
+
     # generate lists of individuals' home location and age group
     home_loc=[]
     people_age=[]
@@ -168,7 +170,7 @@ def generate_sites(bbox, query_files, site_based_density_file=None):
     density_site_loc=[]
 
     type_ind=0
-    for qf in query_files:
+    for q_ind, qf in enumerate(query_files):
         with open(qf, 'r') as q:
 
             # site type is extracted by the txt file name
@@ -183,6 +185,11 @@ def generate_sites(bbox, query_files, site_based_density_file=None):
 
             # generate and call overpass queries 
             response = requests.get(overpass_url, params={'data': overpass_query(bbox, contents)})
+            if response.status_code == 200:
+                print('Query ' + str(q_ind+1) + ' OK.')
+            else:
+                print('Query ' + str(q_ind+1) + ' returned http code ' + str(response.status_code) + '. Try again.')
+                return None, None, None, None
             data = response.json()
 
             # read sites latitude and longitude
@@ -217,6 +224,11 @@ def generate_sites(bbox, query_files, site_based_density_file=None):
 
             # generate and call overpass queries 
             response = requests.get(overpass_url, params={'data': overpass_query(bbox, contents)})
+            if response.status_code == 200:
+                print('Query ' + str(len(query_files)+1) + ' OK.')
+            else:
+                print('Query ' + str(len(query_files)+1) + ' returned http code ' + str(response.status_code) + '. Try again.')
+                return None, None, None, None
             data = response.json()
             
             # read sites latitude and longitude
