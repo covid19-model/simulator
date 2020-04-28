@@ -267,7 +267,7 @@ class MobilitySimulator:
 
     def __init__(self, delta, home_loc=None, people_age=None, site_loc=None, site_type=None,
                 mob_rate_per_age_per_type=None, dur_mean_per_type=None, home_tile=None,
-                tile_site_dist=None, people_household=None, variety_per_type=None,
+                tile_site_dist=None, variety_per_type=None,
                 num_people=None, num_sites=None, mob_rate_per_type=None, dur_mean=None,
                 num_age_groups=None, verbose=False):
         """
@@ -277,8 +277,6 @@ class MobilitySimulator:
             Home coordinates of each individual
         people_age : list of int
             Age group of each individual
-        people_household : list of int
-            Household of each individual
         site_loc : list of [float,float]
             Site coordinates
         site_type : list of int
@@ -314,7 +312,7 @@ class MobilitySimulator:
 
         real = (home_loc is not None and people_age is not None and site_loc is not None and site_type is not None and
                 mob_rate_per_age_per_type is not None and dur_mean_per_type is not None and home_tile is not None and
-                tile_site_dist is not None and variety_per_type is not None and people_household is not None)
+                tile_site_dist is not None and variety_per_type is not None)
 
         assert (synthetic != real), 'Unable to decide on real or synthetic mobility generation based on given arguments'
 
@@ -356,7 +354,6 @@ class MobilitySimulator:
             self.num_site_types = self.mob_rate_per_age_per_type.shape[1]
             self.dur_mean_per_type = np.array(dur_mean_per_type)
 
-            self.people_household = people_household
             self.variety_per_type=np.array(variety_per_type)
 
             self.home_tile=np.array(home_tile)
