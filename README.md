@@ -74,6 +74,10 @@ In the following tables, short descriptions of notebooks and main scripts are gi
 | [plot.py](sim/lib/plot.py) | Produces a **Plotter** object for generating plots. |
 | [town_maps.py](sim/lib/plot.py) | Produces a **MapIllustrator** object for generating interactive maps. |
 
+## Call for Contributions
+
+This project is a work in progress. We appreciate any help to fix and/or improve the code base. Feel free to drop us an issue to discuss bugs, enhancements, feature requests, etc. We are happy to accept pull requests.
+
 ## Citation
 
 If you use parts of the code in this repository for your own research purposes, please consider citing:
