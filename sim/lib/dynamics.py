@@ -277,8 +277,6 @@ class DiseaseModel(object):
                 else:
                     raise ValueError('Invalid initial seed state.')
 
-    from lib.timing import timeit
-    @timeit
     def launch_epidemic(self, params, initial_counts, testing_params, measure_list, verbose=True):
         """
         Run the epidemic, starting from initial event list.
