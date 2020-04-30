@@ -580,6 +580,59 @@ class MobilitySimulator:
 
         return contacts
 
+    def find_contacts_of_indiv(self, mob_traces, indiv, tmin):
+        """Find contacts of possible infector 'indiv' after time 'tmin' in a given list `mob_traces` of `Visit`s.
+        Note that this function is called during simulation and requires the non-grouped mob_traces which in case
+        dynamic_tracing=True are stored in mob.all_mob_traces."""
+        # Group mobility traces by site
+        mob_traces_at_site = defaultdict(list)
+        indiv_trace_at_site = defaultdict(list)
+        visited_sites = []
+
+        for v in mob_traces:
+            if v.indiv == indiv:
+                indiv_trace_at_site[v.site].append(v)
+                if v.site not in visited_sites:
+                    visited_sites.append(v.site)
+            mob_traces_at_site[v.site].append(v)
+
+        contacts = InterLap()
+
+        # For each site s
+        for s in visited_sites:
+            if self.verbose:
+                print('Checking site '+str(s+1)+'/'+str(len(visited_sites)), end='\r')
+            if len(indiv_trace_at_site[s]) == 0:
+                continue
+
+            # Init the interval overlap matcher
+            inter = InterLap()
+            inter.update(mob_traces_at_site[s])
+            # Match contacts, as in _find_contacts vo is the possibly infected
+            for vo in indiv_trace_at_site[s]:
+                if vo.t_to_shifted > tmin:
+                    vo_time = (vo.t_from, vo.t_to_shifted)
+                    for v in list(inter.find(other=vo_time)):
+                        # Ignore contacts with same individual
+                        if v.indiv == vo.indiv:
+                            continue
+                        # Compute contact time
+                        c_t_from = max(vo.t_from, v.t_from)
+                        # c_t_to = min(v.t_to, vo.t_to_shifted)
+                        c_t_to = min(vo.t_to_shifted, v.t_to)
+                        if c_t_to > c_t_from and c_t_to > tmin:
+                            # Set contact tuple
+                            c = Contact(t_from=c_t_from,
+                                        t_to=c_t_to,
+                                        indiv_i=v.indiv,
+                                        indiv_j=vo.indiv,
+                                        id_tup=(v.id, vo.id),
+                                        site=s,
+                                        duration=c_t_to - c_t_from)
+                            # Add it to interlap
+                            contacts.update([c])
+        return contacts
+
     def _group_mob_traces(self, mob_traces):
         """Group `mob_traces` by individual and site for faster queries.
         Returns a dict of dict of Interlap of the form:
@@ -591,7 +644,7 @@ class MobilitySimulator:
             mob_traces_dict[v.indiv][v.site].update([v])
         return mob_traces_dict
 
-    def simulate(self, max_time, seed=None):
+    def simulate(self, max_time, seed=None, dynamic_tracing=False):
         """
         Simulate contacts between individuals in time window [0, max_time].
 
@@ -601,6 +654,9 @@ class MobilitySimulator:
             Maximum time to simulate
         seed : int
             Random seed for mobility simulation
+        dynamic_tracing : bool
+            If true contacts are computed on-the-fly during launch_simulation
+            instead of prior to the simulation
 
         Returns
         -------
@@ -621,15 +677,21 @@ class MobilitySimulator:
         if self.verbose:
             print(f'Simulated {len(all_mob_traces)} visits.', flush=True)
 
-        # Find the contacts in all sites in the histories
-        if self.verbose:
-            print(f'Find contacts... ', end='')
-        self.contacts = self._find_contacts(all_mob_traces)
-        # FIXME: contact_count calculation takes too long
-        # self.contact_count = sum(len(self.contacts[i][j]) for i in range(
-        #     self.num_people) for j in range(self.num_people))
-        # if self.verbose:
-        #     print(f'Found {self.contact_count} contacts', flush=True)
+        if not dynamic_tracing:
+            # Find the contacts in all sites in the histories
+            if self.verbose:
+                print(f'Find contacts... ', end='')
+            self.contacts = self._find_contacts(all_mob_traces)
+            # FIXME: contact_count calculation takes too long
+            # self.contact_count = sum(len(self.contacts[i][j]) for i in range(
+            #     self.num_people) for j in range(self.num_people))
+            # if self.verbose:
+            #     print(f'Found {self.contact_count} contacts', flush=True)
+        else:
+            # Store non-grouped mob_traces (required for find_contacts_indiv and initialize empty contact array
+            self.contacts = {i: defaultdict(InterLap) for i in range(self.num_people)}
+            self.all_mob_traces = all_mob_traces
+
 
     def list_intervals_in_window_individual_at_site(self, *, indiv, site, t0, t1):
         """Return a generator of Intervals of all visits of `indiv` is at site

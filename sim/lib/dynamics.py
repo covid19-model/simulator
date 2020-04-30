@@ -24,7 +24,7 @@ class DiseaseModel(object):
     assumed to be in units of days as usual in epidemiology
     """
 
-    def __init__(self, mob, distributions):
+    def __init__(self, mob, distributions, dynamic_tracing=False):
         """
         Init simulation object with parameters
 
@@ -33,11 +33,16 @@ class DiseaseModel(object):
         mob:
             object of class MobilitySimulator providing mobility data
 
+        dynamic_tracing: bool
+            If true contacts are computed on-the-fly during launch_simulation
+            instead of using the previously filled contact array
+
         """
 
         # cache settings
         self.mob = mob
         self.d = distributions
+        self.dynamic_tracing = dynamic_tracing
 
         # parse distributions object
         self.lambda_0 = self.d.lambda_0
@@ -272,7 +277,8 @@ class DiseaseModel(object):
                 else:
                     raise ValueError('Invalid initial seed state.')
 
-            
+    from lib.timing import timeit
+    @timeit
     def launch_epidemic(self, params, initial_counts, testing_params, measure_list, verbose=True):
         """
         Run the epidemic, starting from initial event list.
@@ -666,19 +672,32 @@ class DiseaseModel(object):
         of person `i` (equivalent to `\mu` in model definition)
         """
 
-        def valid_j():
-            '''Generates indices j where `infector` is present
-            at least `self.delta` hours before j '''
-            for j in range(self.n_people):
-                if self.state['susc'][j]:
-                    if self.mob.will_be_in_contact(indiv_i=j, indiv_j=infector, t=t, site=None):
-                        yield j
+        if not self.dynamic_tracing:
+            def valid_j():
+                '''Generates indices j where `infector` is present
+                at least `self.delta` hours before j '''
+                for j in range(self.n_people):
+                    if self.state['susc'][j]:
+                        if self.mob.will_be_in_contact(indiv_i=j, indiv_j=infector, t=t, site=None):
+                            yield j
+
+            valid_contacts = valid_j()
+        else:
+            infectors_contacts = self.mob.find_contacts_of_indiv(self.mob.all_mob_traces, indiv=infector, tmin=t)
+
+            valid_contacts = []
+            for contact in infectors_contacts:
+                if self.state['susc'][contact.indiv_i]:
+                    if contact not in self.mob.contacts[contact.indiv_i][infector]:
+                        self.mob.contacts[contact.indiv_i][infector].update([contact])
+                    if contact.indiv_i not in valid_contacts:
+                        valid_contacts.append(contact.indiv_i)
 
         # generate potential exposure event for `j` from contact with `infector`
-        for j in valid_j():
+        for j in valid_contacts:
             self.__push_contact_exposure_infector_to_j(t=t, infector=infector, j=j, base_rate=base_rate)
 
-            
+
 
     def __push_contact_exposure_infector_to_j(self, t, infector, j, base_rate):
         """
@@ -856,17 +875,31 @@ class DiseaseModel(object):
         Iterates over possible contacts `j`
 
         '''
-        def valid_j():
-            '''Generate individuals j where `i` was present
-            up to `self.test_smart_delta` hours before t '''
-            for j in range(self.n_people):
-                if not self.state['dead'][j]:
-                    if self.mob.will_be_in_contact(indiv_i=j, indiv_j=i, site=None, t=t-self.test_smart_delta):
-                        yield j   
-                
+        if not self.dynamic_tracing:
+            def valid_j():
+                '''Generate individuals j where `i` was present
+                up to `self.test_smart_delta` hours before t '''
+                for j in range(self.n_people):
+                    if not self.state['dead'][j]:
+                        if self.mob.will_be_in_contact(indiv_i=j, indiv_j=i, site=None, t=t-self.test_smart_delta):
+                            yield j
+
+            valid_contacts = valid_j()
+        else:
+            infectors_contacts = self.mob.find_contacts_of_indiv(self.mob.all_mob_traces, indiv=i,
+                                                                 tmin=t - self.test_smart_delta)
+            valid_contacts = []
+
+            for contact in infectors_contacts:
+                if not self.state['dead'][contact.indiv_i]:
+                    if contact not in self.mob.contacts[contact.indiv_i][i]:
+                        self.mob.contacts[contact.indiv_i][i].update([contact])
+                    if contact.indiv_i not in valid_contacts:
+                        valid_contacts.append(contact.indiv_i)
+
         contacts = PriorityQueue()
         
-        for j in valid_j():               
+        for j in valid_contacts:
             # if j is not compliant, skip
             is_j_not_compliant = self.measure_list.is_contained(
                 ComplianceForAllMeasure, t=t-self.test_smart_delta, j=j)
