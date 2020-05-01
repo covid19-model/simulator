@@ -536,6 +536,11 @@ class MobilitySimulator:
         return all_mob_traces
 
     def _find_contacts(self):
+        """
+        Finds contacts in a given list `mob_traces` of `Visit`s
+        and stores them in a dictionary of dictionaries of InterLap objects,
+        """
+        # Group mobility traces by site
         mob_traces_at_site = defaultdict(list)
         for v in self.all_mob_traces:
             mob_traces_at_site[v.site].append(v)
