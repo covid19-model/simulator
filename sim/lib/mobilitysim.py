@@ -267,9 +267,9 @@ class MobilitySimulator:
 
     def __init__(self, delta, home_loc=None, people_age=None, site_loc=None, site_type=None,
                 mob_rate_per_age_per_type=None, dur_mean_per_type=None, home_tile=None,
-                tile_site_dist=None, variety_per_type=None,
+                tile_site_dist=None, variety_per_type=None, people_household=None,
                 num_people=None, num_sites=None, mob_rate_per_type=None, dur_mean=None,
-                num_age_groups=None, seed=None, verbose=False):
+                num_age_groups=None, verbose=False):
         """
         delta : float
             Time delta to extend contacts
@@ -307,17 +307,10 @@ class MobilitySimulator:
             Mean duration of a visit
         num_age_groups : int
             Number of age groups
-        seed : int
-            Random seed for reproducibility
         verbose : bool (optional, default: False)
             Verbosity level
         """
 
-        # Set random seed for reproducibility
-        seed = seed or rd.randint(0, 2**32 - 1)
-        rd.seed(seed)
-        np.random.seed(seed-1)
-        
         synthetic = (num_people is not None and num_sites is not None and mob_rate_per_type is not None and
                     dur_mean is not None and num_age_groups is not None)
 
@@ -370,25 +363,30 @@ class MobilitySimulator:
             self.home_loc = np.array(home_loc)
 
             self.people_age = np.array(people_age)
-            self.people_household = np.array(people_household)
             
-            # create dict of households, to retreive household members in O(1) during household infections
-            self.households = {}
-            for i in range(self.num_people):
-                if self.people_household[i] in self.households:
-                    self.households[people_household[i]].append(i)
-                else:
-                    self.households[people_household[i]] = [i]
+            if people_household is not None:
+                self.people_household = np.array(people_household)
+            
+                # create dict of households, to retreive household members in O(1) during household infections
+                self.households = {}
+                for i in range(self.num_people):
+                    if self.people_household[i] in self.households:
+                        self.households[people_household[i]].append(i)
+                    else:
+                        self.households[people_household[i]] = [i]
+            else:
+                self.people_household = None
+                self.households = {}
 
             self.num_sites = len(site_loc)
             self.site_loc = np.array(site_loc)
+
+            self.site_type = np.array(site_type)
 
             self.mob_rate_per_age_per_type = np.array(mob_rate_per_age_per_type)
             self.num_age_groups = self.mob_rate_per_age_per_type.shape[0]
             self.num_site_types = self.mob_rate_per_age_per_type.shape[1]
             self.dur_mean_per_type = np.array(dur_mean_per_type)
-            
-            self.site_type = np.array(site_type)
 
             self.variety_per_type=np.array(variety_per_type)
 
