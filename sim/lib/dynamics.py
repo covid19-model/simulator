@@ -886,14 +886,13 @@ class DiseaseModel(object):
             valid_contacts = valid_j()
         else:
             infectors_contacts = self.mob.find_contacts_of_indiv(indiv=i, tmin=t - self.test_smart_delta)
-            valid_contacts = []
+            valid_contacts = set()
 
             for contact in infectors_contacts:
                 if not self.state['dead'][contact.indiv_i]:
                     if contact not in self.mob.contacts[contact.indiv_i][i]:
                         self.mob.contacts[contact.indiv_i][i].update([contact])
-                    if contact.indiv_i not in valid_contacts:
-                        valid_contacts.append(contact.indiv_i)
+                    valid_contacts.add(contact.indiv_i)
 
         contacts = PriorityQueue()
         
