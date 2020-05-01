@@ -366,74 +366,6 @@ class MobilitySimulator:
         self.verbose = verbose
 
     @staticmethod
-    def from_json(fp, compute_contacts=True):
-        """
-        Reach the from `fp` (.read()-supporting file-like object) that is
-        expected to be JSON-formated from the `to_json` file.
-
-        Parameters
-        ----------
-        fp : object
-            The input .read()-supporting file-like object
-        compute_contacts : bool (optional, default: True)
-            Indicate if contacts should be computed from the mobility traces.
-            If True, then any `contact` key in `fp` will be ignored.
-            If False, `fp` must have a contact` key.
-
-        Return
-        ------
-        sim : MobilitySimulator
-            The loaded object
-        """
-        # Read file into json dict
-        data = json.loads(fp.read())
-
-        # Init object
-        init_attrs = ['num_people', 'num_sites', 'delta',
-                      'mob_mean', 'dur_mean', 'verbose']
-        obj = MobilitySimulator(**{attr: data[attr] for attr in init_attrs})
-
-        # Set np.ndarray attributes
-        for attr in ['home_loc', 'site_loc']:
-            setattr(obj, attr, np.array(data[attr]))
-
-        # Set list attributes
-        for attr in ['visit_counts']:
-            setattr(obj, attr, list(data[attr]))
-
-        # Set `mob_traces` attribute into dict:defaultdict:InterLap
-        setattr(obj, 'mob_traces', {i: defaultdict(InterLap) for i in range(obj.num_people)})
-        for indiv, traces_i in data['mob_traces'].items():
-            indiv = int(indiv)  # JSON does not support int keys
-            for site, visit_list in traces_i.items():
-                site = int(site)  # JSON does not support int keys
-                if len(visit_list) > 0:
-                    inter = InterLap()
-                    inter.update(list(map(lambda t: Visit(*t), visit_list)))
-                    obj.mob_traces[indiv][site] = inter
-
-        # Set `contacts` attribute into dict:defaultdict:InterLap
-        if compute_contacts:  # Compute from `mob_traces`
-            all_mob_traces = []
-            for i, traces_i in obj.mob_traces.items():
-                for j, inter in traces_i.items():
-                    all_mob_traces.extend(inter._iset)
-            # Compute contacts from mobility traces
-            obj.contacts = obj._find_contacts(all_mob_traces)
-        else:  # Load from file
-            setattr(obj, 'contacts', {i: defaultdict(InterLap) for i in range(obj.num_people)})
-            for indiv_i, contacts_i in data['contacts'].items():
-                indiv_i = int(indiv_i)  # JSON does not support int keys
-                for indiv_j, contact_list in contacts_i.items():
-                    indiv_j = int(indiv_j)  # JSON does not support int keys
-                    if len(contact_list) > 0:
-                        inter = InterLap()
-                        inter.update(list(map(lambda t: Contact(*t), contact_list)))
-                        obj.contacts[indiv_i][indiv_j] = inter
-
-        return obj
-
-    @staticmethod
     def from_pickle(path):
         """
         Load object from pickle file located at `path`
@@ -549,13 +481,14 @@ class MobilitySimulator:
                                                  mob_traces_at_site=mob_traces_at_site,
                                                  infector_mob_traces_at_site=mob_traces_at_site,
                                                  tmin=0.0,
-                                                 contact_dict=True)
+                                                 for_all_individuals=True)
         return contacts
 
     def find_contacts_of_indiv(self, indiv, tmin):
         """
-        Finds all delta-contacts of person 'indiv' after time 'tmin'
+        Finds all delta-contacts of person 'indiv' with any other individual after time 'tmin'
         and returns them as InterLap object.
+        In the simulator, this function is called for `indiv` as infector.
         """
         mob_traces_at_site = defaultdict(list)
         infector_mob_traces_at_site = defaultdict(list)
@@ -572,40 +505,60 @@ class MobilitySimulator:
                                                  mob_traces_at_site=mob_traces_at_site,
                                                  infector_mob_traces_at_site=infector_mob_traces_at_site,
                                                  tmin=tmin,
-                                                 contact_dict=False)
+                                                 for_all_individuals=False)
         return contacts
 
-    def _find_mob_trace_overlaps(self, sites, mob_traces_at_site, infector_mob_traces_at_site, tmin, contact_dict):
-        if contact_dict:
+    def _find_mob_trace_overlaps(self, sites, mob_traces_at_site, infector_mob_traces_at_site, tmin, for_all_individuals):
+
+        # decide way of storing depending on way the function is used (all or individual)
+        # FIXME: this could be done in a cleaner way by calling this function several times in `_find_contacts` 
+        if for_all_individuals:
             # dict of dict of list of contacts:
             # i.e. contacts[i][j][k] = "k-th contact from i to j"
             contacts = {i: defaultdict(InterLap) for i in range(self.num_people)}
         else:
             contacts = InterLap()
 
+        if self.verbose and for_all_individuals:
+            print() # otherwise jupyter notebook looks ugly
+
         for s in sites:
-            if self.verbose:
-                print('Checking site ' + str(s + 1) + '/' + str(sites), end='\r')
+            if self.verbose and for_all_individuals:
+                print('Checking site ' + str(s + 1) + '/' + str(len(sites)), end='\r')
             if len(mob_traces_at_site[s]) == 0:
                 continue
 
             # Init the interval overlap matcher
             inter = InterLap()
             inter.update(mob_traces_at_site[s])
-            # Match contacts
 
+            # Match contacts
+            # Iterate over each visit of the infector at site s
             for v_inf in infector_mob_traces_at_site[s]:
+
+                # Skip if delta-contact ends before `tmin` 
                 if v_inf.t_to_shifted > tmin:
+                    
                     v_time = (v_inf.t_from, v_inf.t_to_shifted)
+
+                    # Find any othe person that had overlap with this visit 
                     for v in list(inter.find(other=v_time)):
+
                         # Ignore contacts with same individual
                         if v.indiv == v_inf.indiv:
                             continue
+
                         # Compute contact time
-                        c_t_from = max(v_inf.t_from, v.t_from)
+                        c_t_from = max(v.t_from, v_inf.t_from)
                         c_t_to = min(v.t_to, v_inf.t_to_shifted)
                         if c_t_to > c_t_from and c_t_to > tmin:
-                            # Set contact tuple
+
+                            # Init contact tuple
+                            # Note 1: Contact always considers delta overlap for `indiv_j` 
+                            # (i.e. for `indiv_j` being the infector)
+                            # Note 2: Contact contains the delta-extended visit of `indiv_j`
+                            # (i.e. there is a `Contact` even when `indiv_j` never overlapped physically with `indiv_i`)
+                            # (i.e. need to adjust for that in dY_i integral)
                             c = Contact(t_from=c_t_from,
                                         t_to=c_t_to,
                                         indiv_i=v.indiv,
@@ -613,8 +566,9 @@ class MobilitySimulator:
                                         id_tup=(v.id, v_inf.id),
                                         site=s,
                                         duration=c_t_to - c_t_from)
+
                             # Add it to interlap
-                            if contact_dict:
+                            if for_all_individuals:
                                 # Dictionary of all contacts
                                 contacts[v.indiv][v_inf.indiv].update([c])
                             else:
@@ -673,11 +627,7 @@ class MobilitySimulator:
             if self.verbose:
                 print(f'Find contacts... ', end='')
             self.contacts = self._find_contacts()
-            # FIXME: contact_count calculation takes too long
-            # self.contact_count = sum(len(self.contacts[i][j]) for i in range(
-            #     self.num_people) for j in range(self.num_people))
-            # if self.verbose:
-            #     print(f'Found {self.contact_count} contacts', flush=True)
+
         else:
             # Initialize empty contact array
             self.contacts = {i: defaultdict(InterLap) for i in range(self.num_people)}
@@ -690,10 +640,11 @@ class MobilitySimulator:
             FIXME: Make sure that this query is correct
         """
         for visit in self.mob_traces[indiv][site].find((t0, t1)):
-            # Match on (`t_form`, `t_to_shifted`), need to filter out visits
-            # that ended before `t0`, i.e. visits such that `t_to` <= `t0`
-            # FIXME: This could be made easier by using the non-shifted
-            # intervals in `self.mob_traces`
+            # the above call matches on (`t_from`, `t_to_shifted`)
+            # thus need to filter out visits that ended before `t0`, 
+            # i.e. visits such that `t_to` <= `t0`, i.e. when `indiv`
+            # was not physically present at `site`
+
             if visit.t_to > t0:
                 yield Interval(visit.t_from, visit.t_to)
 

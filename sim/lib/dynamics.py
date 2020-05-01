@@ -681,15 +681,16 @@ class DiseaseModel(object):
 
             valid_contacts = valid_j()
         else:
+            # compute all delta-contacts of `infector` with any other individual
             infectors_contacts = self.mob.find_contacts_of_indiv(indiv=infector, tmin=t)
 
-            valid_contacts = []
+            # iterate over contacts and store contact of with each individual `indiv_i` that is still susceptible 
+            valid_contacts = set()
             for contact in infectors_contacts:
                 if self.state['susc'][contact.indiv_i]:
                     if contact not in self.mob.contacts[contact.indiv_i][infector]:
                         self.mob.contacts[contact.indiv_i][infector].update([contact])
-                    if contact.indiv_i not in valid_contacts:
-                        valid_contacts.append(contact.indiv_i)
+                    valid_contacts.add(contact.indiv_i)
 
         # generate potential exposure event for `j` from contact with `infector`
         for j in valid_contacts:
