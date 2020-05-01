@@ -223,7 +223,7 @@ class Plotter(object):
                                  figsize=(6, 5), errorevery=20, acc=1000, ymax=None,
                                  lockdown_label='Lockdown', lockdown_at=None,
                                  lockdown_label_y=None, show_target=None,
-                                 test_lag=2, start_date='1970-01-01',
+                                 start_date='1970-01-01',
                                  subplot_adjust=None, legend_loc='upper right'):
         ''''
         Plots daily infected split by group
@@ -312,7 +312,7 @@ class Plotter(object):
                             lockdown_label='Lockdown', lockdown_at=None,
                             lockdown_label_y=None, show_target=None,
                             lockdown_end=None,
-                            test_lag=2, start_date='1970-01-01',
+                            start_date='1970-01-01',
                             subplot_adjust=None, legend_loc='upper right'):
         ''''
         Plots daily infected split by group
@@ -416,7 +416,7 @@ class Plotter(object):
 
         if acc > sim.max_time:
             acc = int(sim.max_time)
-
+        
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
 
@@ -432,24 +432,25 @@ class Plotter(object):
 
         # shift by `test_lag` to count the cases on the real dates, as the real data does
         T = posi_mu.shape[0]
-        corr_posi, corr_sig_posi = np.zeros(T - test_lag), np.zeros(T - test_lag)
-        corr_nega, corr_sig_nega = np.zeros(T - test_lag), np.zeros(T - test_lag)
+        test_lag_offset = int((test_lag * 24.0 / sim.max_time) * acc)
+        corr_posi, corr_sig_posi = np.zeros(T - test_lag_offset), np.zeros(T - test_lag_offset)
+        corr_nega, corr_sig_nega = np.zeros(T - test_lag_offset), np.zeros(T - test_lag_offset)
 
-        corr_posi[0 : T - test_lag] = posi_mu[test_lag : T]
-        corr_sig_posi[0: T - test_lag] = posi_sig[test_lag: T]
-        corr_nega[0 : T - test_lag] = nega_mu[test_lag : T]
-        corr_sig_nega[0: T - test_lag] = nega_sig[test_lag: T]
+        corr_posi[0 : T - test_lag_offset] = posi_mu[test_lag_offset : T]
+        corr_sig_posi[0: T - test_lag_offset] = posi_sig[test_lag_offset: T]
+        corr_nega[0 : T - test_lag_offset] = nega_mu[test_lag_offset : T]
+        corr_sig_nega[0: T - test_lag_offset] = nega_sig[test_lag_offset: T]
 
         # lines
-        ax.errorbar(ts[0 : T - test_lag], corr_posi, yerr=corr_sig_posi, elinewidth=0.8, errorevery=errorevery,
+        ax.errorbar(ts[0 : T - test_lag_offset], corr_posi, yerr=corr_sig_posi, elinewidth=0.8, errorevery=errorevery,
                 c='black', linestyle='-')
-        ax.errorbar(ts[0: T - test_lag], corr_nega, yerr=corr_sig_nega, elinewidth=0.8, errorevery=errorevery,
+        ax.errorbar(ts[0: T - test_lag_offset], corr_nega, yerr=corr_sig_nega, elinewidth=0.8, errorevery=errorevery,
                 c='black', linestyle='-')
 
         # filling
-        ax.fill_between(ts[0: T - test_lag], line_xaxis[0: T - test_lag], corr_posi, alpha=self.filling_alpha, label=r'Positive tests',
+        ax.fill_between(ts[0: T - test_lag_offset], line_xaxis[0: T - test_lag_offset], corr_posi, alpha=self.filling_alpha, label=r'Positive tests',
                         edgecolor=self.color_posi, facecolor=self.color_posi, linewidth=0, zorder=0)
-        ax.fill_between(ts[0: T - test_lag], corr_posi, corr_nega, alpha=self.filling_alpha, label=r'Negative tests',
+        ax.fill_between(ts[0: T - test_lag_offset], corr_posi, corr_nega, alpha=self.filling_alpha, label=r'Negative tests',
                         edgecolor=self.color_nega, facecolor=self.color_nega, linewidth=0, zorder=0)
         # axis
         ax.set_xlim((0, np.max(ts)))
@@ -606,10 +607,11 @@ class Plotter(object):
 
                 # shift by `test_lag` to count the cases on the real dates, as the real data does
                 T = posi_mu.shape[0]
-                corr_posi, corr_sig = np.zeros(T - test_lag), np.zeros(T - test_lag)
-                corr_posi[0 : T - test_lag] = posi_mu[test_lag : T]
-                corr_sig[0: T - test_lag] = posi_sig[test_lag: T]
-                ax.errorbar(ts[:T - test_lag], corr_posi, yerr=corr_sig, label='[Tested positive]', errorevery=errorevery,
+                test_lag_offset = int((test_lag * 24.0 / sim.max_time) * acc)
+                corr_posi, corr_sig = np.zeros(T - test_lag_offset), np.zeros(T - test_lag_offset)
+                corr_posi[0 : T - test_lag_offset] = posi_mu[test_lag_offset : T]
+                corr_sig[0: T - test_lag_offset] = posi_sig[test_lag_offset: T]
+                ax.errorbar(ts[:T - test_lag_offset], corr_posi, yerr=corr_sig, label='[Tested positive]', errorevery=errorevery,
                             c=self.color_different_scenarios[i], linestyle='--', elinewidth=0.8)
             else:
 
@@ -917,12 +919,13 @@ class Plotter(object):
         ts, posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
         # shift by `test_lag` to count the cases on the real dates, as the real data does
         T = posi_mu.shape[0]
-        corr_posi, corr_sig = np.zeros(T - test_lag), np.zeros(T - test_lag)
-        corr_posi[0 : T - test_lag] = posi_mu[test_lag : T]
-        corr_sig[0: T - test_lag] = posi_sig[test_lag: T]
+        test_lag_offset = int((test_lag * 24.0 / sim.max_time) * acc)
+        corr_posi, corr_sig = np.zeros(T - test_lag_offset), np.zeros(T - test_lag_offset)
+        corr_posi[0 : T - test_lag_offset] = posi_mu[test_lag_offset : T]
+        corr_sig[0: T - test_lag_offset] = posi_sig[test_lag_offset: T]
 
         # Convert x-axis into posix timestamps and use pandas to plot as dates
-        xx = days_to_datetime(ts[:T - test_lag], start_date=start_date)
+        xx = days_to_datetime(ts[:T - test_lag_offset], start_date=start_date)
         ax.plot(xx, corr_posi, c='k', linestyle='-',
                 label='COVID-19 simulated case data')
         ax.fill_between(xx, corr_posi-corr_sig, corr_posi+corr_sig,
