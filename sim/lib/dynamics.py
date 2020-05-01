@@ -61,8 +61,6 @@ class DiseaseModel(object):
         self.num_age_groups = mob.num_age_groups
         self.site_type = mob.site_type
         self.num_site_types = mob.num_site_types
-        self.people_household = mob.people_household
-        self.households = mob.households
         
         assert(self.num_age_groups == self.fatality_rates_by_age.shape[0])
         assert(self.num_age_groups == self.p_hospital_by_age.shape[0])
@@ -293,12 +291,6 @@ class DiseaseModel(object):
         self.betas = params['betas']
         self.alpha = params['alpha']
         self.mu = params['mu']
-        
-        # household param
-        if 'beta_household' in params:
-            self.beta_household = params['beta_household']
-        else:
-            self.beta_household = 0.0
 
         # testing settings
         self.testing_frequency  = testing_params['testing_frequency']
@@ -420,45 +412,9 @@ class DiseaseModel(object):
                 if (infector is None) and i_susceptible:
                     self.__process_exposure_event(t, i, None)
 
-                # household exposure
-                if (infector is not None) and i_susceptible and k == -1:
-                    # 1) check whether infector recovered or dead
-                    infector_recovered = \
-                        (self.state['resi'][infector] or 
-                            self.state['dead'][infector])
-                    
-                    # 2) check whether infector got hospitalized
-                    infector_hospitalized = self.state['hosp'][infector]
-                    
-                    # 3) check whether infector or i are not at home
-                    infector_away_from_home = False
-                    i_away_from_home = False
-                    for site in range(self.n_sites):
-                        for interv in self.mob.mob_traces[infector][site].find((t, t)):
-                            infector_away_from_home = (not self.is_person_home_from_visit_due_to_measure(t=t, i=infector, visit_id=interv.id))    
-                        for interv in self.mob.mob_traces[i][site].find((t, t)):
-                            i_away_from_home = (not self.is_person_home_from_visit_due_to_measure(t=t, i=i, visit_id=interv.id)) 
-                        if (infector_away_from_home and i_away_from_home):
-                            break
-                                                   
-                    away_from_home = (infector_away_from_home or i_away_from_home)
-                    
-                    # if none of 1), 2), 3) are true, the event is valid
-                    if  (not infector_recovered) and \
-                        (not infector_hospitalized) and \
-                        (not away_from_home):
-                            
-                        self.__process_exposure_event(t, i, infector)
-                    
-                    # if 2) or 3) were true, a household infection could happen at a later point, hence sample a new event
-                    if (infector_hospitalized or away_from_home):
-
-                        mu_infector = self.mu if self.state['iasy'][infector] else 1.0
-                        self.__push_household_exposure_infector_to_j(
-                            t=t, infector=infector, j=i, base_rate=mu_infector) 
-                        
                 # contact exposure
-                if (infector is not None) and i_susceptible and k >= 0:
+                if (infector is not None) and i_susceptible:
+
                     is_in_contact, contact = self.mob.is_in_contact(indiv_i=i, indiv_j=infector, site=k, t=t)
                     assert(is_in_contact and (k is not None))
                     i_visit_id, infector_visit_id = contact.id_tup
@@ -589,10 +545,6 @@ class DiseaseModel(object):
 
         # contact exposure of others
         self.__push_contact_exposure_events(t, i, 1.0)
-        
-        # household exposures
-        if self.households is not None and self.beta_household > 0:
-            self.__push_household_exposure_events(t, i, 1.0)
 
     def __process_symptomatic_event(self, t, i):
         """
@@ -647,10 +599,6 @@ class DiseaseModel(object):
 
         # contact exposure of others
         self.__push_contact_exposure_events(t, i, self.mu)
-        
-        # household exposures
-        if self.households is not None and self.beta_household > 0:
-            self.__push_household_exposure_events(t, i, self.mu)
 
     def __process_resistant_event(self, t, i):
         """
@@ -748,9 +696,11 @@ class DiseaseModel(object):
         for j in valid_contacts:
             self.__push_contact_exposure_infector_to_j(t=t, infector=infector, j=j, base_rate=base_rate)
 
+
+
     def __push_contact_exposure_infector_to_j(self, t, infector, j, base_rate):
         """
-        Pushes the next exposure event that person `infector` causes for person `j`
+        Pushes all the next exposure event that person `infector` causes for person `j`
         using `base_rate` as basic infectivity of person `i` 
         (equivalent to `\mu` in model definition)
         """
@@ -810,49 +760,7 @@ class DiseaseModel(object):
                     (tau, 'expo', j, infector, site), priority=tau)
                 sampled_event = True
 
-    def __push_household_exposure_events(self, t, infector, base_rate):
-        """
-        Pushes all exposure events that person `i` causes
-        in the household, using `base_rate` as basic infectivity
-        of person `i` (equivalent to `\mu` in model definition)
-        """
 
-        def valid_j():
-            '''Generates indices j where `infector` is present
-            at least `self.delta` hours before j '''
-            for j in self.households[self.people_household[infector]]:
-                if self.state['susc'][j]:
-                    yield j
-
-        # generate potential exposure event for `j` from contact with `infector`
-        for j in valid_j():
-            self.__push_household_exposure_infector_to_j(t=t, infector=infector, j=j, base_rate=base_rate)
-
-    def __push_household_exposure_infector_to_j(self, t, infector, j, base_rate):
-        """
-        Pushes the next exposure event that person `infector` causes for person `j`,
-        who lives in the same household, using `base_rate` as basic infectivity of 
-        person `i` (equivalent to `\mu` in model definition)
-        """
-        tau = t
-        sampled_event = False
-        
-        # FIXME: we ignore the kernel for households infections since households members
-        # will overlap for long period of times at home
-        # Z = self.__kernel_term(- self.delta, 0.0, 0.0)
-
-        lambda_household = self.beta_household * base_rate
-
-        while tau < self.max_time and not sampled_event:
-            tau += 24.0 * np.random.exponential(scale=1.0 / lambda_household)
-                
-            # site = -1 means it is a household infection
-            # at the expo time, it will be thinned if needed
-            self.queue.push(
-                (tau, 'expo', j, infector, -1), priority=tau)
-            
-            sampled_event = True
-                
     def reject_exposure_due_to_measure(self, t, k):
         '''
         Returns rejection probability of exposure event not occuring
