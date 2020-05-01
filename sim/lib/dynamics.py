@@ -34,7 +34,7 @@ class DiseaseModel(object):
             object of class MobilitySimulator providing mobility data
 
         dynamic_tracing: bool
-            If true contacts are computed on-the-fly during launch_simulation
+            If true contacts are computed on-the-fly during launch_epidemic
             instead of using the previously filled contact array
 
         """
@@ -681,7 +681,7 @@ class DiseaseModel(object):
 
             valid_contacts = valid_j()
         else:
-            infectors_contacts = self.mob.find_contacts_of_indiv(self.mob.all_mob_traces, indiv=infector, tmin=t)
+            infectors_contacts = self.mob.find_contacts_of_indiv(indiv=infector, tmin=t)
 
             valid_contacts = []
             for contact in infectors_contacts:
@@ -884,8 +884,7 @@ class DiseaseModel(object):
 
             valid_contacts = valid_j()
         else:
-            infectors_contacts = self.mob.find_contacts_of_indiv(self.mob.all_mob_traces, indiv=i,
-                                                                 tmin=t - self.test_smart_delta)
+            infectors_contacts = self.mob.find_contacts_of_indiv(indiv=i, tmin=t - self.test_smart_delta)
             valid_contacts = []
 
             for contact in infectors_contacts:
