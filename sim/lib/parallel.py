@@ -34,7 +34,7 @@ class ParallelSummary(object):
     Summary class of several restarts
     """
 
-    def __init__(self, max_time, repeats, n_people, n_sites, site_loc, home_loc):
+    def __init__(self, max_time, repeats, n_people, n_sites, site_loc, home_loc, dynamic_tracing):
 
         self.max_time = max_time
         self.random_repeats = repeats
@@ -42,6 +42,7 @@ class ParallelSummary(object):
         self.n_sites = n_sites
         self.site_loc = site_loc
         self.home_loc = home_loc
+        self.dynamic_tracing = dynamic_tracing
        
         self.state = {
             'susc': np.ones((repeats, n_people), dtype='bool'),
@@ -93,7 +94,8 @@ class ParallelSummary(object):
 
 def create_ParallelSummary_from_DiseaseModel(sim):
 
-    summary = ParallelSummary(sim.max_time, 1, sim.n_people, sim.mob.num_sites, sim.mob.site_loc, sim.mob.home_loc)
+    summary = ParallelSummary(sim.max_time, 1, sim.n_people, sim.mob.num_sites, sim.mob.site_loc, sim.mob.home_loc,
+                              sim.dynamic_tracing)
 
     for code in pp_legal_states:
         summary.state[code][0, :] = sim.state[code]
@@ -112,12 +114,12 @@ def create_ParallelSummary_from_DiseaseModel(sim):
     return summary
 
 
-def pp_launch(r, kwargs, distributions, params, initial_counts, testing_params, measure_list, max_time):
+def pp_launch(r, kwargs, distributions, params, initial_counts, testing_params, measure_list, max_time, dynamic_tracing):
 
     mob = MobilitySimulator(**kwargs)
-    mob.simulate(max_time=max_time)
+    mob.simulate(max_time=max_time, dynamic_tracing=dynamic_tracing)
 
-    sim = DiseaseModel(mob, distributions)
+    sim = DiseaseModel(mob, distributions, dynamic_tracing=dynamic_tracing)
 
     sim.launch_epidemic(
         params=params,
@@ -143,8 +145,8 @@ def pp_launch(r, kwargs, distributions, params, initial_counts, testing_params, 
 
 
 def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu_count, params, 
-    initial_seeds, testing_params, measure_list, max_time, num_people, num_sites, site_loc, home_loc, 
-    verbose=True, synthetic=False):
+    initial_seeds, testing_params, measure_list, max_time, num_people, num_sites, site_loc, home_loc,
+                                dynamic_tracing=False, verbose=True, synthetic=False):
     
 
     with open(mob_settings, 'rb') as fp:
@@ -157,6 +159,7 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
     initial_seeds_list = [copy.deepcopy(initial_seeds) for _ in range(random_repeats)]
     testing_params_list = [copy.deepcopy(testing_params) for _ in range(random_repeats)]
     max_time_list = [copy.deepcopy(max_time) for _ in range(random_repeats)]
+    dynamic_tracing = [copy.deepcopy(dynamic_tracing) for _ in range(random_repeats)]
     repeat_ids = list(range(random_repeats))
 
     if verbose:
@@ -164,10 +167,10 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
 
     with ProcessPoolExecutor(cpu_count) as ex:
         res = ex.map(pp_launch, repeat_ids, mob_setting_list, distributions_list, params_list,
-                     initial_seeds_list, testing_params_list, measure_list_list, max_time_list)
+                     initial_seeds_list, testing_params_list, measure_list_list, max_time_list, dynamic_tracing)
     
     # collect all result (the fact that mob is still available here is due to the for loop)
-    summary = ParallelSummary(max_time, random_repeats, num_people, num_sites, site_loc, home_loc)
+    summary = ParallelSummary(max_time, random_repeats, num_people, num_sites, site_loc, home_loc, dynamic_tracing)
     
     for r, result in enumerate(res):
 
