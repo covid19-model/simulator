@@ -32,7 +32,8 @@ tile_level_dict = {
     20: 0.00025
 }
 
-def generate_population(bbox, population_per_age_group, density_files=None, tile_level=16, seed=None, density_site_loc=None):
+def generate_population(bbox, population_per_age_group, density_files=None, tile_level=16, seed=None,
+                        density_site_loc=None, household_info=None):
     
     # raise error if tile level is invalid
     assert (type(tile_level)==int and tile_level>=0 and tile_level<=20), 'Invalid tile level'
@@ -127,8 +128,6 @@ def generate_population(bbox, population_per_age_group, density_files=None, tile
     # probability of being in each age group
     age_proportions = np.divide(population_per_age_group, sum(population_per_age_group))
 
-    # TODO: Households
-
     # generate lists of individuals' home location and age group
     home_loc=[]
     people_age=[]
@@ -150,8 +149,106 @@ def generate_population(bbox, population_per_age_group, density_files=None, tile
         # age group assigned proportionally to the real statistics
         people_age+=list(np.random.multinomial(n=1, pvals=age_proportions, size=pop).argmax(axis=1))
         i_tile+=1
-    
-    return home_loc, people_age, home_tile, tile_loc
+
+    if household_info is not None:
+        # pick a societal role for each person depending on the age group
+        children = 0
+        soc_role = []
+        for i_person, age_group in enumerate(people_age):
+            soc_role_distribution = [household_info['soc_role']['children'][age_group],
+                                    household_info['soc_role']['parents'][age_group],
+                                    household_info['soc_role']['elderly'][age_group]]
+            soc_role.append(np.random.multinomial(n=1, pvals=soc_role_distribution, size=1).argmax(axis=1)[0])
+            
+            if soc_role[i_person] == 0:
+                children += 1
+
+        soc_role = np.array(soc_role)
+        
+        household_index = 0
+        people_household = np.full(len(home_loc), -1)
+
+
+        # percentage of households with more than 2 people
+        percent_with_children = sum(household_info['size_dist'][2:])
+        # number of households with more than 2 people assuming the extra people are children
+        households_with_children = children/sum([(ind+1)*perc/percent_with_children for ind, perc in enumerate(household_info['size_dist'][2:])])
+
+        for ind, perc in enumerate(household_info['size_dist'][2:]):
+            # percentage of families with ind+1 children compared to total families with children
+            relative_perc = perc/percent_with_children
+            family_children = ind+1
+            # number of families with ind+1 children
+            num_of_households = int(relative_perc*households_with_children)
+            
+            for _ in range(num_of_households):
+                # find candidate parents and children
+                candidate_parents = np.where(np.logical_and(people_household == -1, soc_role == 1))[0]
+                candidate_children = np.where(np.logical_and(people_household == -1, soc_role == 0))[0]
+                
+                # check if the parents and children are enough
+                if len(candidate_parents)>=2 and len(candidate_children)>=family_children:
+                    children_to_chose = family_children
+                elif len(candidate_parents)>=2 and len(candidate_children)>0:
+                    children_to_chose = len(candidate_children)
+                else:
+                    break
+
+                # randomly pick 2 parents and the respective children
+                parents_ids = np.random.choice(candidate_parents, 2, replace=False)
+                children_ids = np.random.choice(candidate_children, children_to_chose, replace=False)
+                
+                # store the common household number
+                people_household[parents_ids] = household_index
+                people_household[children_ids] = household_index
+                household_index += 1
+
+                # pick one family member and set its home location as every member's home 
+                home_owner = np.random.choice(np.concatenate([parents_ids,children_ids]), 1)[0]
+                for i_person in np.concatenate([parents_ids,children_ids]):
+                    home_loc[i_person] = home_loc[home_owner]
+                    home_tile[i_person] = home_tile[home_owner] 
+
+        # percentage of households with 1 or 2 people
+        percent_without_children = sum(household_info['size_dist'][:2])
+        # people not assigned yet
+        remaining = len(np.where(people_household == -1)[0])
+        # number of households with 1 or 2 people
+        households_with_couples = int((household_info['size_dist'][1]/percent_without_children)*remaining/((household_info['size_dist'][0]+2*household_info['size_dist'][1])/percent_without_children))
+
+        for _ in range(households_with_couples):
+                # find candidate elderly people to form a couple
+                candidate_couple = np.where(np.logical_and(people_household == -1, soc_role == 2))[0]
+                # if elderly people are not enough form a couple using younger people
+                if len(candidate_couple)<2:
+                    candidate_couple = np.where(np.logical_and(people_household == -1, soc_role == 1))[0]
+                # check if a couple can be formed at all
+                if len(candidate_couple)<2:
+                    break
+                
+                # randomly pick 2 people to form a couple
+                couple_ids = np.random.choice(candidate_couple, 2, replace=False)
+                # store the common household number
+                people_household[couple_ids] = household_index
+                household_index += 1
+                
+                # pick one family member and set its home location as every member's home
+                home_owner = np.random.choice(couple_ids, 1)[0]
+                for i_person in couple_ids:
+                    home_loc[i_person] = home_loc[home_owner]
+                    home_tile[i_person] = home_tile[home_owner]
+                
+        # set all remaining people as independent 1-person families
+        for i_person, family in enumerate(people_household):
+            if family == -1:
+                people_household[i_person] = household_index
+                household_index += 1
+        
+    else:
+        # set all people as independent 1-person families
+        people_household = np.array([i for i in range(len(home_loc))])
+
+    return home_loc, people_age, home_tile, tile_loc, people_household
 
 def overpass_query(bbox, contents):
     overpass_bbox = str((bbox[0],bbox[2],bbox[1],bbox[3]))
