@@ -269,7 +269,7 @@ class MobilitySimulator:
                 mob_rate_per_age_per_type=None, dur_mean_per_type=None, home_tile=None,
                 tile_site_dist=None, variety_per_type=None,
                 num_people=None, num_sites=None, mob_rate_per_type=None, dur_mean=None,
-                num_age_groups=None, verbose=False):
+                num_age_groups=None, seed=None, verbose=False):
         """
         delta : float
             Time delta to extend contacts
@@ -277,6 +277,10 @@ class MobilitySimulator:
             Home coordinates of each individual
         people_age : list of int
             Age group of each individual
+        people_household : list of int
+            Household of each individual
+        households : dict with key=household, value=individual
+            Individuals on each household
         site_loc : list of [float,float]
             Site coordinates
         site_type : list of int
@@ -303,10 +307,17 @@ class MobilitySimulator:
             Mean duration of a visit
         num_age_groups : int
             Number of age groups
+        seed : int
+            Random seed for reproducibility
         verbose : bool (optional, default: False)
             Verbosity level
         """
 
+        # Set random seed for reproducibility
+        seed = seed or rd.randint(0, 2**32 - 1)
+        rd.seed(seed)
+        np.random.seed(seed-1)
+        
         synthetic = (num_people is not None and num_sites is not None and mob_rate_per_type is not None and
                     dur_mean is not None and num_age_groups is not None)
 
@@ -321,19 +332,35 @@ class MobilitySimulator:
             self.mode = 'synthetic'
 
             self.num_people = num_people
+            # Random geographical assignment of people's home on 2D grid
+            self.home_loc = np.random.uniform(0.0, 1.0, size=(self.num_people, 2))
+            
+            # Age-group of individuals
+            self.people_age = np.random.randint(low=0, high=self.num_age_groups,
+                                                size=self.num_people, dtype=int)
+            self.people_household = None
+            self.households = None
+            
             self.num_sites = num_sites
-
-            self.num_site_types = len(mob_rate_per_type)
-            self.num_age_groups = num_age_groups
-
-            # common duration for all types
-            self.dur_mean_per_type = np.array(self.num_site_types*[dur_mean])
+            # Random geographical assignment of sites on 2D grid
+            self.site_loc = np.random.uniform(0.0, 1.0, size=(self.num_sites, 2))
+            
             # common mobility rate for all age groups
             self.mob_rate_per_age_per_type = np.tile(mob_rate_per_type,(num_age_groups,1))
-
+            self.num_age_groups = num_age_groups
+            self.num_site_types = len(mob_rate_per_type)
+            # common duration for all types
+            self.dur_mean_per_type = np.array(self.num_site_types*[dur_mean])
+            
+            # Random type for each site
+            site_type_prob = np.ones(self.num_site_types)/self.num_site_types
+            self.site_type = np.random.multinomial(
+                n=1, pvals=site_type_prob, size=self.num_sites).argmax(axis=1)
+            
+            self.variety_per_type = None
+            
             self.home_tile=None
             self.tile_site_dist=None
-            self.variety_per_type=None
 
         elif real:
 
@@ -343,16 +370,25 @@ class MobilitySimulator:
             self.home_loc = np.array(home_loc)
 
             self.people_age = np.array(people_age)
+            self.people_household = np.array(people_household)
+            
+            # create dict of households, to retreive household members in O(1) during household infections
+            self.households = {}
+            for i in range(self.num_people):
+                if self.people_household[i] in self.households:
+                    self.households[people_household[i]].append(i)
+                else:
+                    self.households[people_household[i]] = [i]
 
             self.num_sites = len(site_loc)
             self.site_loc = np.array(site_loc)
-
-            self.site_type = np.array(site_type)
 
             self.mob_rate_per_age_per_type = np.array(mob_rate_per_age_per_type)
             self.num_age_groups = self.mob_rate_per_age_per_type.shape[0]
             self.num_site_types = self.mob_rate_per_age_per_type.shape[1]
             self.dur_mean_per_type = np.array(dur_mean_per_type)
+            
+            self.site_type = np.array(site_type)
 
             self.variety_per_type=np.array(variety_per_type)
 
@@ -422,18 +458,6 @@ class MobilitySimulator:
         np.random.seed(seed-1)
 
         if self.mode == 'synthetic':
-            # Random geographical assignment of people's home on 2D grid
-            self.home_loc = np.random.uniform(0.0, 1.0, size=(self.num_people, 2))
-            # Age-group of individuals
-            self.people_age = np.random.randint(low=0, high=self.num_age_groups,
-                                        size=self.num_people, dtype=int)
-            # Random geographical assignment of sites on 2D grid
-            self.site_loc = np.random.uniform(0.0, 1.0, size=(self.num_sites, 2))
-            # Random type for each site
-            site_type_prob = np.ones(self.num_site_types)/self.num_site_types
-            self.site_type = np.random.multinomial(
-                n=1, pvals=site_type_prob, size=self.num_sites).argmax(axis=1)
-
             all_mob_traces, self.visit_counts = _simulate_synthetic_mobility_traces(
                 num_people=self.num_people,
                 num_sites=self.num_sites,
