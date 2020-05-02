@@ -101,11 +101,55 @@ class SocialDistancingForAllMeasure(Measure):
             return self.p_stay_home
         return 0.0
 
-class SocialDistancingForPositiveMeasure(SocialDistancingForAllMeasure):
+class SocialDistancingPerStateMeasure(SocialDistancingForAllMeasure):
     """
-    Social distancing measure. Only the population of positive cases is advised
+    Social distancing measure. Only the population in a given 'state' is advised
     to stay home. Each visit of each individual respects the measure with some
     probability.
+
+    NOTE: This is the same as a SocialDistancingForAllMeasure but `is_contained` query also checks that the state 'state' 
+    of individual j is True
+    """
+
+    def __init__(self, t_window, p_stay_home, state_label):
+        # Init time window
+        super().__init__(t_window, p_stay_home)
+        
+        self.state_label = state_label
+        
+    @enforce_init_run
+    def is_contained(self, *, j, j_visit_id, t, state_dict):
+        """Indicate if individual `j` is in state 'state' and respects measure for
+        visit `j_visit_id`
+
+        r : int
+            Id of realization
+        j : int
+            Id of individual
+        j_visit_id : int
+            Id of visit
+        t : float
+            Query time
+        state_dict : dict
+            Dict with states of all individuals in `DiseaseModel`
+        """
+        is_home_now = self.bernoulli_stay_home[j, j_visit_id]
+        # only isolate at home while at state `state`
+        return is_home_now and state_dict[state_label][j] and self._in_window(t)
+    
+    @enforce_init_run
+    def is_contained_prob(self, *, j, t, state_started_at_dict, state_ended_at_dict):
+        """Returns probability of containment for individual `j` at time `t`
+        """
+        if (self._in_window(t) and t >= state_started_at[state_label][j] and t<=state_ended_at[state_label][j]:
+            return self.p_stay_home
+        return 0.0
+
+class SocialDistancingForPositiveMeasure(SocialDistancingForAllMeasure):
+    """
+    Social distancing measure. Only the population of positive cases who are not
+    resistant or dead is advised to stay home. Each visit of each individual 
+    respects the measure with some probability.
 
     NOTE: This is the same as a SocialDistancingForAllMeasure but `is_contained` query also checks that the state 'posi' of individual j is True
     """

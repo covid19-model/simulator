@@ -14,7 +14,7 @@ from joblib import Parallel, delayed
 from lib.priorityqueue import PriorityQueue
 from lib.measures import (MeasureList, BetaMultiplierMeasure,
     SocialDistancingForAllMeasure, BetaMultiplierMeasureByType,
-    SocialDistancingForPositiveMeasure, SocialDistancingByAgeMeasure, 
+    SocialDistancingPerStateMeasure, SocialDistancingForPositiveMeasure, SocialDistancingByAgeMeasure, 
     SocialDistancingForSmartTracing, ComplianceForAllMeasure, SocialDistancingForKGroups)
 
 class DiseaseModel(object):
@@ -326,6 +326,10 @@ class DiseaseModel(object):
                                    n_people=self.n_people,
                                    n_visits=max(self.mob.visit_counts))
 
+        self.measure_list.init_run(SocialDistancingPerStateMeasure,
+                                   n_people=self.n_people,
+                                   n_visits=max(self.mob.visit_counts))
+        
         self.measure_list.init_run(SocialDistancingForPositiveMeasure,
                                    n_people=self.n_people,
                                    n_visits=max(self.mob.visit_counts))
