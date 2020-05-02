@@ -14,8 +14,10 @@ from joblib import Parallel, delayed
 from lib.priorityqueue import PriorityQueue
 from lib.measures import (MeasureList, BetaMultiplierMeasure,
     SocialDistancingForAllMeasure, BetaMultiplierMeasureByType,
-    SocialDistancingPerStateMeasure, SocialDistancingForPositiveMeasure, SocialDistancingByAgeMeasure, 
-    SocialDistancingForSmartTracing, ComplianceForAllMeasure, SocialDistancingForKGroups)
+    SocialDistancingPerStateMeasure, SocialDistancingForPositiveMeasure, 
+    SocialDistancingForPositiveMeasureHousehold, 
+    SocialDistancingByAgeMeasure, SocialDistancingForSmartTracing, 
+    ComplianceForAllMeasure, SocialDistancingForKGroups)
 
 class DiseaseModel(object):
     """
@@ -333,6 +335,8 @@ class DiseaseModel(object):
         self.measure_list.init_run(SocialDistancingForPositiveMeasure,
                                    n_people=self.n_people,
                                    n_visits=max(self.mob.visit_counts))
+        
+        self.measure_list.init_run(SocialDistancingForPositiveMeasureHousehold)
 
         self.measure_list.init_run(SocialDistancingByAgeMeasure,
                                    num_age_groups=self.num_age_groups,
@@ -458,11 +462,17 @@ class DiseaseModel(object):
                              t=t, i=i, visit_id=interv.id)))
 
                     away_from_home = (infector_away_from_home or i_away_from_home)
+                    
+                    # 4) check whether infector is isolated from household members
+                    infector_isolated = self.measure_list.is_contained(
+                        SocialDistancingForPositiveMeasureHousehold, t=t,
+                        j=infector, state_posi=self.state['posi'], state_resi=self.state['resi'], state_dead=self.state['dead'])             
 
-                    # if none of 1), 2), 3) are true, the event is valid
+                    # if none of 1), 2), 3), 4) are true, the event is valid
                     if  (not infector_recovered) and \
                         (not infector_hospitalized) and \
-                        (not away_from_home):
+                        (not away_from_home) and \
+                        (not infector_isolated):
 
                         self.__process_exposure_event(t, i, infector)
 

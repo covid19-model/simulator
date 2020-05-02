@@ -141,7 +141,7 @@ class SocialDistancingPerStateMeasure(SocialDistancingForAllMeasure):
     def is_contained_prob(self, *, j, t, state_started_at_dict, state_ended_at_dict):
         """Returns probability of containment for individual `j` at time `t`
         """
-        if (self._in_window(t) and t >= state_started_at[state_label][j] and t<=state_ended_at[state_label][j]:
+        if (self._in_window(t) and t >= state_started_at_dict[state_label][j] and t<=state_ended_at_dict[state_label][j]):
             return self.p_stay_home
         return 0.0
 
@@ -187,6 +187,49 @@ class SocialDistancingForPositiveMeasure(SocialDistancingForAllMeasure):
             return self.p_stay_home
         return 0.0
 
+class SocialDistancingForPositiveMeasureHousehold(Measure):
+    """
+    Social distancing measure. Isolate positive cases from household members. 
+    Each individual respects the measure with some probability.
+    """
+
+    def __init__(self, t_window, p_isolate):
+        """
+
+        Parameters
+        ----------
+        t_window : Interval
+            Time window during which the measure is active
+        p_isolate : float
+            Probability of respecting the measure, should be in [0,1]
+        """
+        # Init time window
+        super().__init__(t_window)
+        self.p_isolate = p_isolate
+        
+    def init_run(self):
+        """Init the measure for this run is trivial
+        """
+        self._is_init = True
+        
+    @enforce_init_run
+    def is_contained(self, *, j, t, state_posi, state_resi, state_dead):
+        """Indicate if individual `j` respects measure 
+        """
+        is_isolated = np.random.binomial(1, self.p_isolate)
+        is_posi = (state_posi[j] and (not state_resi[j])) and (not state_dead[j])
+        return is_isolated and is_posi and self._in_window(t)
+
+    @enforce_init_run
+    def is_contained_prob(self, *, j, t, state_posi_started_at, state_posi_ended_at, state_resi_started_at, state_dead_started_at):
+        """Returns probability of containment for individual `j` at time `t`
+        """
+        if (self._in_window(t) and 
+            t >= state_posi_started_at[j] and t<=state_posi_ended_at[j] and 
+            t < state_resi_started_at[j] and t < state_dead_started_at[j]):
+            return p_isolate
+        return 0.0
+            
 class SocialDistancingByAgeMeasure(Measure):
     """
     Social distancing measure. The population is advised to stay at home based
@@ -358,8 +401,6 @@ class SocialDistancingForKGroups(Measure):
         if is_home_now and self._in_window(t):
             return 1.0
         return 0.0
-
-
 
 """
 =========================== SITE SPECIFIC MEASURES ===========================
