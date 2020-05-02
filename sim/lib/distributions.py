@@ -27,6 +27,10 @@ class CovidDistributions(object):
         Covid-19 specific constants from literature
         ALL UNITS IN DAYS
         '''
+
+        self.alpha = 0.4
+        self.mu = 1.0
+
         self.lambda_0 = 0.0
         self.fatality_rates_by_age = fatality_rates_by_age
         self.p_hospital_by_age = np.array([0.001, 0.002, 0.012, 0.065, 0.205, 0.273])
