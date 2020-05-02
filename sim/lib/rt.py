@@ -179,7 +179,7 @@ def find_sigma(data, r_t_range):
     return res
 
 
-def compute_daily_rts(sim, start_date, sigma=None, r_t_range=R_T_RANGE, window=3):
+def compute_daily_rts(sim, start_date, sigma=None, r_t_range=R_T_RANGE, window=3, ci=0.9):
     # Format the observations
     data = format_simulation(sim, start_date, window)
     # If not provided, find the variance of the prior using MLE
@@ -199,7 +199,7 @@ def compute_daily_rts(sim, start_date, sigma=None, r_t_range=R_T_RANGE, window=3
         posteriors += post_r
     posteriors /= len(all_posteriors)
     # Aggregate high density areas of posteriors
-    hdis = highest_density_interval(posteriors, p=0.9)
+    hdis = highest_density_interval(posteriors, p=ci)
     most_likely = posteriors.idxmax().rename('ML')
     result = pd.concat([most_likely, hdis], axis=1)
     return result

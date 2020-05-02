@@ -986,7 +986,7 @@ class Plotter(object):
                        subplot_adjust=None, lockdown_label='Lockdown',
                        lockdown_at=None, lockdown_label_y=None, ymax=None,
                        colors=['grey'], fill_between=True, draw_dots=True,
-                       errorevery=1, show_legend=False, xtick_interval=1):
+                       errorevery=1, show_legend=False, xtick_interval=1, ci=0.9):
 
         # If a single summary is provided
         if not isinstance(sims, list):
@@ -995,7 +995,7 @@ class Plotter(object):
 
         results = list()
         for i, sim in enumerate(sims):
-            res = compute_daily_rts(sim, start_date, sigma[i], r_t_range, window)
+            res = compute_daily_rts(sim, start_date, sigma[i], r_t_range, window, ci)
             results.append(res)
 
         # Colors
@@ -1026,9 +1026,9 @@ class Plotter(object):
                            edgecolors='k', zorder=2)
 
             # Aesthetically, extrapolate credible interval by 1 day either side
-            lowfn = interp1d(date2num(index), result['Low_90'].values,
+            lowfn = interp1d(date2num(index), result[f'Low_{ci*100:.0f}'].values,
                             bounds_error=False, fill_value='extrapolate')
-            highfn = interp1d(date2num(index), result['High_90'].values,
+            highfn = interp1d(date2num(index), result[f'High_{ci*100:.0f}'].values,
                             bounds_error=False, fill_value='extrapolate')
             extended = pd.date_range(start=index[0], end=index[-1])
             error_low = lowfn(date2num(extended))
@@ -1040,7 +1040,7 @@ class Plotter(object):
             else:
                 # Ignore first value which is just prior, not informed by data
                 ax.errorbar(x=index[1:], y=values[1:], label=titles[i],
-                            yerr=np.vstack((result['Low_90'], result['High_90']))[:,1:],
+                            yerr=np.vstack((result[f'Low_{ci*100:.0f}'], result[f'High_{ci*100:.0f}']))[:,1:],
                             color=colors[i], linewidth=1.0,
                             elinewidth=0.8, capsize=3.0,
                             errorevery=errorevery)
