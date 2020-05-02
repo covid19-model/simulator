@@ -490,7 +490,7 @@ class MobilitySimulator:
                 seed=rd.randint(0, 2**32 - 1)
                 )
 
-        # Group mobility traces per indiv and site
+        # Group mobility traces per indiv 
         self.mob_traces = self._group_mob_traces(all_mob_traces)
         return all_mob_traces
 
@@ -604,14 +604,14 @@ class MobilitySimulator:
         return contacts
 
     def _group_mob_traces(self, mob_traces):
-        """Group `mob_traces` by individual and site for faster queries.
+        """Group `mob_traces` by individual and for faster queries.
         Returns a dict of dict of Interlap of the form:
 
-            mob_traces_dict[i][s] = "Interlap of visits of indiv i at site s"
+            mob_traces_dict[i] = "Interlap of visits of indiv i"
         """
-        mob_traces_dict = {i: defaultdict(InterLap) for i in range(self.num_people)}
+        mob_traces_dict = {i: InterLap() for i in range(self.num_people)}
         for v in mob_traces:
-            mob_traces_dict[v.indiv][v.site].update([v])
+            mob_traces_dict[v.indiv].update([v])
         return mob_traces_dict
 
     def simulate(self, max_time, seed=None, dynamic_tracing=False):
@@ -663,16 +663,14 @@ class MobilitySimulator:
     def list_intervals_in_window_individual_at_site(self, *, indiv, site, t0, t1):
         """Return a generator of Intervals of all visits of `indiv` is at site
            `site` that overlap with [t0, t1]
-
-            FIXME: Make sure that this query is correct
         """
-        for visit in self.mob_traces[indiv][site].find((t0, t1)):
-            # the above call matches on (`t_from`, `t_to_shifted`)
+        for visit in self.mob_traces[indiv].find((t0, t1)):
+            # the above call matches all on (`t_from`, `t_to_shifted`)
             # thus need to filter out visits that ended before `t0`, 
-            # i.e. visits such that `t_to` <= `t0`, i.e. when `indiv`
-            # was not physically present at `site`
+            # i.e. visits such that `t_to` <= `t0`, 
+            # i.e. environmental match only (match only occured on (`t_to`, `t_to_shifted`))
 
-            if visit.t_to > t0:
+            if visit.t_to > t0 and visit.site == site:
                 yield Interval(visit.t_from, visit.t_to)
 
     def is_in_contact(self, *, indiv_i, indiv_j, t, site=None):

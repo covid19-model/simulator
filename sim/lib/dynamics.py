@@ -435,13 +435,23 @@ class DiseaseModel(object):
                     # 3) check whether infector or i are not at home
                     infector_away_from_home = False
                     i_away_from_home = False
-                    for site in range(self.n_sites):
-                        for interv in self.mob.mob_traces[infector][site].find((t, t)):
-                            infector_away_from_home = (not self.is_person_home_from_visit_due_to_measure(t=t, i=infector, visit_id=interv.id))    
-                        for interv in self.mob.mob_traces[i][site].find((t, t)):
-                            i_away_from_home = (not self.is_person_home_from_visit_due_to_measure(t=t, i=i, visit_id=interv.id)) 
-                        if (infector_away_from_home and i_away_from_home):
+
+                    infector_visits = self.mob.mob_traces[infector].find((t, t))
+                    i_visits = self.mob.mob_traces[i].find((t, t))
+
+                    for interv in infector_visits:
+                        infector_away_from_home = \
+                            ((interv.t_to > t) and # infector actually at a site, not just matching "environmental contact"
+                             (not self.is_person_home_from_visit_due_to_measure(
+                             t=t, i=infector, visit_id=interv.id)))
+                        if infector_away_from_home:
                             break
+
+                    for interv in i_visits:
+                        i_away_from_home = i_away_from_home or \
+                            ((interv.t_to > t) and # i actually at a site, not just matching "environmental contact"
+                             (not self.is_person_home_from_visit_due_to_measure(
+                             t=t, i=i, visit_id=interv.id)))
 
                     away_from_home = (infector_away_from_home or i_away_from_home)
 
@@ -814,7 +824,7 @@ class DiseaseModel(object):
                     (tau, 'expo', j, infector, site), priority=tau)
                 sampled_event = True
 
-        def __push_household_exposure_events(self, t, infector, base_rate):
+    def __push_household_exposure_events(self, t, infector, base_rate):
         """
         Pushes all exposure events that person `i` causes
         in the household, using `base_rate` as basic infectivity

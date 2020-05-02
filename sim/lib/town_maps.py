@@ -118,8 +118,8 @@ class MapIllustrator():
         for j in range(sim.n_people):
             if ( (sim.state_started_at['posi'][r, j] < t1 + delta) and
                  (sim.state_started_at['posi'][r, j] >= t0 - delta) ):
-                for visit in sim.mob[r].mob_traces[j][site].find((t0, t1)):
-                    if visit.t_to > t0:
+                for visit in sim.mob[r].mob_traces[j].find((t0, t1)):
+                    if visit.t_to > t0 and visit.site == site:
                         # skip if j was contained
                         j_visit_id = visit.id
             
