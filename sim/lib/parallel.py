@@ -16,7 +16,7 @@ from pathos.multiprocessing import ProcessingPool as Pool
 
 from lib.dynamics import DiseaseModel
 from lib.priorityqueue import PriorityQueue
-from lib.measures import (MeasureList, BetaMultiplierMeasure,
+from lib.measures import (MeasureList, BetaMultiplierMeasureBySite,
                       SocialDistancingForAllMeasure, BetaMultiplierMeasureByType,
                       SocialDistancingForPositiveMeasure, SocialDistancingByAgeMeasure, SocialDistancingForSmartTracing, ComplianceForAllMeasure)
 
