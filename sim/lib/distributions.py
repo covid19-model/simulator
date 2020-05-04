@@ -29,7 +29,6 @@ class CovidDistributions(object):
         '''
 
         self.alpha = 0.4
-        self.mu = 1.0
 
         self.lambda_0 = 0.0
         self.fatality_rates_by_age = fatality_rates_by_age
