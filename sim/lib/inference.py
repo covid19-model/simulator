@@ -30,27 +30,25 @@ from lib.parallel import *
 
 SIMPLIFIED_OPT = True
 
-def format_opt_to_sim(opt_params, n_betas):
+def format_opt_to_sim(opt_params, site_dict):
     '''
     Convert bayes_opt parameter format into our format
     '''
 
     if SIMPLIFIED_OPT:
         return {
-            'betas' : [opt_params['beta'] for _ in range(n_betas)],
-            'alpha': opt_params['alpha'], 
+            'betas': {site_type: opt_params['beta'] for site_type in site_dict.values()},
             'mu': opt_params['mu']
         }
 
     else:
         sim_params = {
-            'betas' : [None for _ in range(n_betas)],
-            'alpha': None, 
+            'betas': {site_type: None for site_type in site_dict.values()},
             'mu': None
         }
         for k, v, in opt_params.items():
-            if 'betas' in k:
-                sim_params['betas'][int(k[5:])] = v
+            if 'beta' in k:
+                sim_params['betas'][site_dict[int(k[5:])]] = v
             else:
                 sim_params[k] = v
         return sim_params
@@ -61,18 +59,16 @@ def format_sim_to_opt(sim_params):
     Convert our format into bayes opt format
     '''
     if SIMPLIFIED_OPT:
-        return {
-            'beta' : sim_params['betas'][0],
-            'alpha': sim_params['alpha'], 
-            'mu': opt_params['mu']
-        }
-        
+        if isinstance(sim_params['betas'], dict):
+            # Return value of any site type
+            return {'beta': sim_params['betas']['education'],
+                    'mu': sim_params['mu']}
+        elif isinstance(sim_params['betas'], float):
+            return {'beta': sim_params['betas'],
+                    'mu': sim_params['mu']}
     else:
-        opt_params = {'betas' + str(i) : p for i, p in enumerate(sim_params['betas'])}
-        opt_params.update({
-            'alpha': sim_params['alpha'], 
-            'mu': sim_params['mu']
-        })
+        opt_params = {'beta_' + key: value for key, value in enumerate(sim_params['betas'])}
+        opt_params.update({'mu': sim_params['mu']})
         return opt_params
 
 def convert_timings_to_daily(timings, time_horizon):
@@ -147,7 +143,7 @@ def multimodal_loss_daily(preds, weights, targets, time_horizon, power=2.0):
 
 
 def make_loss_function(mob_settings, distributions, targets, time_horizon, param_bounds,
-    initial_seeds, testing_params, random_repeats, num_site_types,
+    initial_seeds, testing_params, random_repeats, site_dict,
     cpu_count, measure_list, loss, num_sites, num_people, site_loc, home_loc, c, extra_params=None):
     
 
@@ -161,7 +157,7 @@ def make_loss_function(mob_settings, distributions, targets, time_horizon, param
     def f(opt_params):
 
         # convert bayes_opt parameter format into our format
-        sim_params = format_opt_to_sim(opt_params, n_betas=num_site_types)
+        sim_params = format_opt_to_sim(opt_params, site_dict)
          
         # launch in parallel
         summary = launch_parallel_simulations(
