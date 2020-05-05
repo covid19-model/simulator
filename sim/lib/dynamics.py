@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 
 from lib.priorityqueue import PriorityQueue
-from lib.measures import (MeasureList, BetaMultiplierMeasure,
+from lib.measures import (MeasureList, BetaMultiplierMeasureBySite,
     SocialDistancingForAllMeasure, BetaMultiplierMeasureByType,
     SocialDistancingPerStateMeasure, SocialDistancingForPositiveMeasure, 
     SocialDistancingForPositiveMeasureHousehold, 
@@ -62,6 +62,7 @@ class DiseaseModel(object):
         self.people_age = mob.people_age
         self.num_age_groups = mob.num_age_groups
         self.site_type = mob.site_type
+        self.site_dict = mob.site_dict
         self.num_site_types = mob.num_site_types
         
         self.people_household = mob.people_household
@@ -294,8 +295,8 @@ class DiseaseModel(object):
 
         # optimized params
         self.betas = params['betas']
+        self.mu = params['mu']
         self.alpha = self.d.alpha
-        self.mu = self.d.mu
         
         # household param
         if 'beta_household' in params:
@@ -806,7 +807,7 @@ class DiseaseModel(object):
                 tau = next_contact.t_from
 
             # sample event with maximum possible rate (in hours)
-            lambda_max = max(self.betas) * base_rate * Z
+            lambda_max = max(self.betas.values()) * base_rate * Z
             tau += 24.0 * np.random.exponential(scale=1.0 / lambda_max)
 
             # thinning step: compute current lambda(tau) and do rejection sampling
@@ -825,7 +826,7 @@ class DiseaseModel(object):
             # b. compute contributions of infector being present in [tau - delta, tau]
             intersections = [(max(tau - self.delta, interv.left), min(tau, interv.right))
                 for interv in infector_present]
-            beta_k = self.betas[self.site_type[site]]
+            beta_k = self.betas[self.site_dict[self.site_type[site]]]
             p = (beta_k * base_rate * sum([self.__kernel_term(v[0], v[1], tau) for v in intersections])) \
                 / lambda_max
             
@@ -892,11 +893,12 @@ class DiseaseModel(object):
         acceptance_prob = 1.0
 
         # BetaMultiplierMeasures
-        beta_mult_measure = self.measure_list.find(BetaMultiplierMeasure, t=t)
+        beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureBySite, t=t)
         acceptance_prob *= beta_mult_measure.beta_factor(k=k, t=t) if beta_mult_measure else 1.0
 
         beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureByType, t=t)
-        acceptance_prob *= beta_mult_measure.beta_factor(typ=self.site_type[k], t=t) if beta_mult_measure else 1.0
+        acceptance_prob *= beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[k]], t=t) \
+            if beta_mult_measure else 1.0
 
         # return rejection prob
         rejection_prob = 1.0 - acceptance_prob
@@ -1075,11 +1077,12 @@ class DiseaseModel(object):
             site = contact.site
             beta_fact = 1.0
 
-            beta_mult_measure = self.measure_list.find(BetaMultiplierMeasure, t=start_next_contact)
+            beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureBySite, t=start_next_contact)
             beta_fact *= beta_mult_measure.beta_factor(k=site, t=start_next_contact) if beta_mult_measure else 1.0
             
             beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureByType, t=start_next_contact)
-            beta_fact *= beta_mult_measure.beta_factor(typ=self.site_type[site], t=start_next_contact) if beta_mult_measure else 1.0 
+            beta_fact *= beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[site]], t=start_next_contact) \
+                if beta_mult_measure else 1.0
                 
             # decide if i and j really had overlap
             if (not is_j_contained) and (not is_i_contained):
@@ -1087,7 +1090,8 @@ class DiseaseModel(object):
                     valid_contact = True
                     break
                 elif self.smart_tracing == 'advanced':
-                    s += (min(end_next_contact, t) - start_next_contact) * self.betas[self.site_type[site]] * beta_fact
+                    s += (min(end_next_contact, t) - start_next_contact) \
+                         * self.betas[self.site_dict[self.site_type[site]]] * beta_fact
                     valid_contact = True
                 
             # get next contact (if it exists)
