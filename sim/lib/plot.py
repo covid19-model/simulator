@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.dates import date2num, num2date
 
-from lib.measures import (MeasureList, BetaMultiplierMeasure,
+from lib.measures import (MeasureList, BetaMultiplierMeasureBySite,
                       SocialDistancingForAllMeasure, BetaMultiplierMeasureByType,
                       SocialDistancingForPositiveMeasure, SocialDistancingByAgeMeasure, SocialDistancingForSmartTracing, ComplianceForAllMeasure)
 from lib.rt import compute_daily_rts, R_T_RANGE

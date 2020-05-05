@@ -265,7 +265,7 @@ class MobilitySimulator:
     ```
     """
 
-    def __init__(self, delta, home_loc=None, people_age=None, site_loc=None, site_type=None,
+    def __init__(self, delta, home_loc=None, people_age=None, site_loc=None, site_type=None, site_dict=None,
                 mob_rate_per_age_per_type=None, dur_mean_per_type=None, home_tile=None,
                 tile_site_dist=None, variety_per_type=None, people_household=None,
                 num_people=None, num_sites=None, mob_rate_per_type=None, dur_mean=None,
@@ -285,6 +285,8 @@ class MobilitySimulator:
             Site coordinates
         site_type : list of int
             Type of each site
+        site_dict : dict of str
+            Translates numerical site types into words
         mob_rate_per_age_per_type: list of list of float
             Mean number of visits per time unit.
             Rows correspond to age groups, columns correspond to site types.
@@ -401,6 +403,9 @@ class MobilitySimulator:
         else:
             raise ValueError('Provide more information for the generation of mobility data.')
 
+        # Only relevant if an old settings file is being used, should be removed in the future
+        if site_dict is None:
+            self.site_dict = {0: 'education', 1: 'social', 2: 'bus_stop', 3: 'office', 4: 'supermarket'}
         self.delta = delta
         self.verbose = verbose
 

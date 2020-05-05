@@ -406,7 +406,6 @@ class SocialDistancingForKGroups(Measure):
 =========================== SITE SPECIFIC MEASURES ===========================
 """
 
-# DEPRECATED since we assume that betas are constant for types
 class BetaMultiplierMeasure(Measure):
 
     def __init__(self, t_window, beta_multiplier):
@@ -421,11 +420,15 @@ class BetaMultiplierMeasure(Measure):
         """
 
         super().__init__(t_window)
-        if (not isinstance(beta_multiplier, list)
-            or (min(beta_multiplier) < 0)):
-            raise ValueError(("`beta_multiplier` should be list of"
+        if (not isinstance(beta_multiplier, dict)
+                or (min(beta_multiplier.values()) < 0)):
+            raise ValueError(("`beta_multiplier` should be dict of"
                               " non-negative floats"))
-        self.beta_multiplier = beta_multiplier
+        self.beta_multiplier = defaultdict(lambda: 1.0, beta_multiplier)
+
+
+# DEPRECATED since we assume that betas are constant for types
+class BetaMultiplierMeasureBySite(BetaMultiplierMeasure):
 
     def beta_factor(self, *, k, t):
         """Returns the multiplicative factor for site `k` at time `t`. The
@@ -612,7 +615,7 @@ if __name__ == "__main__":
     assert m.is_contained(j=0, j_visit_id=0, t=1.0, state_posi=state_posi, state_resi=state_resi, state_dead=state_dead) == False
 
     # Text BetaMultiplierMeasure
-    m = BetaMultiplierMeasure(t_window=Interval(1.0, 2.0), beta_multiplier=[2.0, 0.0])
+    m = BetaMultiplierMeasureBySite(t_window=Interval(1.0, 2.0), beta_multiplier={0: 2.0, 1: 0.0})
     assert m.beta_factor(k=0, t=0.9) == 1.0
     assert m.beta_factor(k=0, t=1.0) == 2.0
     assert m.beta_factor(k=1, t=0.9) == 1.0
@@ -620,17 +623,17 @@ if __name__ == "__main__":
 
     # Test MeasureList
     list_of_measures = [
-        BetaMultiplierMeasure(t_window=Interval(1.0, 2.0), beta_multiplier=[2.0, 0.0]),
-        BetaMultiplierMeasure(t_window=Interval(2.0, 5.0), beta_multiplier=[2.0, 0.0]),
-        BetaMultiplierMeasure(t_window=Interval(8.0, 10.0), beta_multiplier=[2.0, 0.0]),
+        BetaMultiplierMeasureBySite(t_window=Interval(1.0, 2.0), beta_multiplier={0: 2.0, 1: 0.0}),
+        BetaMultiplierMeasureBySite(t_window=Interval(2.0, 5.0), beta_multiplier={0: 2.0, 1: 0.0}),
+        BetaMultiplierMeasureBySite(t_window=Interval(8.0, 10.0), beta_multiplier={0: 2.0, 1: 0.0}),
         SocialDistancingForPositiveMeasure(t_window=Interval(1.0, 2.0), p_stay_home=1.0),
         SocialDistancingForPositiveMeasure(t_window=Interval(2.0, 5.0), p_stay_home=1.0),
         SocialDistancingForPositiveMeasure(t_window=Interval(6.0, 10.0), p_stay_home=1.0),
     ]
     obj = MeasureList(list_of_measures)
     obj.init_run(SocialDistancingForPositiveMeasure, n_people=2, n_visits=10)
-    assert obj.find(BetaMultiplierMeasure, t=1.0) == list_of_measures[0]
-    assert obj.find(BetaMultiplierMeasure, t=2.0) == list_of_measures[1]
-    assert obj.find(BetaMultiplierMeasure, t=5.0) == None
+    assert obj.find(BetaMultiplierMeasureBySite, t=1.0) == list_of_measures[0]
+    assert obj.find(BetaMultiplierMeasureBySite, t=2.0) == list_of_measures[1]
+    assert obj.find(BetaMultiplierMeasureBySite, t=5.0) == None
     assert obj.find(SocialDistancingForPositiveMeasure, t=5.0) == None
     assert obj.find(SocialDistancingForPositiveMeasure, t=6.0) == list_of_measures[-1]
