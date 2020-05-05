@@ -144,7 +144,8 @@ def multimodal_loss_daily(preds, weights, targets, time_horizon, power=2.0):
 
 def make_loss_function(mob_settings, distributions, targets, time_horizon, param_bounds,
     initial_seeds, testing_params, random_repeats, site_dict,
-    cpu_count, measure_list, loss, num_sites, num_people, site_loc, home_loc, c, extra_params=None):
+    cpu_count, measure_list, loss, num_sites, num_people, site_loc, home_loc, c, dynamic_tracing=False,
+    extra_params=None):
     
 
     '''
@@ -174,6 +175,7 @@ def make_loss_function(mob_settings, distributions, targets, time_horizon, param
             num_sites=num_sites,
             home_loc=home_loc,
             site_loc=site_loc,
+            dynamic_tracing=dynamic_tracing,
             verbose=False)
 
         if loss == 'loss_daily':
