@@ -91,6 +91,66 @@ class ParallelSummary(object):
         self.children_count_ipre = np.zeros((repeats, n_people), dtype='int')
         self.children_count_isym = np.zeros((repeats, n_people), dtype='int')
 
+    def extract_seeds(self, t, real_cases):
+        
+        def loss(x, y):
+            res = 0
+            for i in range(len(x)):
+                res += (x[i] - y[i])**2
+            return res
+
+        min_loss = np.inf
+        for i_instance, time_of_testing in enumerate(self.state_started_at['posi']):
+            
+            new_cases = np.array(len(real_cases)*[0])
+            day_of_testing = time_of_testing/24
+            # days of positive tests 
+            day_of_testing = day_of_testing[np.where(day_of_testing != np.inf)].astype(int)
+            
+            for d in day_of_testing:
+                if d < len(real_cases):
+                    new_cases[d]+=1
+            # cumulative number of positive tests in the specific instance 
+            cases = np.cumsum(new_cases)
+            # loss according to the real cases
+            current_loss = loss(cases, real_cases)
+            if current_loss < min_loss:
+                min_loss = current_loss
+                best_instance = i_instance
+        
+        # initialize all states to False
+        state_at_time_t = {}
+        for state in pp_legal_states:
+            state_at_time_t[state] = np.zeros((self.n_people), dtype='bool')
+
+        # for each person set their states at time t to True
+        for i_person in range(self.n_people):
+            for state in pp_legal_states:
+                if t >= self.state_started_at[state][best_instance][i_person] and t < self.state_ended_at[state][best_instance][i_person]:
+                    state_at_time_t[state][i_person] = True
+        
+        SD_0_expo = state_at_time_t['expo'].sum()
+        SD_0_iasy = state_at_time_t['iasy'].sum()
+        SD_0_ipre = state_at_time_t['ipre'].sum()
+
+        SD_0_isym_posi = np.logical_and(state_at_time_t['isym'],state_at_time_t['posi']).sum()
+        SD_0_isym_notposi = np.logical_and(state_at_time_t['isym'],np.logical_not(state_at_time_t['posi'])).sum()
+        # resistant also contain dead
+        SD_0_resi_posi = np.logical_and(np.logical_or(state_at_time_t['resi'],state_at_time_t['dead']),state_at_time_t['posi']).sum()
+        SD_0_resi_notposi = np.logical_and(np.logical_or(state_at_time_t['resi'],state_at_time_t['dead']),np.logical_not(state_at_time_t['posi'])).sum()
+        
+        present_seeds = {
+            'expo' : int(SD_0_expo),
+            'iasy' : int(SD_0_iasy),
+            'ipre' : int(SD_0_ipre),
+            'isym_posi': int(SD_0_isym_posi),
+            'isym_notposi': int(SD_0_isym_notposi),
+            'resi_posi': int(SD_0_resi_posi),
+            'resi_notposi': int(SD_0_resi_notposi),
+        }
+
+        return present_seeds
+
 
 def create_ParallelSummary_from_DiseaseModel(sim):
 
