@@ -4,9 +4,9 @@ import folium.plugins
 import matplotlib
 import os
 
-from lib.measures import (MeasureList, BetaMultiplierMeasure,
-                      SocialDistancingForAllMeasure, BetaMultiplierMeasureByType,
-                      SocialDistancingForPositiveMeasure, SocialDistancingByAgeMeasure, SocialDistancingForSmartTracing, ComplianceForAllMeasure)
+from lib.measures import (MeasureList, SocialDistancingForAllMeasure,
+                        SocialDistancingForPositiveMeasure, SocialDistancingByAgeMeasure,
+                        SocialDistancingForSmartTracing, ComplianceForAllMeasure)
 
 class MapIllustrator():
 
