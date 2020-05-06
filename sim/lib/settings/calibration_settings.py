@@ -16,7 +16,6 @@ settings_simulation = {
     'simulation_roll_outs': 40, # roll-outs done in parallel per parameter setting
     'cpu_count':  multiprocessing.cpu_count(), # cpus used for parallel computation
     'dynamic_tracing' : True,
-
 }
 
 # set initial seed count (approximately based on infection counts on March 10)
@@ -30,13 +29,13 @@ settings_initial_seeds = {
 # parameter bounds
 settings_param_bounds = {
     'betas': {
-        'education': [0.3, 1.5],
-        'social': [0.3, 2.0],
-        'bus_stop': [0.3, 1.5],
-        'office': [0.3, 1.5],
-        'supermarket': [0.3, 1.5],
+        'education': [0.0, 2.0],
+        'social': [0.0, 2.0],
+        'bus_stop': [0.0, 2.0],
+        'office': [0.0, 2.0],
+        'supermarket': [0.0, 2.0],
     },
-    'beta_household': [0.3, 1.5],
+    'beta_household': [0.0, 2.0],
     'mu': [0.0, 1.0]
 }
 
