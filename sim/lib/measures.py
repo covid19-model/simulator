@@ -406,7 +406,7 @@ class SocialDistancingForKGroups(Measure):
 =========================== SITE SPECIFIC MEASURES ===========================
 """
 
-class BetaMultiplierMeasure(Measure):
+class BetaMultiplierMeasureBySite(Measure):
 
     def __init__(self, t_window, beta_multiplier):
         """
@@ -421,14 +421,10 @@ class BetaMultiplierMeasure(Measure):
 
         super().__init__(t_window)
         if (not isinstance(beta_multiplier, dict)
-                or (min(beta_multiplier.values()) < 0)):
+            or (min(beta_multiplier.values()) < 0)):
             raise ValueError(("`beta_multiplier` should be dict of"
                               " non-negative floats"))
-        self.beta_multiplier = defaultdict(lambda: 1.0, beta_multiplier)
-
-
-# DEPRECATED since we assume that betas are constant for types
-class BetaMultiplierMeasureBySite(BetaMultiplierMeasure):
+        self.beta_multiplier = beta_multiplier
 
     def beta_factor(self, *, k, t):
         """Returns the multiplicative factor for site `k` at time `t`. The
@@ -437,7 +433,7 @@ class BetaMultiplierMeasureBySite(BetaMultiplierMeasure):
         return self.beta_multiplier[k] if self._in_window(t) else 1.0
 
 
-class BetaMultiplierMeasureByType(BetaMultiplierMeasure):
+class BetaMultiplierMeasureByType(BetaMultiplierMeasureBySite):
 
     def beta_factor(self, *, typ, t):
         """Returns the multiplicative factor for site type `typ` at time `t`. The
