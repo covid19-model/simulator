@@ -21,7 +21,7 @@ def get_preprocessed_data(landkreis='LK Tübingen', until=17):
 
     # preprocessing
     df = pd.read_csv('lib/data/RKI_COVID19.csv', header=0, delimiter=',')
-    print('Data last updated at: ', df.Datenstand.unique()[0])
+    # print('Data last updated at: ', df.Datenstand.unique()[0])
 
     # delete unnecessary inof
     df = df[df['Landkreis'] == landkreis]

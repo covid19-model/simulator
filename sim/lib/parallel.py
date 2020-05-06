@@ -225,9 +225,16 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
     if verbose:
         print('Launching simulations...')
 
-    with ProcessPoolExecutor(cpu_count) as ex:
-        res = ex.map(pp_launch, repeat_ids, mob_setting_list, distributions_list, params_list,
-                     initial_seeds_list, testing_params_list, measure_list_list, max_time_list, dynamic_tracing)
+    # with ProcessPoolExecutor(cpu_count) as ex:
+    #     res = ex.map(pp_launch, repeat_ids, mob_setting_list, distributions_list, params_list,
+    #                  initial_seeds_list, testing_params_list, measure_list_list, max_time_list, dynamic_tracing)
+
+    # DEBUG mode (to see errors)
+    res = []
+    for r in repeat_ids:
+        res.append(pp_launch(r, mob_setting_list[r], distributions_list[r], params_list[r],
+                     initial_seeds_list[r], testing_params_list[r], measure_list_list[r], max_time_list[r], dynamic_tracing[r]))
+
     
     # collect all result (the fact that mob is still available here is due to the for loop)
     summary = ParallelSummary(max_time, random_repeats, num_people, num_sites, site_loc, home_loc, dynamic_tracing)
