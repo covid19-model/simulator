@@ -311,6 +311,8 @@ class DiseaseModel(object):
         self.test_reporting_lag = testing_params['test_reporting_lag']        
         self.tests_per_batch    = testing_params['tests_per_batch']
         self.testing_t_window   = testing_params['testing_t_window']
+        self.test_fpr = testing_params['test_fpr']
+        self.test_fnr = testing_params['test_fnr']
         
         # smart tracing
         self.smart_tracing       = testing_params['smart_tracing']
@@ -958,9 +960,17 @@ class DiseaseModel(object):
             
             # update test result preemptively, to account for the state at the time of testing
             if self.state['expo'][i] or self.state['ipre'][i] or self.state['isym'][i] or self.state['iasy'][i]:
-                self.outcome_of_test[i] = True
+                is_fn = np.random.binomial(1, self.test_fnr)
+                if is_fn:
+                    self.outcome_of_test[i] = False
+                else:
+                    self.outcome_of_test[i] = True
             else:
-                self.outcome_of_test[i] = False
+                is_fp = np.random.binomial(1, self.test_fpr)
+                if is_fp:
+                    self.outcome_of_test[i] = True
+                else:
+                    self.outcome_of_test[i] = False
 
     def __process_testing_event(self, t, i):
         """

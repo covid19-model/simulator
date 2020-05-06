@@ -46,6 +46,8 @@ settings_testing_params = {
     'testing_frequency': 24.0,  
     'test_reporting_lag': 48.0, 
     'tests_per_batch': None,  # [set automatically in code]
+    'test_fpr': 0.0,
+    'test_fnr': 0.0,
     'test_smart_delta': 24.0 * 3, 
     'test_smart_duration': 24.0 * 7, 
     'test_smart_action': 'isolate',
