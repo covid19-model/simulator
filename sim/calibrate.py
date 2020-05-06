@@ -38,8 +38,6 @@ from lib.plot import Plotter
 from lib.data import collect_data_from_df
 from lib.measures import (
     MeasureList, 
-    BetaMultiplierMeasure, 
-    BetaMultiplierMeasureByType,
     SocialDistancingForAllMeasure, 
     SocialDistancingByAgeMeasure,
     SocialDistancingForPositiveMeasure,
@@ -236,7 +234,7 @@ if __name__ == '__main__':
 
     initial_lines_printed.append('')
     initial_lines_printed.append('Negative iteration indices indicate initial quasi-random exploration.')
-    initial_lines_printed.append('`diff` indicates `total sim cases at t=T - total true cases at t=T')
+    initial_lines_printed.append('`diff` indicates `total sim cases at t=T - total true cases at t=T`')
     initial_lines_printed.append('`walltime` indicates time in minutes needed to perform iteration')
     initial_lines_printed.append('')
 
