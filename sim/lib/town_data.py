@@ -293,24 +293,15 @@ def generate_sites(bbox, query_files, site_based_density_file=None):
             data = response.json()
 
             # read sites latitude and longitude
-            ways=[]
-            nodes=[]
+            locs_to_add=[]
             for site in data['elements']:
                 if site['type']=='way':
-                    ways.append([site['center']['lat'], site['center']['lon']])
+                    locs_to_add.append([site['center']['lat'], site['center']['lon']])
                 elif site['type']=='node':
-                    nodes.append([site['lat'], site['lon']])
-            
-            # if there are ways in the query results discard all nodes
-            if ways==[] and nodes!=[]:
-                locs_to_add = nodes
-                site_type += len(nodes)*[type_ind]
-            elif ways!=[]:
-                locs_to_add = ways
-                site_type += len(ways)*[type_ind]
-            
+                    locs_to_add.append([site['lat'], site['lon']])
+
+            site_type += len(locs_to_add)*[type_ind]
             site_loc += locs_to_add
-            
             type_ind+=1
             
     # locations of this type are used to generate population density

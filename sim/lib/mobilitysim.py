@@ -265,11 +265,12 @@ class MobilitySimulator:
     ```
     """
 
-    def __init__(self, delta, home_loc=None, people_age=None, site_loc=None, site_type=None, site_dict=None,
+    def __init__(self, delta, home_loc=None, people_age=None, site_loc=None, site_type=None,
+                site_dict=None, daily_tests_per_100k=None,
                 mob_rate_per_age_per_type=None, dur_mean_per_type=None, home_tile=None,
                 tile_site_dist=None, variety_per_type=None, people_household=None,
-                num_people=None, num_sites=None, mob_rate_per_type=None, dur_mean=None,
-                num_age_groups=None, seed=None, verbose=False):
+                num_people=None, num_people_unscaled=None, num_sites=None, mob_rate_per_type=None,
+                dur_mean=None, num_age_groups=None, seed=None, verbose=False):
         """
         delta : float
             Time delta to extend contacts
@@ -287,6 +288,8 @@ class MobilitySimulator:
             Type of each site
         site_dict : dict of str
             Translates numerical site types into words
+        daily_tests_per_100k : int
+            Daily testing capacity per 100k people
         mob_rate_per_age_per_type: list of list of float
             Mean number of visits per time unit.
             Rows correspond to age groups, columns correspond to site types.
@@ -301,6 +304,8 @@ class MobilitySimulator:
             Number of discrete sites per type
         num_people : int
             Number of people to simulate
+        num_people_unscaled : int
+            Real number of people in town (unscaled)
         num_sites : int
             Number of sites to simulate
         mob_rate_per_type : list of floats
@@ -322,6 +327,7 @@ class MobilitySimulator:
                     dur_mean is not None and num_age_groups is not None)
 
         real = (home_loc is not None and people_age is not None and site_loc is not None and site_type is not None and
+                daily_tests_per_100k is not None and num_people_unscaled is not None and
                 mob_rate_per_age_per_type is not None and dur_mean_per_type is not None and home_tile is not None and
                 tile_site_dist is not None and variety_per_type is not None)
 
@@ -332,15 +338,17 @@ class MobilitySimulator:
             self.mode = 'synthetic'
 
             self.num_people = num_people
+            self.num_people_unscaled = None
             # Random geographical assignment of people's home on 2D grid
             self.home_loc = np.random.uniform(0.0, 1.0, size=(self.num_people, 2))
             
             # Age-group of individuals
-            self.people_age = np.random.randint(low=0, high=self.num_age_groups,
+            self.people_age = np.random.randint(low=0, high=num_age_groups,
                                                 size=self.num_people, dtype=int)
             self.people_household = None
             self.households = None
-            
+            self.daily_tests_per_100k =None
+
             self.num_sites = num_sites
             # Random geographical assignment of sites on 2D grid
             self.site_loc = np.random.uniform(0.0, 1.0, size=(self.num_sites, 2))
@@ -366,6 +374,7 @@ class MobilitySimulator:
 
             self.mode = 'real'
 
+            self.num_people_unscaled = num_people_unscaled
             self.num_people = len(home_loc)
             self.home_loc = np.array(home_loc)
 
@@ -387,6 +396,8 @@ class MobilitySimulator:
 
             self.num_sites = len(site_loc)
             self.site_loc = np.array(site_loc)
+
+            self.daily_tests_per_100k = daily_tests_per_100k
 
             self.mob_rate_per_age_per_type = np.array(mob_rate_per_age_per_type)
             self.num_age_groups = self.mob_rate_per_age_per_type.shape[0]
