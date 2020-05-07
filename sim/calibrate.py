@@ -1,3 +1,4 @@
+from datetime import datetime
 import sys
 import argparse
 if '..' not in sys.path:
@@ -56,17 +57,28 @@ if __name__ == '__main__':
 
     # command line arguments change the standard settings
     parser = argparse.ArgumentParser()
-    parser.add_argument("--seed", help="set seed", type=int)
-    parser.add_argument("--mob", help="specify path to mobility settings for trace generation, e.g. 'lib/tu_settings_10_10_hh.pk'")
-    parser.add_argument("--load", help="specify path to a BO state to be loaded as initial observations, e.g. 'logs/calibration_0_state.pk'")
-    
-    parser.add_argument("--endatday", type=int, help="update default number of days after which simulation should be cut off for debugging purposes")
-    parser.add_argument("--downsample", type=int, help="update default case downsampling factor")
-    parser.add_argument("--testingcap", type=int, help="update default unscaled testing capacity")
+    parser.add_argument("--seed", help="set seed")
+
+    # BO
     parser.add_argument("--ninit", type=int, help="update default number of quasi-random initial evaluations")
     parser.add_argument("--niters", type=int, help="update default number of BO iterations")
     parser.add_argument("--rollouts", type=int, help="update default number of parallel simulation rollouts")
+    parser.add_argument("--load", help="specify path to a BO state to be loaded as initial observations, e.g. 'logs/calibration_0_state.pk'")
 
+    # data
+    parser.add_argument("--mob", help="specify path to mobility settings for trace generation, e.g. 'lib/tu_settings_10_10_hh.pk'")
+    parser.add_argument("--country", help="specify country indicator for data import")
+    parser.add_argument("--area", help="specify area indicator for data import")
+    parser.add_argument("--days", type=int, help="specify number of days for which case data is retrieved")
+    parser.add_argument("--start", help="adjust starting data for which case data is retrieved"
+                        "default for 'GER' should be '2020-03-10'")
+    parser.add_argument("--downsample", type=int, help="update default case downsampling factor")
+
+    # simulation
+    parser.add_argument("--endsimat", type=int, help="for debugging: specify number of days after which simulation should be cut off")
+    parser.add_argument("--testingcap", type=int, help="update default unscaled testing capacity")
+
+    
     # Read arguments from the command line
     args = parser.parse_args()
 
@@ -80,7 +92,15 @@ if __name__ == '__main__':
     else:
         print("Need to set path to mobility settings for trace generation, \ne.g. python calibrate.py --mob \"lib/tu_settings_10_10_hh.pk\"")
         exit(0)
-    
+
+    if args.area and args.country and args.days:
+        data_area = args.area
+        data_country = args.country
+        data_days = args.days
+    else:
+        print("Need to set days, country, and area identifier for data\ne.g. python calibrate.py --country \"GER\" --area \"TU\" --days 16")
+        exit(0)
+
     if args.downsample:
         case_downsampling = args.downsample
     else:
@@ -92,13 +112,24 @@ if __name__ == '__main__':
     or passed via command line
     """
 
+    initial_lines_printed = []
+
+    # remember line executed
+    initial_lines_printed.append('=' * 100)
+    initial_lines_printed.append(datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+    initial_lines_printed.append('python ' + ' '.join(sys.argv))
+    initial_lines_printed.append('=' * 100)
+
     # data settings
     filename = f'calibration_{seed}'
     verbose = settings_data['verbose']
     use_households = settings_data['use_households']
-    unscaled_testing_capacity = args.testingcap or settings_data['unscaled_testing_capacity']
-    debug_simulation_days = args.endatday # if not None, simulation will be cut short for debugging
-    
+    data_start_date = args.start or settings_data['data_start_date']
+    debug_simulation_days = args.endsimat # if not None, simulation will be cut short for debugging
+
+    daily_tests_per100k = settings_data['daily_tests_per100k']
+    population_unscaled = settings_data['population_unscaled']
+    unscaled_testing_capacity = args.testingcap or math.ceil(daily_tests_per100k * population_unscaled / 100000)
 
     # simulation settings
     n_init_samples = args.ninit or settings_simulation['n_init_samples']
@@ -130,8 +161,6 @@ if __name__ == '__main__':
     Bayesian optimization pipeline
     """
 
-    initial_lines_printed = []
-
     # Based on population size, approx. 300 tests/day in Area of Tübingen (~135 in city of Tübingen)
     tests_per_day = math.ceil(unscaled_testing_capacity / case_downsampling)
 
@@ -142,14 +171,25 @@ if __name__ == '__main__':
     assert(int(testing_params['test_reporting_lag']) % 24 == 0)
 
     # Import Covid19 data
-    new_cases_ = collect_data_from_df('LK Tübingen', 'new')
-    resistant_cases_ = collect_data_from_df('LK Tübingen', 'recovered')
-    fatality_cases_ = collect_data_from_df('LK Tübingen', 'fatality')
+    new_cases_ = collect_data_from_df(country=data_country, area=data_area, datatype='new', 
+        start_date_string=data_start_date, days=data_days)
+    resistant_cases_ = collect_data_from_df(country=data_country, area=data_area, datatype='recovered', 
+        start_date_string=data_start_date, days=data_days)
+    fatality_cases_ = collect_data_from_df(country=data_country, area=data_area, datatype='fatality', 
+        start_date_string=data_start_date, days=data_days)
+
+    assert(len(new_cases_.shape) == 2 and len(resistant_cases_.shape) == 2 and len(fatality_cases_.shape) == 2)
+
+    if new_cases_[0].sum() == 0:
+        print('No positive cases at provided start time; cannot seed simulation.\n'
+              'Consider setting a later start date for calibration using the "--start" flag.')
+        exit(0)
 
     # Empirical fatality rate per age group from the above data. 
     # RKI data defines 6 groups: **0-4y, 5-14y, 15-34y, 35-59y, 60-79y, 80+y**
     num_age_groups = fatality_cases_.shape[1] 
     fatality_rates_by_age = (fatality_cases_[-1, :] /     (new_cases_[-1, :] +  fatality_cases_[-1, :] + resistant_cases_[-1, :]))
+    fatality_rates_by_age = np.nan_to_num(fatality_rates_by_age) # deal with 0/0
 
     # Scale down cases based on number of people in simulation
     new_cases, resistant_cases, fatality_cases = (
@@ -342,6 +382,10 @@ if __name__ == '__main__':
     print('FINISHED.')
     print('Best objective:  ', best_observed_obj)
     print('Best parameters:')
-    pprint.pprint(parr_to_pdict(train_theta[best_observed_idx]))
+    
+    # scale back to simulation parameters (from unit cube parameters in BO)
+    normalized_calibrated_params = train_theta[best_observed_idx]
+    calibrated_params = transforms.unnormalize(normalized_calibrated_params, sim_bounds.T)
+    pprint.pprint(parr_to_pdict(calibrated_params))
 
 

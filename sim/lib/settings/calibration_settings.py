@@ -7,12 +7,14 @@ Default settings for model calibration
 settings_data = {
     'verbose' : True,
     'use_households' : True,
-    'unscaled_testing_capacity' : 150, # number of tests processed every `testing_frequency` hours
+    'daily_tests_per100k' : 150, # number of tests processed every `testing_frequency` hours
+    'population_unscaled' : 90000,
+    'data_start_date': '2020-03-10',
 }
 
 settings_simulation = {
     'n_init_samples': 20,  # initial random evaluations
-    'n_iterations': 200,  # iterations of BO
+    'n_iterations': 500,  # iterations of BO
     'simulation_roll_outs': 40, # roll-outs done in parallel per parameter setting
     'cpu_count':  multiprocessing.cpu_count(), # cpus used for parallel computation
     'dynamic_tracing' : True,
@@ -29,13 +31,13 @@ settings_initial_seeds = {
 # parameter bounds
 settings_param_bounds = {
     'betas': {
-        'education': [0.0, 2.0],
-        'social': [0.0, 2.0],
-        'bus_stop': [0.0, 2.0],
-        'office': [0.0, 2.0],
-        'supermarket': [0.0, 2.0],
+        'education': [0.0, 1.5],
+        'social': [0.0, 1.5],
+        'bus_stop': [0.0, 1.5],
+        'office': [0.0, 1.5],
+        'supermarket': [0.0, 1.5],
     },
-    'beta_household': [0.0, 2.0],
+    'beta_household': [0.0, 1.5],
     'mu': [0.0, 1.0]
 }
 
