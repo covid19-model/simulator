@@ -417,6 +417,8 @@ class MobilitySimulator:
         # Only relevant if an old settings file is being used, should be removed in the future
         if site_dict is None:
             self.site_dict = {0: 'education', 1: 'social', 2: 'bus_stop', 3: 'office', 4: 'supermarket'}
+        else:
+            self.site_dict = site_dict
         self.delta = delta
         self.verbose = verbose
 
