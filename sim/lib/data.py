@@ -1,3 +1,8 @@
+import sys
+import argparse
+# if '..' not in sys.path:
+#     sys.path.append('..')
+
 import time
 import bisect
 import numpy as np
@@ -9,6 +14,8 @@ import scipy as sp
 import os
 import matplotlib.pyplot as plt
 import random
+
+from lib.settings.calibration_settings import command_line_area_codes
 
 
 def get_preprocessed_data_germany(landkreis='LK Tübingen', start_date_string='2020-03-10', until=17):
@@ -83,18 +90,8 @@ def collect_data_from_df(country, area, datatype, start_date_string, days):
         else:
             raise ValueError('Invalid datatype requested.')
 
-        if area == 'TU':
-            # Tubingen
-            landkreis = 'LK Tübingen'
-        elif area == 'KL':
-            # Kaiserslautern
-            landkreis = 'SK Kaiserslautern'
-        elif area == 'RH':
-            # Rüdesheim am Rhein
-            landkreis = 'LK Rheingau-Taunus-Kreis'
-        elif area == 'HB':
-            # Heinsberg
-            landkreis = 'LK Heinsberg'
+        if area in command_line_area_codes.keys():
+            landkreis = command_line_area_codes[area]
         else:
             raise ValueError('Invalid Landkreis requested.')
 

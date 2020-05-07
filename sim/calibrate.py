@@ -21,7 +21,7 @@ import torch
 from botorch import fit_gpytorch_model
 from botorch.exceptions import BadInitialCandidatesWarning
 import botorch.utils.transforms as transforms
-from lib.inference import make_bayes_opt_functions, pdict_to_parr, parr_to_pdict, InferenceLogger, save_state, load_state
+from lib.inference import make_bayes_opt_functions, pdict_to_parr, parr_to_pdict, InferenceLogger, save_state, load_state, gen_initial_seeds
 from lib.inference_kg import qKnowledgeGradient
 import time, pprint
 
@@ -139,9 +139,6 @@ if __name__ == '__main__':
     dynamic_tracing = True
     load_observations = args.load
 
-    # initial seeds
-    initial_seeds = settings_initial_seeds
-
     # parameter bounds
     param_bounds = settings_param_bounds 
 
@@ -188,7 +185,8 @@ if __name__ == '__main__':
     # Empirical fatality rate per age group from the above data. 
     # RKI data defines 6 groups: **0-4y, 5-14y, 15-34y, 35-59y, 60-79y, 80+y**
     num_age_groups = fatality_cases_.shape[1] 
-    fatality_rates_by_age = (fatality_cases_[-1, :] /     (new_cases_[-1, :] +  fatality_cases_[-1, :] + resistant_cases_[-1, :]))
+    fatality_rates_by_age = (fatality_cases_[-1, :] / 
+        (new_cases_[-1, :] +  fatality_cases_[-1, :] + resistant_cases_[-1, :]))
     fatality_rates_by_age = np.nan_to_num(fatality_rates_by_age) # deal with 0/0
 
     # Scale down cases based on number of people in simulation
@@ -196,6 +194,10 @@ if __name__ == '__main__':
         np.ceil(1/case_downsampling * new_cases_),
         np.ceil(1/case_downsampling * resistant_cases_),
         np.ceil(1/case_downsampling * fatality_cases_))
+
+    # generate initial seeds based on case numbers
+    initial_seeds = gen_initial_seeds(new_cases)
+    initial_lines_printed.append('Initial seed counts : ' + str(initial_seeds))
 
     # in debug mode, shorten time of simulation, shorten time
     if debug_simulation_days:
@@ -272,11 +274,9 @@ if __name__ == '__main__':
             launch_kwargs=launch_kwargs, 
             verbose=verbose)
 
-    initial_lines_printed.append('')
     initial_lines_printed.append('Negative iteration indices indicate initial quasi-random exploration.')
     initial_lines_printed.append('`diff` indicates `total sim cases at t=T - total true cases at t=T`')
     initial_lines_printed.append('`walltime` indicates time in minutes needed to perform iteration')
-    initial_lines_printed.append('')
 
     # generate initial training data (either load or simulate)
     if load_observations:

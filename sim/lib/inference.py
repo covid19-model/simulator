@@ -32,6 +32,7 @@ from botorch.gen import get_best_candidates, gen_candidates_torch
 from botorch.optim import gen_batch_initial_conditions
 
 from lib.inference_kg import qKnowledgeGradient, gen_one_shot_kg_initial_conditions
+from lib.distributions import CovidDistributions
 
 import warnings
 warnings.filterwarnings('ignore', category=BadInitialCandidatesWarning)
@@ -162,6 +163,36 @@ def parr_to_pdict(arr):
     }
     return d
 
+
+def gen_initial_seeds(cases):
+    """
+    Generates initial seed counts based on `cases` np.array.
+    `cases` has to have shape (num_days, num_age_groups).
+
+    Assumptions:
+    - Cases on day t=0 set to number of symptomatic `isym` and positively tested
+    - Following literature, asyptomatic indiviudals `iasy` make out approx `alpha` percent of all symtomatics
+    - Following literature on R0, set `expo` = R0 * (`isym` + `iasy`)
+    - Recovered cases are also considered
+    - All other seeds are omitted
+    
+    """
+
+    num_days, num_age_groups = cases.shape
+
+    # set initial seed count (approximately based on infection counts on March 10)
+    dists = CovidDistributions(fatality_rates_by_age=np.zeros(num_age_groups))
+    alpha = dists.alpha
+    isym = cases[0].sum().item()
+    iasy = alpha / (1 - alpha) * isym
+    expo = dists.R0 * (isym + iasy)
+
+    seed_counts = {
+        'expo': math.ceil(expo),
+        'isym_posi': math.ceil(isym),
+        'iasy': math.ceil(iasy),
+    }
+    return seed_counts
 
 def convert_timings_to_cumulative_daily(timings, age_groups, time_horizon):
     '''

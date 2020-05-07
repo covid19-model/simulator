@@ -28,6 +28,9 @@ class CovidDistributions(object):
         ALL UNITS IN DAYS
         '''
 
+        self.R0 = 2.0 # for seeding
+        # https://www.who.int/docs/default-source/coronaviruse/who-china-joint-mission-on-covid-19-final-report.pdf
+
         self.alpha = 0.4
 
         self.lambda_0 = 0.0

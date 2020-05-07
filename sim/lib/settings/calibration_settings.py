@@ -20,24 +20,16 @@ settings_simulation = {
     'dynamic_tracing' : True,
 }
 
-# set initial seed count (approximately based on infection counts on March 10)
-settings_initial_seeds = {
-    'expo': 10,
-    'ipre': 1,
-    'isym': 3,
-    'iasy': 3,
-}
-
 # parameter bounds
 settings_param_bounds = {
     'betas': {
-        'education': [0.0, 1.5],
-        'social': [0.0, 1.5],
-        'bus_stop': [0.0, 1.5],
-        'office': [0.0, 1.5],
-        'supermarket': [0.0, 1.5],
+        'education': [0.0, 2.0],
+        'social': [0.0, 2.0],
+        'bus_stop': [0.0, 2.0],
+        'office': [0.0, 2.0],
+        'supermarket': [0.0, 2.0],
     },
-    'beta_household': [0.0, 1.5],
+    'beta_household': [0.0, 2.0],
     'mu': [0.0, 1.0]
 }
 
@@ -66,4 +58,13 @@ settings_acqf = {
     'acqf_opt_raw_samples': 256,
     'acqf_opt_batch_limit': 5,
     'acqf_opt_maxiter': 20,
+}
+
+
+# area codes
+command_line_area_codes = {
+    'TU': 'LK Tübingen',
+    'KL': 'SK Kaiserslautern',
+    'RH': 'LK Rheingau-Taunus-Kreis',
+    'HB': 'LK Heinsberg',
 }
