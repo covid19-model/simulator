@@ -4,25 +4,29 @@ import numpy as np
 Settings for town generation
 '''
 
-town_name = 'Tubingen' 
+town_name = 'Ruedesheim'
 
 # Make sure to download country-specific population density data
 # from https://data.humdata.org/organization/facebook
 population_path='lib/data/population/population_deu_2019-07-01.csv' # Population density file
 
 sites_path='lib/data/queries/' # Directory containing OSM site query details
-bbox = (48.4900, 48.5485, 9.0224, 9.1061) # Coordinate bounding box
+# FIXME: bbox = (48.4900, 48.5485, 9.0224, 9.1061) # Coordinate bounding box
 
 # Population per age group in the region
+# Data taken from https://ugeo.urbistat.com/AdminStat/de/de/demografia/eta/rheingau-taunus-kreis/6439/3
+# and estimated to match the age groups of the case data published by RKI
 population_per_age_group = np.array([
-    13416, # 0-4
-    18324, # 5-14
-    67389, # 15-34
-    75011, # 35-59
-    41441, # 60-79
-    11750])# 80+
+    7995,   # 0-4
+    17082,  # 5-14
+    38151,  # 15-34
+    67215,  # 35-59
+    41770,  # 60-79
+    14389   # 80+
+    ])
 
-town_population = 90546 # Population of the town of interest
+# FIXME: If we decide to simulate the whole Landkreis set town_population=region_population
+town_population = 9959   # Population of the town of interest
 region_population = population_per_age_group.sum()
 
 # Information about household structure (set to None if not available)
