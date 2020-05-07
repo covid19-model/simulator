@@ -4,25 +4,25 @@ import numpy as np
 Settings for town generation
 '''
 
-town_name = 'Tubingen' 
+town_name = 'Kaiserslautern' 
 
 # Make sure to download country-specific population density data
 # from https://data.humdata.org/organization/facebook
 population_path='lib/data/population/population_deu_2019-07-01.csv' # Population density file
 
 sites_path='lib/data/queries/' # Directory containing OSM site query details
-bbox = (48.4900, 48.5485, 9.0224, 9.1061) # Coordinate bounding box
+bbox = (49.4096, 49.4633, 7.6877, 7.8147) # Coordinate bounding box
 
 # Population per age group in the region
 population_per_age_group = np.array([
-    13416, # 0-4
-    18324, # 5-14
-    67389, # 15-34
-    75011, # 35-59
-    41441, # 60-79
-    11750])# 80+
+    4206, # 0-4
+    8404, # 5-14
+    33065, # 15-34
+    31752, # 35-59
+    20545, # 60-79
+    6071])# 80+
 
-town_population = 90546 # Population of the town of interest
+town_population = 99845 # Population of the town of interest
 region_population = population_per_age_group.sum()
 
 # Information about household structure (set to None if not available)

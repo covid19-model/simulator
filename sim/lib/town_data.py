@@ -7,7 +7,7 @@ import geopy.distance
 import requests
 
 # tile levels and corresponding width (degrees of longitudes)
-# from OpenStreetMaps (https://wiki.openstreetmap.org/wiki/Zoom_levels) 
+# from OpenStreetMap (https://wiki.openstreetmap.org/wiki/Zoom_levels) 
 tile_level_dict = {
     0: 360,
     1: 180,
@@ -32,7 +32,7 @@ tile_level_dict = {
     20: 0.00025
 }
 
-def generate_population(bbox, population_per_age_group, density_files=None, tile_level=16, seed=None,
+def generate_population(bbox, population_per_age_group, density_file=None, tile_level=16, seed=None,
                         density_site_loc=None, household_info=None):
     
     # raise error if tile level is invalid
@@ -48,29 +48,32 @@ def generate_population(bbox, population_per_age_group, density_files=None, tile
     # total population
     population = sum(population_per_age_group)
     
-    if density_files is not None:
+    if density_file is not None:
 
-        tiles=pd.DataFrame()
-        for f in density_files:
-            df = pd.read_csv(f)
-            # read population files and select baseline density per tile
-            tiles = tiles.append(df[['lat','lon','Baseline: People']])
+        # read population density file
+        pops = pd.read_csv(density_file)
 
-        tiles = tiles.rename(columns={"Baseline: People": "pop"})
-        tiles = tiles.dropna(axis=0, how='any')
+        # discard records out of the bounding box
+        pops = pops.loc[(pops['Lat'] >= bbox[0]) & (pops['Lat'] <= bbox[1]) & (pops['Lon'] >= bbox[2]) & (pops['Lon'] <= bbox[3])]
         
-        # average over all days
-        tiles = tiles.groupby(['lat','lon'], as_index=False).mean()
+        # split the map into rectangular tiles
+        lat_arr = np.arange(bbox[0]+tile_size/2, bbox[1]-tile_size/2, tile_size)
+        lon_arr = np.arange(bbox[2]+tile_size/2, bbox[3]-tile_size/2, tile_size)
+        num_of_tiles = len(lat_arr)*len(lon_arr)
 
-        # discard tiles out of the bounding box
-        tiles = tiles.loc[(tiles['lat'] >= bbox[0]) & (tiles['lat'] <= bbox[1]) & (tiles['lon'] >= bbox[2]) & (tiles['lon'] <= bbox[3])]
+        tiles = pd.DataFrame()
+        for lat in lat_arr:
+            for lon in lon_arr:
+                # compute the total population records in each tile
+                pops_in_tile = pops.loc[(pops['Lat'] >= lat-tile_size/2) & (pops['Lat'] <= lat+tile_size/2) & (pops['Lon'] >= lon-tile_size/2) & (pops['Lon'] <= lon+tile_size/2)]
+                tiles = tiles.append(pd.DataFrame(data={'lat': [lat], 'lon': [lon], 'pop': [sum(pops_in_tile['Population'])]}))
 
         # scale population density to real numbers
         tiles['pop'] /= sum(tiles['pop'])
         tiles['pop'] *= population
         tiles['pop'] = tiles['pop'].round().astype(int)
 
-    elif density_files is None and density_site_loc is None:
+    elif density_file is None and density_site_loc is None:
 
         # generate a grid of tiles inside the bounding box
         lat_arr = np.arange(bbox[0]+tile_size/2, bbox[1]-tile_size/2, tile_size)
@@ -89,7 +92,7 @@ def generate_population(bbox, population_per_age_group, density_files=None, tile
                 tiles = tiles.append(pd.DataFrame(data={'lat': [lat], 'lon': [lon], 'pop': [population_distribution[tile_ind]]}))
                 tile_ind += 1
         
-    elif density_files is None and density_site_loc is not None:
+    elif density_file is None and density_site_loc is not None:
 
         # generate a grid of tiles inside the bounding box
         lat_arr = np.arange(bbox[0]+tile_size/2, bbox[1]-tile_size/2, tile_size)
