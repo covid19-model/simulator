@@ -30,8 +30,9 @@ region_population = population_per_age_group.sum()
 town_population = region_population     # Consider full region in simulation
 
 # Daily testing capacity per 100k people
-# Roughly 100k tests per day in Germany: https://www.rki.de/DE/Content/Infekt/EpidBull/Archiv/2020/Ausgaben/15_20.pdf?__blob=publicationFile
-daily_tests_per_100k = int(100000 * town_population / 83000000)
+# Roughly 5k tests per day in Switzerland (rough average over time frame 10.03.-27.04.2020:
+# https://www.bag.admin.ch/bag/en/home/krankheiten/ausbrueche-epidemien-pandemien/aktuelle-ausbrueche-epidemien/novel-cov/situation-schweiz-und-international.html
+daily_tests_per_100k = int(5000 * town_population / 8570000)
 
 # Information about household structure (set to None if not available)
 # Source for Switzerland: https://www.bfs.admin.ch/bfs/de/home/statistiken/bevoelkerung/stand-entwicklung/haushalte.html
