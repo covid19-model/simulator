@@ -127,10 +127,15 @@ if __name__ == '__main__':
     data_start_date = args.start or settings_data['data_start_date']
     debug_simulation_days = args.endsimat # if not None, simulation will be cut short for debugging
 
-    daily_tests_per100k = settings_data['daily_tests_per100k']
-    population_unscaled = settings_data['population_unscaled']
-    unscaled_testing_capacity = args.testingcap or math.ceil(daily_tests_per100k * population_unscaled / 100000)
+    # initialize mobility object to obtain information (no trace generation yet)
+    with open(mob_settings, 'rb') as fp:
+        kwargs = pickle.load(fp)
+    mob = MobilitySimulator(**kwargs)
 
+    # number of tests processed every `testing_frequency` hours
+    unscaled_testing_capacity = args.testingcap or mob.daily_tests_per_100k # FIXME: better name of field: `mob.daily_tests`
+    population_unscaled = mob.num_people_unscaled 
+    
     # simulation settings
     n_init_samples = args.ninit or settings_simulation['n_init_samples']
     n_iterations = args.niters or settings_simulation['n_iterations']
@@ -182,6 +187,7 @@ if __name__ == '__main__':
               'Consider setting a later start date for calibration using the "--start" flag.')
         exit(0)
 
+    
     # Empirical fatality rate per age group from the above data. 
     # RKI data defines 6 groups: **0-4y, 5-14y, 15-34y, 35-59y, 60-79y, 80+y**
     num_age_groups = fatality_cases_.shape[1] 
@@ -203,10 +209,12 @@ if __name__ == '__main__':
     if debug_simulation_days:
         new_cases = new_cases[:debug_simulation_days]
 
-    # Maximum time fixed by real data
+    # Maximum time fixed by real data, init mobility simulator simulation
     max_time = int(new_cases.shape[0] * 24.0) # maximum time to simulate, in hours
     max_time += 24.0 * test_lag_days # longer due to test lag in simulations
     testing_params['testing_t_window'] = [0.0, max_time]
+    mob.simulate(max_time=max_time, dynamic_tracing=True)
+
 
     initial_lines_printed.append(
         'Max time T (days): ' + str(new_cases.shape[0]))
@@ -235,12 +243,6 @@ if __name__ == '__main__':
 
     initial_lines_printed.append(f'Parameters : {n_params}')
     initial_lines_printed.append('Parameter bounds: ' + str(parr_to_pdict(sim_bounds)))
-
-    # initialize mobility object to obtain information (no trace generation yet)
-    with open(mob_settings, 'rb') as fp:
-        kwargs = pickle.load(fp)
-    mob = MobilitySimulator(**kwargs)
-    mob.simulate(max_time=max_time, dynamic_tracing=True)
 
     # create settings dictionary for simulations
     launch_kwargs = dict(

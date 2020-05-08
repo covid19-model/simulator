@@ -7,8 +7,6 @@ Default settings for model calibration
 settings_data = {
     'verbose' : True,
     'use_households' : True,
-    'daily_tests_per100k' : 150, # number of tests processed every `testing_frequency` hours
-    'population_unscaled' : 90000,
     'data_start_date': '2020-03-10',
 }
 
