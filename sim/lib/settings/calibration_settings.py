@@ -61,8 +61,16 @@ settings_acqf = {
 
 # area codes
 command_line_area_codes = {
-    'TU': 'LK Tübingen',
-    'KL': 'SK Kaiserslautern',
-    'RH': 'LK Rheingau-Taunus-Kreis',
-    'HB': 'LK Heinsberg',
+    'GER' : {
+        'TU': 'LK Tübingen',
+        'KL': 'SK Kaiserslautern',
+        'RH': 'LK Rheingau-Taunus-Kreis',
+        'HB': 'LK Heinsberg',
+    },
+    'CH' : {
+        'SZ': 'SZ',
+        'TI': 'TI',
+        'LU': 'LU',
+        'VD': 'VD',
+    }
 }

@@ -29,7 +29,7 @@ def get_preprocessed_data_germany(landkreis='LK Tübingen', start_date_string='2
     '''
 
     # preprocessing
-    df = pd.read_csv('lib/data/RKI_COVID19.csv', header=0, delimiter=',')
+    df = pd.read_csv('lib/data/cases/RKI_COVID19.csv', header=0, delimiter=',')
     # print('Data last updated at: ', df.Datenstand.unique()[0])
 
     # delete unnecessary
@@ -68,6 +68,55 @@ def get_preprocessed_data_germany(landkreis='LK Tübingen', start_date_string='2
 
     return df
 
+def get_preprocessed_data_switzerland(canton='ZH', start_date_string='2020-03-10', until=17):
+    '''
+    Preprocesses data for a specific Canton district in Switzerland
+    Data taken from
+    https://covid-19-schweiz.bagapps.ch/de-1.html
+
+    List of Cantons districts in `data_availability_CH.md`
+
+    '''
+
+    # preprocessing
+    df = pd.read_csv('lib/data/cases/CH_COVID19.csv', header=0, delimiter='\t', encoding='utf-16')
+    # print('Data last updated at: ', df.Datenstand.unique()[0])
+
+    # delete unnecessary
+    df = df[df['Canton'] == canton]
+    df = df[['Canton', 'Altersklasse', 'Datum_Todes_LaborsFälle']]
+
+    # Altersgruppe map
+    agemap = {
+        '0 - 9 Jahren' : 0,
+        '10 - 19 Jahren' : 1,
+        '20 - 29 Jahren' : 2,
+        '30 - 39 Jahren' : 3,
+        '40 - 49 Jahren' : 4,
+        '50 - 59 Jahren' : 5,
+        '60 - 69 Jahren' : 6,
+        '70 - 79 Jahren' : 7,
+        '80+ Jahren' : 8,
+    }
+    df['age_group'] = 0
+    for k,v in agemap.items():
+        df.loc[df.Altersklasse == k, 'age_group'] = v
+    df.drop(['Altersklasse'], axis=1, inplace=True)
+
+    # process date to a number of days until start of actual case growth
+    df['Datum_Todes_LaborsFälle'] = pd.to_datetime(df['Datum_Todes_LaborsFälle'], format='%d.%m.%Y')
+    start_date = pd.to_datetime(start_date_string) # only 4 cases in 2 weeks before that
+
+    # discard earlier cases for simplicity
+    df['days'] = (df['Datum_Todes_LaborsFälle'] - start_date).dt.days
+    df['Datum_Todes_LaborsFälle'] = df['Datum_Todes_LaborsFälle'].dt.date
+    df = df[df['days'] >= 0]
+
+    # filter days after March 26 (measures started at March 23, plus lag and incubation time)
+    df = df[df['days'] <= until] # until = 16 in inference
+
+    return df
+
 
 def collect_data_from_df(country, area, datatype, start_date_string, days):
     '''
@@ -90,8 +139,8 @@ def collect_data_from_df(country, area, datatype, start_date_string, days):
         else:
             raise ValueError('Invalid datatype requested.')
 
-        if area in command_line_area_codes.keys():
-            landkreis = command_line_area_codes[area]
+        if area in command_line_area_codes['GER'].keys():
+            landkreis = command_line_area_codes['GER'][area]
         else:
             raise ValueError('Invalid Landkreis requested.')
 
@@ -103,11 +152,9 @@ def collect_data_from_df(country, area, datatype, start_date_string, days):
         df_tmp['new'] = counts_as_new * df_tmp[ctr]
 
         # count up each day and them make cumulative
-        # x_labels = []
         maxt = df_tmp.days.max() + 1
         data = np.zeros((maxt, 6)) # value, agegroup
         for t in range(maxt):
-            # x_labels.append(df_tmp[df_tmp.days == t].Meldedatum.iloc[0].strftime('%B %d, %Y')) #"%Y-%m-%d"
             for agegroup in range(6):
                 data[t, agegroup] += df_tmp[
                     (df_tmp.days == t) & (df_tmp.age_group == agegroup)].new.sum()
@@ -116,7 +163,31 @@ def collect_data_from_df(country, area, datatype, start_date_string, days):
             if t > 0:
                 data[t, :] += data[t - 1, :]
             
-        # plt.plot(np.linspace(0, maxt-1, num=maxt), data.sum(axis=1))
+        return data
+
+    elif country == 'CH':
+
+        if datatype != 'new':
+            raise ValueError('Invalid datatype requested.')
+
+        if area in command_line_area_codes['CH'].keys():
+            canton = command_line_area_codes['CH'][area]
+        else:
+            raise ValueError('Invalid Canton requested.')
+
+        df_tmp = get_preprocessed_data_switzerland(canton=canton, start_date_string=start_date_string, until=days)
+
+        # count up each day and them make cumulative
+        maxt = df_tmp.days.max() + 1
+        data = np.zeros((maxt, 9)) # value, agegroup
+        for t in range(maxt):
+            for agegroup in range(9):
+                data[t, agegroup] += df_tmp[(df_tmp.days == t) & (df_tmp.age_group == agegroup)].shape[0]
+                
+            # make cumulative
+            if t > 0:
+                data[t, :] += data[t - 1, :]
+            
         return data
 
     else:

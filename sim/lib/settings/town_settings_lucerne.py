@@ -11,7 +11,7 @@ town_name = 'Lucerne'
 population_path = 'lib/data/population/population_che_2019-07-01.csv'   # Population density file
 
 sites_path='lib/data/queries/'  # Directory containing OSM site query details
-# FIXME: Need to add bbox, bbox = (49.4096, 49.4633, 7.6877, 7.8147) # Coordinate bounding box
+bbox = (47.0344, 47.0681, 8.2179, 8.3565) # Coordinate bounding box
 
 # Population per age group in the region
 # Source: https://www.citypopulation.de/en/switzerland/admin/03__luzern/
@@ -39,8 +39,8 @@ daily_tests_per_100k = int(5000 * town_population / 8570000)
 household_info = {
     'size_dist': [16, 29, 18, 23, 14],              # distribution of household sizes (1-5 people) in %
     'soc_role': {
-        'children': [1, 8/10, 0, 0, 0, 0, 0, 0],    # age groups 0,1 can be children
-        'parents': [0, 2/10, 1, 1, 1, 1, 0, 0],     # age groups 1,2,3,4,5,6 can be parents
-        'elderly': [0, 0, 0, 0, 0, 1, 1, 1]         # age groups 6,7,8 are elderly
+        'children': [1, 8/10, 0, 0, 0, 0, 0, 0, 0],    # age groups 0,1 can be children
+        'parents': [0, 2/10, 1, 1, 1, 1, 0, 0, 0],     # age groups 1,2,3,4,5 can be parents
+        'elderly': [0, 0, 0, 0, 0, 0, 1, 1, 1]         # age groups 6,7,8 are elderly
     }
 }
