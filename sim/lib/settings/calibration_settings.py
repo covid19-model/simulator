@@ -68,9 +68,9 @@ command_line_area_codes = {
         'HB': 'LK Heinsberg',
     },
     'CH' : {
-        'SZ': 'SZ',
-        'TI': 'TI',
-        'LU': 'LU',
-        'VD': 'VD',
+        'SZ': 'SZ',     # Canton Schwyz
+        'TI': 'TI',     # Canton Ticino
+        'LU': 'LU',     # Canton Lucerne
+        'VD': 'VD',     # Canton Vaud
     }
 }

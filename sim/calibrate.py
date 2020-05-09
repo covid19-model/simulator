@@ -173,9 +173,11 @@ if __name__ == '__main__':
     assert(int(testing_params['test_reporting_lag']) % 24 == 0)
 
     # Import Covid19 data
+    # Note: The data for "CH" does not include resistant and fatality cases, the corresponding variables will be 0.
+    # For "CH" the fatality rate per age group is hardcoded in CovidDistributions.
     new_cases_ = collect_data_from_df(country=data_country, area=data_area, datatype='new', 
         start_date_string=data_start_date, days=data_days)
-    resistant_cases_ = collect_data_from_df(country=data_country, area=data_area, datatype='recovered', 
+    resistant_cases_ = collect_data_from_df(country=data_country, area=data_area, datatype='recovered',
         start_date_string=data_start_date, days=data_days)
     fatality_cases_ = collect_data_from_df(country=data_country, area=data_area, datatype='fatality', 
         start_date_string=data_start_date, days=data_days)
@@ -224,7 +226,7 @@ if __name__ == '__main__':
         'Target cases per age group at t=T:   ' + str(list(map(int, new_cases[-1].tolist()))))
 
     # instantiate correct distributions
-    distributions = CovidDistributions(fatality_rates_by_age=fatality_rates_by_age)
+    distributions = CovidDistributions(fatality_rates_by_age=fatality_rates_by_age, country=data_country)
 
     # standard quarantine of positive tests staying at home in isolation
     measure_list = MeasureList([
