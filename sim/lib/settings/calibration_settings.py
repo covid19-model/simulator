@@ -19,7 +19,7 @@ settings_simulation = {
 }
 
 # parameter bounds
-settings_param_bounds = {
+settings_model_param_bounds = {
     'betas': {
         'education': [0.0, 2.0],
         'social': [0.0, 2.0],
