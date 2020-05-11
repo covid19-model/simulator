@@ -34,7 +34,7 @@ def get_preprocessed_data_germany(landkreis='LK Tübingen', start_date_string='2
 
     # delete unnecessary
     df = df[df['Landkreis'] == landkreis]
-    df.drop(['Datenstand', 'IdLandkreis', 'Refdatum', 'ObjectId',
+    df.drop(['Datenstand', 'IdLandkreis', 'Refdatum', 
             'Landkreis', 'IdBundesland', 'Bundesland', 'Geschlecht'], axis=1, inplace=True)
 
     # delete weird data rows (insignificant)
@@ -56,7 +56,7 @@ def get_preprocessed_data_germany(landkreis='LK Tübingen', start_date_string='2
 
     # process date to a number of days until start of actual case growth
     df.Meldedatum = pd.to_datetime(df.Meldedatum)
-    start_date = pd.to_datetime(start_date_string + ' 00:00:00+00:00') # only 4 cases in 2 weeks before that
+    start_date = pd.to_datetime(start_date_string)
 
     # discard earlier cases for simplicity
     df['days'] = (df.Meldedatum - start_date).dt.days
