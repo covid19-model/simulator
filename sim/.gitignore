@@ -3,7 +3,6 @@ build
 *.pk
 *.txt #Ignore log files
 !requirements.txt #Except for requirements.txt
-!lib/tu_settings_20_10.pk #Except for inference town settings
 plots/
 maps/
 sim/*.txt
