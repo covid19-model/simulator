@@ -31,6 +31,10 @@ settings_model_param_bounds = {
     'mu': [0.0, 1.0]
 }
 
+settings_measures_param_bounds = {
+    'p_stay_home': [0.0, 1.0],
+}
+
 # set testing parameters
 settings_testing_params = {
     'testing_t_window': None,  # [set automatically in code]
@@ -74,3 +78,42 @@ command_line_area_codes = {
         'VD': 'VD',     # Canton Vaud
     }
 }
+
+# optimized model parameters
+settings_optimized_town_params = {
+    'GER': {
+        'TU': { # dummy settings
+            'betas': {
+                'education': 0.5,
+                'social': 1.0,
+                'bus_stop': 1.0,
+                'office': 0.5,
+                'supermarket': 0.5,
+            },
+            'beta_household': 0.2,
+            'mu': 0.5
+        },
+        'KL': None,
+        'RH': None,
+        'HB': None,
+    },
+    'CH': {
+        'SZ': None,     
+        'TI': None,     
+        'LU': None,
+        'VD': None,
+    }
+}
+
+# lockdown dates
+settings_lockdown_dates = {
+    'GER': {
+        'start' : '03-23-2020',
+        'end': '05-03-2020',
+    },
+    'CH': {
+        'start': '03-16-2020',
+        'end': '05-10-2020',
+    },
+}
+

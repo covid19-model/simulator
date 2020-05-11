@@ -25,7 +25,12 @@ def make_calibration_parser():
     parser.add_argument("--load", 
         help="specify path to a BO state to be loaded as initial observations, e.g. 'logs/calibration_0_state.pk'")
 
-
+    # SD tuning
+    parser.add_argument("--measures_optimized", action="store_true",
+        help="when passed, BO optimizes `p_stay_home` for SocialDistancingForAllMeasure at given starting date")
+    parser.add_argument("--measures_close", nargs="+", 
+        help="when `--measures_optimized` is active, closes all site types passed after this argument")
+ 
 
     # data
     parser.add_argument("--mob", 
@@ -34,11 +39,12 @@ def make_calibration_parser():
         help="specify country indicator for data import")
     parser.add_argument("--area", 
         help="specify area indicator for data import")
-    parser.add_argument("--days", type=int, 
-        help="specify number of days for which case data is retrieved")
-    parser.add_argument("--start", default=settings_data['data_start_date'],
-        help="adjust starting data for which case data is retrieved"
-             "default for 'GER' should be '2020-03-10'")
+    parser.add_argument("--start",
+        help="set starting date for which case data is retrieved "
+             "e.g. '2020-03-10'")
+    parser.add_argument("--end",
+        help="set end date for which case data is retrieved "
+             "e.g. '2020-03-26'")
     parser.add_argument("--downsample", type=int,
         help="update default case downsampling factor")
 

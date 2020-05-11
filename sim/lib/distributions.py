@@ -19,7 +19,7 @@ class CovidDistributions(object):
     Class to sample from specific distributions for SARS COV2
     """
 
-    def __init__(self, fatality_rates_by_age, country="GER"):
+    def __init__(self, country):
 
         self.tadj = 24.0 
 
@@ -36,7 +36,7 @@ class CovidDistributions(object):
         self.lambda_0 = 0.0
 
         if country == 'GER':
-            self.fatality_rates_by_age = fatality_rates_by_age
+            self.fatality_rates_by_age = np.array([0.0, 0.0, 0.0, 0.004, 0.073, 0.247])
             self.p_hospital_by_age = np.array([0.001, 0.002, 0.012, 0.065, 0.205, 0.273])
         elif country == 'CH':
             # Data taken from: https://www.bag.admin.ch/bag/en/home/krankheiten/ausbrueche-epidemien-pandemien/aktuelle-ausbrueche-epidemien/novel-cov/situation-schweiz-und-international.html
@@ -153,9 +153,7 @@ class CovidDistributions(object):
 
 if __name__ == '__main__':
 
-    fatality_rates_by_age = np.array([0., 0., 0., 0., 0.00671141, 0.15555556])
-
-    dist = CovidDistributions(fatality_rates_by_age)
+    dist = CovidDistributions(country='GER')
 
     print('expo to ipre/iasy (subtracted infectious window before symptoms) : ', 
           dist.normal_to_lognormal(dist.incubation_mean_of_lognormal - dist.median_infectious_without_symptom, dist.incubation_std_of_lognormal))

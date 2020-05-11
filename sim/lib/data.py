@@ -1,7 +1,7 @@
 import sys
 import argparse
-# if '..' not in sys.path:
-#     sys.path.append('..')
+if '..' not in sys.path:
+    sys.path.append('..')
 
 import time
 import bisect
@@ -18,7 +18,7 @@ import random
 from lib.settings.calibration_settings import command_line_area_codes
 
 
-def get_preprocessed_data_germany(landkreis='LK Tübingen', start_date_string='2020-03-10', until=17):
+def get_preprocessed_data_germany(landkreis='LK Tübingen', start_date_string='2020-03-10', until=None, end_date_string=None):
     '''
     Preprocesses data for a specific Landkreis in Germany
     Data taken from
@@ -63,12 +63,17 @@ def get_preprocessed_data_germany(landkreis='LK Tübingen', start_date_string='2
     df['Meldedatum'] = df.Meldedatum.dt.date
     df = df[df['days'] >= 0]
 
-    # filter days after March 26 (measures started at March 23, plus lag and incubation time)
-    df = df[df['days'] <= until] # until = 16 in inference
+    # filter days
+    if until:
+        df = df[df['days'] <= until]
+
+    if end_date_string:
+        df = df[df['Meldedatum'] <= pd.to_datetime(end_date_string)]
 
     return df
 
-def get_preprocessed_data_switzerland(canton='ZH', start_date_string='2020-03-10', until=17):
+
+def get_preprocessed_data_switzerland(canton='ZH', start_date_string='2020-03-10', until=None, end_date_string=None):
     '''
     Preprocesses data for a specific Canton district in Switzerland
     Data taken from
@@ -112,21 +117,28 @@ def get_preprocessed_data_switzerland(canton='ZH', start_date_string='2020-03-10
     df['Datum_Todes_LaborsFälle'] = df['Datum_Todes_LaborsFälle'].dt.date
     df = df[df['days'] >= 0]
 
-    # filter days after March 26 (measures started at March 23, plus lag and incubation time)
-    df = df[df['days'] <= until] # until = 16 in inference
+    # filter days 
+    if until:
+        df = df[df['days'] <= until]
+
+    if end_date_string:
+        df = df[df['Datum_Todes_LaborsFälle'] <= pd.to_datetime(end_date_string)]
 
     return df
 
 
-def collect_data_from_df(country, area, datatype, start_date_string, days):
+def collect_data_from_df(country, area, datatype, start_date_string, until=None, end_date_string=None):
     '''
-    Collects data for a country `country` and a specific area `area` for `days` days, 
+    Collects data for a country `country` and a specific area `area` 
     either: new, recovered, fatality cases from df 
 
     `datatype` has to be one of `new`, `recovered`, `fatality`
 
     Returns np.array of shape (`max_days`, age_groups)
     '''
+    if until and end_date_string:
+        print('Can only specify `until` (days until end) or `end_date_string` (end date). ')
+        exit(0)
 
     if country == 'GER':
 
@@ -144,7 +156,8 @@ def collect_data_from_df(country, area, datatype, start_date_string, days):
         else:
             raise ValueError('Invalid Landkreis requested.')
 
-        df_tmp = get_preprocessed_data_germany(landkreis=landkreis, start_date_string=start_date_string, until=days)
+        df_tmp = get_preprocessed_data_germany(
+            landkreis=landkreis, start_date_string=start_date_string, until=until, end_date_string=end_date_string)
 
         # check whether the new case counts, i.e. wasn't used in a different publication
         counts_as_new = np.array((df_tmp[indic] == 0) | (df_tmp[indic] == 1), dtype='int')
@@ -176,7 +189,8 @@ def collect_data_from_df(country, area, datatype, start_date_string, days):
         else:
             raise ValueError('Invalid Canton requested.')
 
-        df_tmp = get_preprocessed_data_switzerland(canton=canton, start_date_string=start_date_string, until=days)
+        df_tmp = get_preprocessed_data_switzerland(canton=canton, start_date_string=start_date_string, 
+                                                   until=until, end_date_string=end_date_string)
 
         # count up each day and them make cumulative
         maxt = df_tmp.days.max() + 1
@@ -194,3 +208,4 @@ def collect_data_from_df(country, area, datatype, start_date_string, days):
     else:
         raise NotImplementedError('Invalid country requested.')
         
+

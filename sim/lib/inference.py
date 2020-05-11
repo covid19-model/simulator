@@ -6,14 +6,14 @@ import threading
 import json
 import pprint
 import csv
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from lib.priorityqueue import PriorityQueue
 from lib.dynamics import DiseaseModel
 from lib.mobilitysim import MobilitySimulator
 from lib.parallel import *
 
-import gpytorch, torch, botorch, sobol_seq
+import gpytorch, torch, botorch, sobol_seq, pandas
 from botorch import fit_gpytorch_model
 from botorch.models.transforms import Standardize
 from botorch.models import FixedNoiseGP, ModelListGP, HeteroskedasticSingleTaskGP
@@ -35,7 +35,14 @@ from botorch.optim import gen_batch_initial_conditions
 
 from lib.inference_kg import qKnowledgeGradient, gen_one_shot_kg_initial_conditions
 from lib.distributions import CovidDistributions
-from lib.settings.calibration_settings import settings_model_param_bounds, settings_testing_params
+from lib.settings.calibration_settings import (
+    settings_model_param_bounds, 
+    settings_measures_param_bounds, 
+    settings_testing_params,
+    settings_optimized_town_params,
+    settings_lockdown_dates
+)
+
 from lib.data import collect_data_from_df
 
 from lib.measures import (
@@ -71,23 +78,35 @@ class CalibrationLogger:
     def __init__(
         self,
         filename,
+        measures_optimized,
         verbose
     ):
 
         self.dir = 'logs/'
         self.filename = filename
+        self.measures_optimized = measures_optimized
         self.headers = [
             'iter',
             '    best obj',
             ' current obj',
-            ' diff',
-            'b/educat',
-            'b/social',
-            'b/bus_st',
-            'b/office',
-            'b/superm',
-            'b/househ',
-            '      mu',
+            ' diff']
+
+        if self.measures_optimized:
+            self.headers += [
+                '  p_home'
+            ]
+        else:
+            self.headers += [
+                'b/educat',
+                'b/social',
+                'b/bus_st',
+                'b/office',
+                'b/superm',
+                'b/househ',
+                '      mu',
+            ]
+
+        self.headers += [
             'walltime',
         ]
 
@@ -122,19 +141,30 @@ class CalibrationLogger:
         '''
         Writes lst to a .csv file
         '''
-        d = parr_to_pdict(theta)
+        d = parr_to_pdict(theta, measures_optimized=self.measures_optimized)
         fields = [
             f"{i:4.0f}",
             f"{best:12.4f}",
             f"{objective:12.4f}",
             f"{case_diff:5.0f}",
-            f"{d['betas']['education']:8.4f}",
-            f"{d['betas']['social']:8.4f}",
-            f"{d['betas']['bus_stop']:8.4f}",
-            f"{d['betas']['office']:8.4f}",
-            f"{d['betas']['supermarket']:8.4f}",
-            f"{d['beta_household']:8.4f}",
-            f"{d['mu']:8.4f}",
+        ]
+
+        if self.measures_optimized:
+            fields += [
+                f"{d['p_stay_home']:8.4f}"
+            ]
+        else:
+            fields += [
+                f"{d['betas']['education']:8.4f}",
+                f"{d['betas']['social']:8.4f}",
+                f"{d['betas']['bus_stop']:8.4f}",
+                f"{d['betas']['office']:8.4f}",
+                f"{d['betas']['supermarket']:8.4f}",
+                f"{d['beta_household']:8.4f}",
+                f"{d['mu']:8.4f}",
+            ]
+
+        fields +=[
             f"{time/60.0:8.4f}",
         ]
 
@@ -150,33 +180,49 @@ class CalibrationLogger:
 
         return
 
-def pdict_to_parr(d):
-    """Convert parameter dict to BO parameter tensor"""
-    arr = torch.stack([
-        torch.tensor(d['betas']['education']),
-        torch.tensor(d['betas']['social']),
-        torch.tensor(d['betas']['bus_stop']),
-        torch.tensor(d['betas']['office']),
-        torch.tensor(d['betas']['supermarket']),
-        torch.tensor(d['beta_household']),
-        torch.tensor(d['mu']),
-    ])
-    return arr
 
-def parr_to_pdict(arr):
+def pdict_to_parr(d, measures_optimized):
+    """Convert parameter dict to BO parameter tensor"""
+    if measures_optimized:
+        arr = torch.stack([
+            torch.tensor(d['p_stay_home']),
+        ])
+        return arr
+
+    else:
+        arr = torch.stack([
+            torch.tensor(d['betas']['education']),
+            torch.tensor(d['betas']['social']),
+            torch.tensor(d['betas']['bus_stop']),
+            torch.tensor(d['betas']['office']),
+            torch.tensor(d['betas']['supermarket']),
+            torch.tensor(d['beta_household']),
+            torch.tensor(d['mu']),
+        ])
+        return arr
+
+
+def parr_to_pdict(arr, measures_optimized):
     """Convert BO parameter tensor to parameter dict"""
-    d = {
-        'betas': {
-            'education': arr[0].tolist(),
-            'social': arr[1].tolist(),
-            'bus_stop': arr[2].tolist(),
-            'office': arr[3].tolist(),
-            'supermarket': arr[4].tolist(),
-        },
-        'beta_household': arr[5].tolist(),
-        'mu': arr[6].tolist()
-    }
-    return d
+    if measures_optimized:
+        d = {
+            'p_stay_home': arr[0].tolist(),
+        }
+        return d
+
+    else:
+        d = {
+            'betas': {
+                'education': arr[0].tolist(),
+                'social': arr[1].tolist(),
+                'bus_stop': arr[2].tolist(),
+                'office': arr[3].tolist(),
+                'supermarket': arr[4].tolist(),
+            },
+            'beta_household': arr[5].tolist(),
+            'mu': arr[6].tolist()
+        }
+        return d
 
 def gen_initial_seeds(cases):
     """
@@ -195,7 +241,7 @@ def gen_initial_seeds(cases):
     num_days, num_age_groups = cases.shape
 
     # set initial seed count (approximately based on infection counts on March 10)
-    dists = CovidDistributions(fatality_rates_by_age=np.zeros(num_age_groups))
+    dists = CovidDistributions(country='GER') # country doesn't matter here
     alpha = dists.alpha
     isym = cases[0].sum().item()
     iasy = alpha / (1 - alpha) * isym
@@ -252,6 +298,12 @@ def make_bayes_opt_functions(args):
     '''
     header = []
 
+    # depending on mode, set parameter bounds 
+    if args.measures_optimized:
+        param_bounds = settings_measures_param_bounds
+    else:
+        param_bounds = settings_model_param_bounds
+
     # remember line executed
     header.append('=' * 100)
     header.append(datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
@@ -261,22 +313,22 @@ def make_bayes_opt_functions(args):
     mob_settings = args.mob
     data_area = args.area
     data_country = args.country
-    data_days = args.days
     case_downsampling = args.downsample
-    
-    # data settings
-    verbose = not args.not_verbose
-    use_households = not args.no_households
-    data_start_date = args.start
-    debug_simulation_days = args.endsimat
 
     # initialize mobility object to obtain information (no trace generation yet)
     with open(mob_settings, 'rb') as fp:
         kwargs = pickle.load(fp)
     mob = MobilitySimulator(**kwargs)
+    
+    # data settings
+    verbose = not args.not_verbose
+    use_households = not args.no_households
+    data_start_date = args.start
+    data_end_date = args.end
+    debug_simulation_days = args.endsimat
 
     # number of tests processed every `testing_frequency` hours
-    # FIXME: better name of field: `mob.daily_tests`
+    # FIXME: better name of field: `mob.daily_tests`, since `mob.daily_tests_per_100k` is not per 100k inhabitants, but for true town population
     unscaled_testing_capacity = args.testingcap or mob.daily_tests_per_100k
     population_unscaled = mob.num_people_unscaled
 
@@ -287,10 +339,6 @@ def make_bayes_opt_functions(args):
     cpu_count = args.cpu_count
     dynamic_tracing = not args.no_dynamic_tracing
     load_observations = args.load
-
-    # parameter bounds
-    param_bounds = settings_model_param_bounds
-    # param_bounds = settings_measures_param_bounds
 
     # set testing parameters
     testing_params = settings_testing_params
@@ -316,34 +364,19 @@ def make_bayes_opt_functions(args):
     assert(int(testing_params['test_reporting_lag']) % 24 == 0)
 
     # Import Covid19 data
+    # Shape (max_days, num_age_groups)
     new_cases_ = collect_data_from_df(country=data_country, area=data_area, datatype='new',
-                                      start_date_string=data_start_date, days=data_days)
-    resistant_cases_ = collect_data_from_df(country=data_country, area=data_area, datatype='recovered',
-                                            start_date_string=data_start_date, days=data_days)
-    fatality_cases_ = collect_data_from_df(country=data_country, area=data_area, datatype='fatality',
-                                           start_date_string=data_start_date, days=data_days)
-
-    assert(len(new_cases_.shape) == 2 and len(resistant_cases_.shape)
-           == 2 and len(fatality_cases_.shape) == 2)
+                                      start_date_string=data_start_date, end_date_string=data_end_date)
+    assert(len(new_cases_.shape) == 2)
 
     if new_cases_[0].sum() == 0:
         print('No positive cases at provided start time; cannot seed simulation.\n'
               'Consider setting a later start date for calibration using the "--start" flag.')
         exit(0)
 
-    # Empirical fatality rate per age group from the above data.
-    # RKI data defines 6 groups: **0-4y, 5-14y, 15-34y, 35-59y, 60-79y, 80+y**
-    num_age_groups = fatality_cases_.shape[1]
-    fatality_rates_by_age = (fatality_cases_[-1, :] /
-                             (new_cases_[-1, :] + fatality_cases_[-1, :] + resistant_cases_[-1, :]))
-    fatality_rates_by_age = np.nan_to_num(
-        fatality_rates_by_age)  # deal with 0/0
-
     # Scale down cases based on number of people in simulation
-    new_cases, resistant_cases, fatality_cases = (
-        np.ceil(1/case_downsampling * new_cases_),
-        np.ceil(1/case_downsampling * resistant_cases_),
-        np.ceil(1/case_downsampling * fatality_cases_))
+    new_cases = np.ceil(1/case_downsampling * new_cases_)
+    num_age_groups = new_cases_.shape[1]
 
     # generate initial seeds based on case numbers
     initial_seeds = gen_initial_seeds(new_cases)
@@ -366,31 +399,38 @@ def make_bayes_opt_functions(args):
         'Target cases per age group at t=0:   ' + str(list(map(int, new_cases[0].tolist()))))
     header.append(
         'Target cases per age group at t=T:   ' + str(list(map(int, new_cases[-1].tolist()))))
-    header.append(
-        'Fatality rates:                      ' + str(fatality_rates_by_age.tolist()))
 
     # instantiate correct distributions
-    distributions = CovidDistributions(
-        fatality_rates_by_age=fatality_rates_by_age)
-
-    # standard quarantine of positive tests staying at home in isolation
-    measure_list = MeasureList([
-        SocialDistancingForPositiveMeasure(
-            t_window=Interval(0.0, max_time), p_stay_home=1.0),
-        SocialDistancingForPositiveMeasureHousehold(
-            t_window=Interval(0.0, max_time), p_isolate=1.0),
-    ])
+    distributions = CovidDistributions(country=args.country)
 
     # set Bayesian optimization target as positive cases
     n_days, n_age = new_cases.shape
     G_obs = torch.tensor(new_cases).reshape(n_days * n_age)  # flattened
 
-    sim_bounds = pdict_to_parr(param_bounds).T
+    sim_bounds = pdict_to_parr(param_bounds, measures_optimized=args.measures_optimized).T
+
     n_params = sim_bounds.shape[1]
 
     header.append(f'Parameters : {n_params}')
-    header.append('Parameter bounds: ' + str(parr_to_pdict(sim_bounds.T)))
+    header.append('Parameter bounds: ' + str(parr_to_pdict(sim_bounds.T, measures_optimized=args.measures_optimized)))
 
+    # extract lockdown period
+    sim_start_date = pd.to_datetime(args.start)
+    sim_end_date = sim_start_date + timedelta(days=int(max_time / 24.0))
+
+    lockdown_start_date = pd.to_datetime(
+        settings_lockdown_dates[args.country]['start'])
+    lockdown_end_date = pd.to_datetime(
+        settings_lockdown_dates[args.country]['end'])
+
+    days_until_lockdown_start = (lockdown_start_date - sim_start_date).days
+    days_until_lockdown_end = (lockdown_end_date - sim_start_date).days
+
+    header.append(f'Simulation starts at : {sim_start_date}')
+    header.append(f'             ends at : {sim_end_date}')
+    header.append(f'Lockdown starts at :   {lockdown_start_date}')
+    header.append(f'           ends at :   {lockdown_end_date}')
+    
     # create settings dictionary for simulations
     launch_kwargs = dict(
         mob_settings=mob_settings,
@@ -399,7 +439,6 @@ def make_bayes_opt_functions(args):
         cpu_count=cpu_count,
         initial_seeds=initial_seeds,
         testing_params=testing_params,
-        measure_list=measure_list,
         max_time=max_time,
         num_people=mob.num_people,
         num_sites=mob.num_sites,
@@ -447,10 +486,71 @@ def make_bayes_opt_functions(args):
         # un-normalize normalized params to obtain simulation parameters
         params = transforms.unnormalize(norm_params, sim_bounds)
 
-        # run simulation in parallel, using simulator dictionary type for parameters
+        # finalize settings based which parameters are calibrated
         kwargs = copy.deepcopy(launch_kwargs)
-        kwargs['params'] = parr_to_pdict(params)
+        if args.measures_optimized:
 
+            '''
+            Measures are calibrated
+            '''
+
+            measure_params = parr_to_pdict(params, measures_optimized=args.measures_optimized)
+
+            # social distancing measures: calibration is only done for `SocialDistancingForAllMeasure` for now
+            measure_list_ = [
+                SocialDistancingForPositiveMeasure(
+                    t_window=Interval(0.0, max_time), p_stay_home=1.0),
+                SocialDistancingForPositiveMeasureHousehold(
+                    t_window=Interval(0.0, max_time), p_isolate=1.0),
+                SocialDistancingForAllMeasure(
+                    t_window=Interval(24.0 * days_until_lockdown_start,
+                                      24.0 * days_until_lockdown_end),
+                    p_stay_home=measure_params['p_stay_home']),
+            ]
+            
+            # close sites if specified
+            if args.measures_close:
+                beta_multipliers = {'education': 1.0, 'social': 1.0,
+                                'bus_stop': 1.0, 'office': 1.0, 'supermarket': 1.0}
+                for category in args.measures_close:
+                    if category in beta_multipliers.keys():
+                        beta_multipliers[category] = 0.0
+                    else:
+                        raise ValueError(f'Site type `{category}` passed in `--measures_close` is invalid.\n'
+                                         f'Available are {str(list(beta_multipliers.keys()))}')
+                
+                measure_list_.append(BetaMultiplierMeasureByType(
+                    t_window=Interval(24.0 * days_until_lockdown_start,
+                                      24.0 * days_until_lockdown_end),
+                    beta_multiplier=beta_multipliers
+                ))
+            
+            kwargs['measure_list'] = MeasureList(measure_list_)
+
+            # get optimized model paramters for this country and area
+            calibrated_model_params = settings_optimized_town_params[args.country][args.area]
+            if calibrated_model_params is None:
+                raise ValueError(f'Cannot optimize measures for {args.country}-{args.area} because model parameters ' 
+                                  'have not been fitted yet. Set values in `calibration_settings.py`')
+            kwargs['params'] = calibrated_model_params
+
+        else:
+
+            '''
+            Model parameters calibrated
+            '''
+            
+            kwargs['measure_list'] = MeasureList([
+                SocialDistancingForPositiveMeasure(
+                    t_window=Interval(0.0, max_time), p_stay_home=1.0),
+                SocialDistancingForPositiveMeasureHousehold(
+                    t_window=Interval(0.0, max_time), p_isolate=1.0),
+            ])
+
+            kwargs['params'] = parr_to_pdict(params, measures_optimized=args.measures_optimized)
+
+
+        # run simulation in parallel,
         summary = launch_parallel_simulations(**kwargs)
 
         # (random_repeats, n_people)

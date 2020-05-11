@@ -35,13 +35,6 @@ from bayes_opt import BayesianOptimization
 from lib.parallel import *
 from lib.distributions import CovidDistributions
 from lib.plot import Plotter
-# from lib.measures import (
-#     MeasureList, 
-#     SocialDistancingForAllMeasure, 
-#     SocialDistancingByAgeMeasure,
-#     SocialDistancingForPositiveMeasure,
-#     SocialDistancingForPositiveMeasureHousehold,
-#     Interval)
 
 from lib.mobilitysim import MobilitySimulator
 from lib.calibrate_parser import make_calibration_parser
@@ -52,14 +45,13 @@ if __name__ == '__main__':
     Command line arguments
     '''
 
-    # command line arguments change the standard settings
     parser = make_calibration_parser()
     args = parser.parse_args()
     seed = args.seed or 0
     args.filename = args.filename or f'calibration_{seed}'
     
     # check required settings
-    if not (args.mob and args.area and args.country and args.days and args.downsample):
+    if not (args.mob and args.area and args.country and args.start and args.end and args.downsample):
         print(
             "The following keyword arguments are required, for example as follows:\n"
             "python calibrate.py \n"
@@ -67,7 +59,8 @@ if __name__ == '__main__':
             "   --area \"TU\" \n"
             "   --mob \"lib/tu_settings_10_10_hh.pk\" \n"
             "   --downsample 10 \n"
-            "   --days \"16\" \n"
+            "   --start \"2020-03-10\" \n"
+            "   --end \"2020-03-26\" \n"
         )
         exit(0)
 
@@ -83,13 +76,11 @@ if __name__ == '__main__':
      unnormalize_theta,
      header) = make_bayes_opt_functions(args=args)
 
-    header.append('Negative iteration indices indicate initial quasi-random exploration.')
-    header.append('`diff` indicates `total sim cases at t=T - total true cases at t=T`')
-    header.append('`walltime` indicates time in minutes needed to perform iteration')
-
     # logger
     logger = CalibrationLogger(
-        filename=args.filename, verbose=not args.not_verbose)
+        filename=args.filename, 
+        measures_optimized=args.measures_optimized,
+        verbose=not args.not_verbose)
 
     # generate initial training data (either load or simulate)
     if args.load:
@@ -121,7 +112,7 @@ if __name__ == '__main__':
     best_observed = []
     best_observed.append(best_observed_obj)
 
-    # run n_iterations rounds of BayesOpt after the initial random batch
+    # run n_iterations rounds of Bayesian optimization after the initial random batch
     for tt in range(args.niters):
         
         t0 = time.time()
@@ -190,6 +181,6 @@ if __name__ == '__main__':
     # scale back to simulation parameters (from unit cube parameters in BO)
     normalized_calibrated_params = train_theta[best_observed_idx]
     calibrated_params = unnormalize_theta(normalized_calibrated_params)
-    pprint.pprint(parr_to_pdict(calibrated_params))
+    pprint.pprint(parr_to_pdict(calibrated_params, measures_optimized=args.measures_optimized))
 
 
