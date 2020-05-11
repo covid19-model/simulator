@@ -168,7 +168,8 @@ def collect_data_from_df(country, area, datatype, start_date_string, days):
     elif country == 'CH':
 
         if datatype != 'new':
-            raise ValueError('Invalid datatype requested.')
+            return np.zeros([1, 9])
+            # raise ValueError('Invalid datatype requested.')
 
         if area in command_line_area_codes['CH'].keys():
             canton = command_line_area_codes['CH'][area]

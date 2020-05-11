@@ -246,6 +246,7 @@ def make_bayes_opt_functions(args):
         initialize_model :                  function to initialize GP
         optimize_acqf_and_get_observation : function to optimize acquisition function based on model
         case_diff :                         computes case difference between prediction array and ground truth at t=T
+        unnormalize_theta :                 converts BO params to simulation params (unit cube to real parameters)
         header :                            header lines to be printed to log file
 
     '''
