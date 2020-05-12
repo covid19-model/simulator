@@ -17,6 +17,7 @@ from pathos.multiprocessing import ProcessingPool as Pool
 from lib.dynamics import DiseaseModel
 from lib.priorityqueue import PriorityQueue
 from lib.measures import (MeasureList, BetaMultiplierMeasureBySite,
+                      UpperBoundCasesBetaMultiplier, UpperBoundCasesSocialDistancing,
                       SocialDistancingForAllMeasure, BetaMultiplierMeasureByType,
                       SocialDistancingForPositiveMeasure, SocialDistancingByAgeMeasure, SocialDistancingForSmartTracing, ComplianceForAllMeasure)
 
@@ -219,7 +220,7 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
     initial_seeds_list = [copy.deepcopy(initial_seeds) for _ in range(random_repeats)]
     testing_params_list = [copy.deepcopy(testing_params) for _ in range(random_repeats)]
     max_time_list = [copy.deepcopy(max_time) for _ in range(random_repeats)]
-    dynamic_tracing = [copy.deepcopy(dynamic_tracing) for _ in range(random_repeats)]
+    dynamic_tracing_list = [copy.deepcopy(dynamic_tracing) for _ in range(random_repeats)]
     repeat_ids = list(range(random_repeats))
 
     if verbose:
@@ -227,7 +228,7 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
 
     with ProcessPoolExecutor(cpu_count) as ex:
         res = ex.map(pp_launch, repeat_ids, mob_setting_list, distributions_list, params_list,
-                     initial_seeds_list, testing_params_list, measure_list_list, max_time_list, dynamic_tracing)
+                     initial_seeds_list, testing_params_list, measure_list_list, max_time_list, dynamic_tracing_list)
 
     # DEBUG mode (to see errors printed properly)
     # res = []

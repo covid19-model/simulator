@@ -13,10 +13,11 @@ from joblib import Parallel, delayed
 
 from lib.priorityqueue import PriorityQueue
 from lib.measures import (MeasureList, BetaMultiplierMeasureBySite,
+    UpperBoundCasesBetaMultiplier, UpperBoundCasesSocialDistancing,
     SocialDistancingForAllMeasure, BetaMultiplierMeasureByType,
-    SocialDistancingPerStateMeasure, SocialDistancingForPositiveMeasure, 
-    SocialDistancingForPositiveMeasureHousehold, 
-    SocialDistancingByAgeMeasure, SocialDistancingForSmartTracing, 
+    SocialDistancingPerStateMeasure, SocialDistancingForPositiveMeasure,
+    SocialDistancingForPositiveMeasureHousehold,
+    SocialDistancingByAgeMeasure, SocialDistancingForSmartTracing,
     ComplianceForAllMeasure, SocialDistancingForKGroups)
 
 class DiseaseModel(object):
@@ -311,6 +312,7 @@ class DiseaseModel(object):
         self.test_reporting_lag = testing_params['test_reporting_lag']        
         self.tests_per_batch    = testing_params['tests_per_batch']
         self.testing_t_window   = testing_params['testing_t_window']
+        self.t_pos_tests = []
         self.test_fpr = testing_params['test_fpr']
         self.test_fnr = testing_params['test_fnr']
         
@@ -328,6 +330,10 @@ class DiseaseModel(object):
 
         # Sample bernoulli outcome for all SocialDistancingForAllMeasure
         self.measure_list.init_run(SocialDistancingForAllMeasure,
+                                   n_people=self.n_people,
+                                   n_visits=max(self.mob.visit_counts))
+
+        self.measure_list.init_run(UpperBoundCasesSocialDistancing,
                                    n_people=self.n_people,
                                    n_visits=max(self.mob.visit_counts))
 
@@ -902,6 +908,12 @@ class DiseaseModel(object):
         acceptance_prob *= beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[k]], t=t) \
             if beta_mult_measure else 1.0
 
+        beta_mult_measure = self.measure_list.find(UpperBoundCasesBetaMultiplier, t=t)
+        acceptance_prob *= beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[k]],
+                                                         t=t,
+                                                         t_pos_tests=self.t_pos_tests) \
+            if beta_mult_measure else 1.0
+
         # return rejection prob
         rejection_prob = 1.0 - acceptance_prob
         return rejection_prob
@@ -927,7 +939,10 @@ class DiseaseModel(object):
                 j=i, j_visit_id=visit_id) or 
             self.measure_list.is_contained(
                 SocialDistancingForKGroups, t=t,
-                j=i)            
+                j=i) or
+            self.measure_list.is_contained(
+                UpperBoundCasesSocialDistancing, t=t,
+                j=i, j_visit_id=visit_id, t_pos_tests=self.t_pos_tests)
         )
         return is_home
 
@@ -971,6 +986,9 @@ class DiseaseModel(object):
                     self.outcome_of_test[i] = True
                 else:
                     self.outcome_of_test[i] = False
+
+            if self.outcome_of_test[i]:
+                self.t_pos_tests.append(t)
 
     def __process_testing_event(self, t, i):
         """
@@ -1093,7 +1111,13 @@ class DiseaseModel(object):
             beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureByType, t=start_next_contact)
             beta_fact *= beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[site]], t=start_next_contact) \
                 if beta_mult_measure else 1.0
-                
+
+            beta_mult_measure = self.measure_list.find(UpperBoundCasesBetaMultiplier, t=t)
+            beta_fact *= beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[site]],
+                                                       t=t,
+                                                       t_pos_tests=self.t_pos_tests) \
+                if beta_mult_measure else 1.0
+
             # decide if i and j really had overlap
             if (not is_j_contained) and (not is_i_contained):
                 if self.smart_tracing == 'basic':

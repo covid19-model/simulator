@@ -46,6 +46,7 @@ class Measure(metaclass=abc.ABCMeta):
 =========================== SOCIAL DISTANCING ===========================
 """
 
+
 class SocialDistancingForAllMeasure(Measure):
     """
     Social distancing measure. All the population is advised to stay home. Each
@@ -101,6 +102,64 @@ class SocialDistancingForAllMeasure(Measure):
             return self.p_stay_home
         return 0.0
 
+
+class UpperBoundCasesSocialDistancing(SocialDistancingForAllMeasure):
+
+    def __init__(self, t_window, p_stay_home, max_pos_tests_per_week=50, intervention_times=None):
+        """
+        Additional parameters:
+        ----------------------
+        max_pos_test_per_week : int
+            If the number of positive tests per week exceeds this number the measure becomes active
+        intervention_times : list of floats
+            List of points in time at which interventions can be changed. If 'None' interventions can be changed at any time
+        """
+
+        super().__init__(t_window, p_stay_home)
+        self.max_pos_tests_per_week = max_pos_tests_per_week
+        self.intervention_history = []
+        if intervention_times is not None:
+            self.intervention_times = np.asarray(intervention_times)
+        else:
+            self.intervention_times = None
+
+    def _are_cases_above_threshold(self, t, t_pos_tests):
+        # If measures can be changed continuously
+        if self.intervention_times is None:
+            t_intervention = t
+        else:  # If measures can be changed at intervention times
+            # Find largest time in intervention_times s.t. t > time
+            t_intervention = np.where(t - self.intervention_times > 0, t - self.intervention_times, np.inf).min()
+
+        # Count positive tests in last 7 days from last intervention time
+        tmin = t_intervention - 7 * 24
+        num_pos_tests = np.sum(np.greater(t_pos_tests, tmin) * np.less(t_pos_tests, t_intervention))
+        is_measure_active = num_pos_tests > self.max_pos_tests_per_week
+        self.intervention_history.append((t, is_measure_active))
+        return is_measure_active
+
+    @enforce_init_run
+    def is_contained(self, *, j, j_visit_id, t, t_pos_tests):
+        """Indicate if individual `j` respects measure for visit `j_visit_id`
+        """
+        if not self._in_window(t):
+            return False
+
+        is_home_now = self.bernoulli_stay_home[j, j_visit_id]
+        return is_home_now and self._are_cases_above_threshold(t, t_pos_tests)
+
+    @enforce_init_run
+    def is_contained_prob(self, *, j, t, t_pos_tests):
+        """Returns probability of containment for individual `j` at time `t`
+        """
+        if not self._in_window(t):
+            return 0.0
+
+        if self._are_cases_above_threshold(t, t_pos_tests):
+            return self.p_stay_home
+        return 0.0
+
+
 class SocialDistancingPerStateMeasure(SocialDistancingForAllMeasure):
     """
     Social distancing measure. Only the population in a given 'state' is advised
@@ -145,6 +204,7 @@ class SocialDistancingPerStateMeasure(SocialDistancingForAllMeasure):
             return self.p_stay_home
         return 0.0
 
+
 class SocialDistancingForPositiveMeasure(SocialDistancingForAllMeasure):
     """
     Social distancing measure. Only the population of positive cases who are not
@@ -186,6 +246,7 @@ class SocialDistancingForPositiveMeasure(SocialDistancingForAllMeasure):
             t < state_resi_started_at[j] and t < state_dead_started_at[j]):
             return self.p_stay_home
         return 0.0
+
 
 class SocialDistancingForPositiveMeasureHousehold(Measure):
     """
@@ -406,7 +467,8 @@ class SocialDistancingForKGroups(Measure):
 =========================== SITE SPECIFIC MEASURES ===========================
 """
 
-class BetaMultiplierMeasureBySite(Measure):
+
+class BetaMultiplierMeasure(Measure):
 
     def __init__(self, t_window, beta_multiplier):
         """
@@ -426,6 +488,14 @@ class BetaMultiplierMeasureBySite(Measure):
                               " non-negative floats"))
         self.beta_multiplier = beta_multiplier
 
+    # def beta_factor(self, *args):
+    #     """Initialize general beta_factor function"""
+    #     raise NotImplementedError(("Must be implemented in child class. If you"
+    #                                " get this error, it's probably a bug."))
+
+
+class BetaMultiplierMeasureBySite(BetaMultiplierMeasure):
+
     def beta_factor(self, *, k, t):
         """Returns the multiplicative factor for site `k` at time `t`. The
         factor is one if `t` is not in the active time window of the measure.
@@ -433,13 +503,60 @@ class BetaMultiplierMeasureBySite(Measure):
         return self.beta_multiplier[k] if self._in_window(t) else 1.0
 
 
-class BetaMultiplierMeasureByType(BetaMultiplierMeasureBySite):
+class BetaMultiplierMeasureByType(BetaMultiplierMeasure):
 
     def beta_factor(self, *, typ, t):
         """Returns the multiplicative factor for site type `typ` at time `t`. The
         factor is one if `t` is not in the active time window of the measure.
         """
         return self.beta_multiplier[typ] if self._in_window(t) else 1.0
+
+
+class UpperBoundCasesBetaMultiplier(BetaMultiplierMeasure):
+
+    def __init__(self, t_window, beta_multiplier, max_pos_tests_per_week=50, intervention_times=None):
+        """
+        Additional parameters:
+        ----------------------
+        max_pos_test_per_week : int
+            If the number of positive tests per week exceeds this number the measure becomes active
+        intervention_times : list of floats
+            List of points in time at which interventions can be changed. If 'None' interventions can be changed at any time
+        """
+
+        super().__init__(t_window, beta_multiplier)
+        self.max_pos_tests_per_week = max_pos_tests_per_week
+        self.intervention_history = []
+        if intervention_times is not None:
+            self.intervention_times = np.asarray(intervention_times)
+        else:
+            self.intervention_times = None
+
+    def _are_cases_above_threshold(self, t, t_pos_tests):
+        # If measures can be changed continuously
+        if self.intervention_times is None:
+            t_intervention = t
+        else:  # If measures can be changed at intervention times
+            # Find largest time in intervention_times s.t. t > time
+            t_intervention = np.where(t - self.intervention_times > 0, t - self.intervention_times, np.inf).min()
+
+        # Count positive tests in last 7 days from last intervention time
+        tmin = t_intervention - 7 * 24
+        num_pos_tests = np.sum(np.greater(t_pos_tests, tmin) * np.less(t_pos_tests, t_intervention))
+        is_measure_active = num_pos_tests > self.max_pos_tests_per_week
+        self.intervention_history.append((t, is_measure_active))
+        return is_measure_active
+
+    def beta_factor(self, *, typ, t, t_pos_tests):
+        """Returns the multiplicative factor for site type `typ` at time `t`. The
+        factor is one if `t` is not in the active time window of the measure.
+        """
+        if not self._in_window(t):
+            return 1.0
+
+        is_measure_active = self._are_cases_above_threshold(t, t_pos_tests)
+        return self.beta_multiplier[typ] if is_measure_active else 1.0
+
 
 """
 ========================== INDIVIDUAL COMPLIANCE WITH TRACKING ===========================
