@@ -19,6 +19,6 @@ python calibrate.py --seed "tu0" --country "GER" --area "TU" --start "2020-03-10
 Switzerland
 1) Lausanne
 ```
-python calibrate.py --seed "vd0" --country "CH" --area "VD" --start "2020-03-05" --end "2020-03-18" --mob "lib/mobility/Lausanne_settings_10_10_hh.pk" --downsample 10 --rollouts 80 --ninit 20 --niters 300
+python calibrate.py --seed "vd0" --country "CH" --area "VD" --start "2020-03-06" --end "2020-03-18" --mob "lib/mobility/Lausanne_settings_10_10_hh.pk" --downsample 10 --rollouts 80 --ninit 20 --niters 300
 ```
 
