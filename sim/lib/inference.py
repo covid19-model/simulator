@@ -103,7 +103,6 @@ class CalibrationLogger:
                 'b/office',
                 'b/superm',
                 'b/househ',
-                '      mu',
             ]
 
         self.headers += [
@@ -161,7 +160,6 @@ class CalibrationLogger:
                 f"{d['betas']['office']:8.4f}",
                 f"{d['betas']['supermarket']:8.4f}",
                 f"{d['beta_household']:8.4f}",
-                f"{d['mu']:8.4f}",
             ]
 
         fields +=[
@@ -197,7 +195,6 @@ def pdict_to_parr(d, measures_optimized):
             torch.tensor(d['betas']['office']),
             torch.tensor(d['betas']['supermarket']),
             torch.tensor(d['beta_household']),
-            torch.tensor(d['mu']),
         ])
         return arr
 
@@ -220,7 +217,6 @@ def parr_to_pdict(arr, measures_optimized):
                 'supermarket': arr[4].tolist(),
             },
             'beta_household': arr[5].tolist(),
-            'mu': arr[6].tolist()
         }
         return d
 
@@ -428,8 +424,8 @@ def make_bayes_opt_functions(args):
 
     header.append(f'Simulation starts at : {sim_start_date}')
     header.append(f'             ends at : {sim_end_date}')
-    header.append(f'Lockdown starts at :   {lockdown_start_date}')
-    header.append(f'           ends at :   {lockdown_end_date}')
+    header.append(f'Lockdown   starts at : {lockdown_start_date}')
+    header.append(f'             ends at : {lockdown_end_date}')
     
     # create settings dictionary for simulations
     launch_kwargs = dict(
@@ -680,7 +676,7 @@ def make_bayes_opt_functions(args):
                      "maxiter": args.acqf_opt_maxiter},
         )
 
-        # optimize
+        # optimize acquisition function
         candidates, _ = optimize_acqf(
             acq_function=acq_func,
             bounds=bo_bounds,
