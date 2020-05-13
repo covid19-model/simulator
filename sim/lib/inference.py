@@ -412,7 +412,7 @@ def make_bayes_opt_functions(args):
 
     # extract lockdown period
     sim_start_date = pd.to_datetime(args.start)
-    sim_end_date = sim_start_date + timedelta(days=int(max_time / 24.0))
+    sim_end_date = sim_start_date + timedelta(days=int(max_time / 24.0) - 1)
 
     lockdown_start_date = pd.to_datetime(
         settings_lockdown_dates[args.country]['start'])
