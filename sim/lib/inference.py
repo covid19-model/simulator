@@ -62,17 +62,6 @@ warnings.filterwarnings('ignore', category=UserWarning)
 MIN_NOISE = torch.tensor(1e-6)
 
 
-def save_state(obj, filename):
-    """Saves `obj` to filename"""
-    with open('logs/' + filename + '_state.pk', 'wb') as fp:
-        torch.save(obj, fp)
-    return
-
-def load_state(filename):
-    with open(filename, 'rb') as fp:
-        obj = torch.load(fp)
-    return obj
-
 class CalibrationLogger:
 
     def __init__(
@@ -103,7 +92,6 @@ class CalibrationLogger:
                 'b/office',
                 'b/superm',
                 'b/househ',
-                '      mu',
             ]
 
         self.headers += [
@@ -137,7 +125,6 @@ class CalibrationLogger:
             print(headerstrg)
 
     def log(self, i, time, best, objective, case_diff, theta):
-
         '''
         Writes lst to a .csv file
         '''
@@ -161,10 +148,9 @@ class CalibrationLogger:
                 f"{d['betas']['office']:8.4f}",
                 f"{d['betas']['supermarket']:8.4f}",
                 f"{d['beta_household']:8.4f}",
-                f"{d['mu']:8.4f}",
             ]
 
-        fields +=[
+        fields += [
             f"{time/60.0:8.4f}",
         ]
 
@@ -179,6 +165,66 @@ class CalibrationLogger:
             print(outstrg)
 
         return
+
+def extract_seeds_from_summary(summary, t, real_cases):
+    '''
+    Extracts initial simulation seeds from a summary file at time `t` 
+    based on lowest objective value of run.
+    '''
+    calib_legal_states = ['susc', 'expo', 'ipre', 'isym',
+                          'iasy', 'posi', 'nega', 'resi', 'dead', 'hosp']
+
+    real_cases = torch.tensor(real_cases)
+
+    # summary into cumulative daily positives cases
+    cumulative = convert_timings_to_cumulative_daily(
+        torch.tensor(summary.state_started_at['posi']), 
+        torch.tensor(summary.people_age), 
+        real_cases.shape[0] * 24.0)
+
+    # objectives per random restart
+    # squared error
+    objectives = (cumulative - real_cases.unsqueeze(0)).pow(2).sum(dim=-1).sum(dim=-1)
+    best = objectives.argmin()
+
+    # compute all states of best run at time t
+    states = {}
+    for state in calib_legal_states:
+        states[state] = (t >= summary.state_started_at[state][best]) \
+            & (t < summary.state_ended_at[state][best])
+        
+    # compute counts (resistant also contain dead)
+    expo = states['expo'].sum()
+    iasy = states['iasy'].sum()
+    ipre = states['ipre'].sum()
+    isym_posi = (states['isym'] & states['posi']).sum()
+    isym_notposi = (states['isym'] & (1 - states['posi'])).sum()
+    resi_posi = ((states['resi'] | states['dead']) & states['posi']).sum()
+    resi_notposi = ((states['resi'] | states['dead']) & (1 - states['posi'])).sum()
+
+    seeds = {
+        'expo' : int(expo),
+        'iasy' : int(iasy),
+        'ipre' : int(ipre),
+        'isym_posi': int(isym_posi),
+        'isym_notposi': int(isym_notposi),
+        'resi_posi': int(resi_posi),
+        'resi_notposi': int(resi_notposi),
+    }
+    return seeds
+
+
+def save_state(obj, filename):
+    """Saves `obj` to `filename`"""
+    with open('logs/' + filename + '_state.pk', 'wb') as fp:
+        torch.save(obj, fp)
+    return
+
+def load_state(filename):
+    """Loads obj from `filename`"""
+    with open(filename, 'rb') as fp:
+        obj = torch.load(fp)
+    return obj
 
 
 def pdict_to_parr(d, measures_optimized):
@@ -197,7 +243,6 @@ def pdict_to_parr(d, measures_optimized):
             torch.tensor(d['betas']['office']),
             torch.tensor(d['betas']['supermarket']),
             torch.tensor(d['beta_household']),
-            torch.tensor(d['mu']),
         ])
         return arr
 
@@ -220,7 +265,6 @@ def parr_to_pdict(arr, measures_optimized):
                 'supermarket': arr[4].tolist(),
             },
             'beta_household': arr[5].tolist(),
-            'mu': arr[6].tolist()
         }
         return d
 
@@ -327,11 +371,6 @@ def make_bayes_opt_functions(args):
     data_end_date = args.end
     debug_simulation_days = args.endsimat
 
-    # number of tests processed every `testing_frequency` hours
-    # FIXME: better name of field: `mob.daily_tests`, since `mob.daily_tests_per_100k` is not per 100k inhabitants, but for true town population
-    unscaled_testing_capacity = args.testingcap or mob.daily_tests_per_100k
-    population_unscaled = mob.num_people_unscaled
-
     # simulation settings
     n_init_samples = args.ninit
     n_iterations = args.niters
@@ -354,14 +393,6 @@ def make_bayes_opt_functions(args):
     Bayesian optimization pipeline
     """
 
-    # Based on population size, approx. 300 tests/day in Area of Tübingen (~135 in city of Tübingen)
-    tests_per_day = math.ceil(unscaled_testing_capacity / case_downsampling)
-
-    # set testing parameters
-    testing_params['tests_per_batch'] = tests_per_day
-
-    test_lag_days = int(testing_params['test_reporting_lag'] / 24.0)
-    assert(int(testing_params['test_reporting_lag']) % 24 == 0)
 
     # Import Covid19 data
     # Shape (max_days, num_age_groups)
@@ -376,7 +407,17 @@ def make_bayes_opt_functions(args):
 
     # Scale down cases based on number of people in simulation
     new_cases = np.ceil(1/case_downsampling * new_cases_)
-    num_age_groups = new_cases_.shape[1]
+    num_age_groups = new_cases.shape[1]
+
+    # Set test capacity per day as (a) command line; or (b) maximum daily positive case increase over observed period
+    if args.testingcap:
+        testing_params['tests_per_batch'] = (args.testingcap / mob.num_people_unscaled)
+    else:
+        daily_increase = new_cases.sum(axis=1)[1:] - new_cases.sum(axis=1)[:-1]
+        testing_params['tests_per_batch'] = int(daily_increase.max())
+
+    test_lag_days = int(testing_params['test_reporting_lag'] / 24.0)
+    assert(int(testing_params['test_reporting_lag']) % 24 == 0)
 
     # generate initial seeds based on case numbers
     initial_seeds = gen_initial_seeds(new_cases)
@@ -393,6 +434,8 @@ def make_bayes_opt_functions(args):
     testing_params['testing_t_window'] = [0.0, max_time]
     mob.simulate(max_time=max_time, dynamic_tracing=True)
 
+    header.append(
+        'Daily test capacity in sim.: ' + str(testing_params['tests_per_batch']))
     header.append(
         'Max time T (days): ' + str(new_cases.shape[0]))
     header.append(
@@ -428,8 +471,8 @@ def make_bayes_opt_functions(args):
 
     header.append(f'Simulation starts at : {sim_start_date}')
     header.append(f'             ends at : {sim_end_date}')
-    header.append(f'Lockdown starts at :   {lockdown_start_date}')
-    header.append(f'           ends at :   {lockdown_end_date}')
+    header.append(f'Lockdown   starts at : {lockdown_start_date}')
+    header.append(f'             ends at : {lockdown_end_date}')
     
     # create settings dictionary for simulations
     launch_kwargs = dict(
@@ -680,7 +723,7 @@ def make_bayes_opt_functions(args):
                      "maxiter": args.acqf_opt_maxiter},
         )
 
-        # optimize
+        # optimize acquisition function
         candidates, _ = optimize_acqf(
             acq_function=acq_func,
             bounds=bo_bounds,

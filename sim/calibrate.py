@@ -93,13 +93,24 @@ if __name__ == '__main__':
         best_observed_obj = state['best_observed_obj']
         best_observed_idx = state['best_observed_idx']
 
-        header.append('Loaded initial observations from ' + args.load)
+        header.append('')
+        header.append('Loaded initial observations from: ' + args.load)
         header.append(f'Observations: {train_theta.shape[0]}, Best objective: {best_observed_obj}')
-
+        
+        # write header and best prior observation
         logger.log_initial_lines(header)
+        logger.log(
+            i=-1,
+            time=0.0,
+            best=best_observed_obj,
+            case_diff=case_diff(train_G[best_observed_idx]),
+            objective=objective(train_G[best_observed_idx]).item(),
+            theta=unnormalize_theta(train_theta[best_observed_idx].squeeze())
+        )
 
     else:
-
+        
+        # write header
         logger.log_initial_lines(header)
 
         # generate initial training data

@@ -60,7 +60,6 @@ def get_preprocessed_data_germany(landkreis='LK Tübingen', start_date_string='2
 
     # discard earlier cases for simplicity
     df['days'] = (df.Meldedatum - start_date).dt.days
-    df['Meldedatum'] = df.Meldedatum.dt.date
     df = df[df['days'] >= 0]
 
     # filter days
@@ -114,7 +113,6 @@ def get_preprocessed_data_switzerland(canton='ZH', start_date_string='2020-03-10
 
     # discard earlier cases for simplicity
     df['days'] = (df['Datum_Todes_LaborsFälle'] - start_date).dt.days
-    df['Datum_Todes_LaborsFälle'] = df['Datum_Todes_LaborsFälle'].dt.date
     df = df[df['days'] >= 0]
 
     # filter days 
@@ -165,7 +163,7 @@ def collect_data_from_df(country, area, datatype, start_date_string, until=None,
         df_tmp['new'] = counts_as_new * df_tmp[ctr]
 
         # count up each day and them make cumulative
-        maxt = df_tmp.days.max() + 1
+        maxt = int(df_tmp.days.max())
         data = np.zeros((maxt, 6)) # value, agegroup
         for t in range(maxt):
             for agegroup in range(6):
@@ -193,7 +191,7 @@ def collect_data_from_df(country, area, datatype, start_date_string, until=None,
                                                    until=until, end_date_string=end_date_string)
 
         # count up each day and them make cumulative
-        maxt = df_tmp.days.max() + 1
+        maxt = int(df_tmp.days.max())
         data = np.zeros((maxt, 9)) # value, agegroup
         for t in range(maxt):
             for agegroup in range(9):

@@ -296,7 +296,7 @@ class DiseaseModel(object):
 
         # optimized params
         self.betas = params['betas']
-        self.mu = params['mu']
+        self.mu = self.d.mu
         self.alpha = self.d.alpha
         
         # household param

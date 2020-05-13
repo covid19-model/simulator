@@ -70,6 +70,7 @@ command_line_area_codes = {
         'KL': 'SK Kaiserslautern',
         'RH': 'LK Rheingau-Taunus-Kreis',
         'HB': 'LK Heinsberg',
+        'TR': 'LK Tirschenreuth'
     },
     'CH' : {
         'SZ': 'SZ',     # Canton Schwyz
@@ -95,7 +96,7 @@ settings_optimized_town_params = {
         },
         'KL': None,
         'RH': None,
-        'HB': None,
+        'TR': None,
     },
     'CH': {
         'SZ': None,     
