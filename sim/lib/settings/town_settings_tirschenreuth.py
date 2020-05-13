@@ -11,7 +11,7 @@ town_name = 'Tirschenreuth'
 population_path='lib/data/population/population_deu_2019-07-01.csv' # Population density file
 
 sites_path='lib/data/queries/' # Directory containing OSM site query details
-# FIXME: Need to add bounding box bbox = (51.0330, 51.0867, 6.0480, 6.1705) # Coordinate bounding box
+bbox = (11.8144, 12.4544, 49.7892, 50.0360) # Coordinate bounding box
 
 # Population per age group in the region (matching the RKI age groups)
 # Source: https://ugeo.urbistat.com/AdminStat/en/de/demografia/eta/tirschenreuth%2c-landkreis/9377/3
