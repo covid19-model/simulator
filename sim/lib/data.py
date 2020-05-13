@@ -60,7 +60,6 @@ def get_preprocessed_data_germany(landkreis='LK Tübingen', start_date_string='2
 
     # discard earlier cases for simplicity
     df['days'] = (df.Meldedatum - start_date).dt.days
-    df['Meldedatum'] = df.Meldedatum.dt.date
     df = df[df['days'] >= 0]
 
     # filter days
