@@ -173,8 +173,6 @@ def collect_data_from_df(country, area, datatype, start_date_string, until=None,
             # make cumulative
             if t > 0:
                 data[t, :] += data[t - 1, :]
-
-        print(data)
             
         return data
 
@@ -202,8 +200,6 @@ def collect_data_from_df(country, area, datatype, start_date_string, until=None,
             # make cumulative
             if t > 0:
                 data[t, :] += data[t - 1, :]
-
-        print(data)
             
         return data
 
