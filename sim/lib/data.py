@@ -113,7 +113,6 @@ def get_preprocessed_data_switzerland(canton='ZH', start_date_string='2020-03-10
 
     # discard earlier cases for simplicity
     df['days'] = (df['Datum_Todes_LaborsFälle'] - start_date).dt.days
-    df['Datum_Todes_LaborsFälle'] = df['Datum_Todes_LaborsFälle'].dt.date
     df = df[df['days'] >= 0]
 
     # filter days 
