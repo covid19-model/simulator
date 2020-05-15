@@ -896,8 +896,6 @@ class Plotter(object):
         together with targets from inference
         '''
 
-        print(targets)
-
         if acc > sim.max_time:
             acc = int(sim.max_time)
 
