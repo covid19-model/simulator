@@ -59,10 +59,7 @@ def get_preprocessed_data_germany(landkreis='LK Tübingen', start_date_string='2
     # process date to a number of days until start of actual case growth
     df.Meldedatum = pd.to_datetime(df.Meldedatum)
     start_date = pd.to_datetime(start_date_string)
-
-    # discard earlier cases for simplicity
     df['days'] = (df.Meldedatum - start_date).dt.days
-    df = df[df['days'] >= 0]
 
     # filter days
     if until:
@@ -112,10 +109,7 @@ def get_preprocessed_data_switzerland(canton='ZH', start_date_string='2020-03-10
     # process date to a number of days until start of actual case growth
     df['Datum_Todes_LaborsFälle'] = pd.to_datetime(df['Datum_Todes_LaborsFälle'], format='%d.%m.%Y')
     start_date = pd.to_datetime(start_date_string) # only 4 cases in 2 weeks before that
-
-    # discard earlier cases for simplicity
     df['days'] = (df['Datum_Todes_LaborsFälle'] - start_date).dt.days
-    df = df[df['days'] >= 0]
 
     # filter days 
     if until:
@@ -170,12 +164,8 @@ def collect_data_from_df(country, area, datatype, start_date_string, until=None,
         for t in range(maxt):
             for agegroup in range(6):
                 data[t, agegroup] += df_tmp[
-                    (df_tmp.days == t) & (df_tmp.age_group == agegroup)].new.sum()
-                
-            # make cumulative
-            if t > 0:
-                data[t, :] += data[t - 1, :]
-            
+                    (df_tmp.days <= t) & (df_tmp.age_group == agegroup)].new.sum()
+                           
         return data
 
     elif country == 'CH':
@@ -197,11 +187,7 @@ def collect_data_from_df(country, area, datatype, start_date_string, until=None,
         data = np.zeros((maxt, 9)) # value, agegroup
         for t in range(maxt):
             for agegroup in range(9):
-                data[t, agegroup] += df_tmp[(df_tmp.days == t) & (df_tmp.age_group == agegroup)].shape[0]
-                
-            # make cumulative
-            if t > 0:
-                data[t, :] += data[t - 1, :]
+                data[t, agegroup] += df_tmp[(df_tmp.days <= t) & (df_tmp.age_group == agegroup)].shape[0]
             
         return data
 

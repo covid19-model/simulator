@@ -97,16 +97,17 @@ if __name__ == '__main__':
         header.append('Loaded initial observations from: ' + args.load)
         header.append(f'Observations: {train_theta.shape[0]}, Best objective: {best_observed_obj}')
         
-        # write header and best prior observation
+        # write header and best prior observations
         logger.log_initial_lines(header)
-        logger.log(
-            i=-1,
-            time=0.0,
-            best=best_observed_obj,
-            case_diff=case_diff(train_G[best_observed_idx]),
-            objective=objective(train_G[best_observed_idx]).item(),
-            theta=unnormalize_theta(train_theta[best_observed_idx].squeeze())
-        )
+        for i in range(train_theta.shape[0]):
+            logger.log(
+                i=i - train_theta.shape[0],
+                time=0.0,
+                best=best_observed_obj,
+                case_diff=case_diff(train_G[i]),
+                objective=objective(train_G[i]).item(),
+                theta=unnormalize_theta(train_theta[i].squeeze())
+            )
 
     else:
         

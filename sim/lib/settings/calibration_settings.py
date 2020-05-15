@@ -22,13 +22,13 @@ settings_simulation = {
 # parameter bounds
 settings_model_param_bounds = {
     'betas': {
-        'education': [0.0, 2.0],
-        'social': [0.0, 2.0],
-        'bus_stop': [0.0, 2.0],
-        'office': [0.0, 2.0],
-        'supermarket': [0.0, 2.0],
+        'education': [0.0, 3.0],
+        'social': [0.0, 3.0],
+        'bus_stop': [0.0, 3.0],
+        'office': [0.0, 3.0],
+        'supermarket': [0.0, 3.0],
     },
-    'beta_household': [0.0, 2.0],
+    'beta_household': [0.0, 3.0],
     'mu': [0.0, 1.0]
 }
 
@@ -82,89 +82,91 @@ command_line_area_codes = {
 }				
 
 # optimized model parameters
+beta_dummy = 0.8
+
 settings_optimized_town_params = {
     'GER': {
         'TU': { # dummy settings
             'betas': {
-                'education': 0.2893,
-                'social': 1.5401,
-                'bus_stop': 0.9246,
-                'office': 1.3179,
-                'supermarket': 0.7882,
+                'education': beta_dummy,
+                'social': beta_dummy,
+                'bus_stop': beta_dummy,
+                'office': beta_dummy,
+                'supermarket': beta_dummy,
             },
-            'beta_household': 0.0318,
+            'beta_household': beta_dummy,
         },
         'KL': {  # dummy settings
             'betas': {
-                'education': 0.963,
-                'social': 1.573,
-                'bus_stop': 1.339,
-                'office': 1.112,
-                'supermarket': 1.671,
+                'education': beta_dummy,
+                'social': beta_dummy,
+                'bus_stop': beta_dummy,
+                'office': beta_dummy,
+                'supermarket': beta_dummy,
             },
-            'beta_household': 1.442,
+            'beta_household': beta_dummy,
         },
         'RH': {  # dummy settings
             'betas': {
-                'education': 0.245,
-                'social': 0.049,
-                'bus_stop': 1.932,
-                'office': 0.719,
-                'supermarket': 1.745,
+                'education': beta_dummy,
+                'social': beta_dummy,
+                'bus_stop': beta_dummy,
+                'office': beta_dummy,
+                'supermarket': beta_dummy,
             },
-            'beta_household': 0.353,
+            'beta_household': beta_dummy,
         },
         'TR': {  # dummy settings
             'betas': {
-                'education': 0.2359,
-                'social': 1.8845,
-                'bus_stop': 0.2532,
-                'office': 0.9434,
-                'supermarket': 0.6521,
+                'education': beta_dummy,
+                'social': beta_dummy,
+                'bus_stop': beta_dummy,
+                'office': beta_dummy,
+                'supermarket': beta_dummy,
             },
-            'beta_household': 0.4105,
+            'beta_household': beta_dummy,
         },
     },
     'CH': {
         'SZ': {  # dummy settings
             'betas': {
-                'education': 0.188,
-                'social': 0.938,
-                'bus_stop': 1.688,
-                'office': 0.813,
-                'supermarket': 0.563,
+                'education': beta_dummy,
+                'social': beta_dummy,
+                'bus_stop': beta_dummy,
+                'office': beta_dummy,
+                'supermarket': beta_dummy,
             },
-            'beta_household': 0.688,
+            'beta_household': beta_dummy,
         },
         'TI': {  # dummy settings
             'betas': {
-                'education': 0.320,
-                'social': 2.303,
-                'bus_stop': 1.564,
-                'office': 2.791,
-                'supermarket': 0.862,
+                'education': beta_dummy,
+                'social': beta_dummy,
+                'bus_stop': beta_dummy,
+                'office': beta_dummy,
+                'supermarket': beta_dummy,
             },
-            'beta_household': 2.467,
+            'beta_household': beta_dummy,
         },
         'LU': {  # dummy settings
             'betas': {
-                'education': 0.109,
-                'social': 0.996,
-                'bus_stop': 1.404,
-                'office': 1.148,
-                'supermarket': 0.781,
+                'education': beta_dummy,
+                'social': beta_dummy,
+                'bus_stop': beta_dummy,
+                'office': beta_dummy,
+                'supermarket': beta_dummy,
             },
-            'beta_household': 0.756,
+            'beta_household': beta_dummy,
         },
         'VD': {  # dummy settings
             'betas': {
-                'education': 0.0799,
-                'social': 1.9321,
-                'bus_stop': 1.6837,
-                'office': 1.8394,
-                'supermarket': 0.2438,
+                'education': beta_dummy,
+                'social': beta_dummy,
+                'bus_stop': beta_dummy,
+                'office': beta_dummy,
+                'supermarket': beta_dummy,
             },
-            'beta_household': 1.9072,
+            'beta_household': beta_dummy,
         },
     }
 }

@@ -199,8 +199,8 @@ class DiseaseModel(object):
                     self.state['susc'][i] = False
                     self.state['expo'][i] = True
 
-                    self.state_ended_at['susc'][i] = 0.0
-                    self.state_started_at['expo'][i] = 0.0
+                    self.state_ended_at['susc'][i] = -1.0
+                    self.state_started_at['expo'][i] = -1.0
 
                     self.bernoulli_is_iasy[i] = 0
                     self.__process_presymptomatic_event(0.0, i)
@@ -211,8 +211,8 @@ class DiseaseModel(object):
                     self.state['susc'][i] = False
                     self.state['expo'][i] = True
 
-                    self.state_ended_at['susc'][i] = 0.0
-                    self.state_started_at['expo'][i] = 0.0
+                    self.state_ended_at['susc'][i] = -1.0
+                    self.state_started_at['expo'][i] = -1.0
 
                     self.bernoulli_is_iasy[i] = 1
                     self.__process_asymptomatic_event(0.0, i)
@@ -223,10 +223,10 @@ class DiseaseModel(object):
                     self.state['susc'][i] = False
                     self.state['ipre'][i] = True
 
-                    self.state_ended_at['susc'][i] = 0.0
-                    self.state_started_at['expo'][i] = 0.0
-                    self.state_ended_at['expo'][i] = 0.0
-                    self.state_started_at['ipre'][i] = 0.0
+                    self.state_ended_at['susc'][i] = -1.0
+                    self.state_started_at['expo'][i] = -1.0
+                    self.state_ended_at['expo'][i] = -1.0
+                    self.state_started_at['ipre'][i] = -1.0
 
                     self.bernoulli_is_iasy[i] = 0
                     self.__push_contact_exposure_events(0.0, i, 1.0)
@@ -239,11 +239,11 @@ class DiseaseModel(object):
                     self.state['ipre'][i] = True
                     self.state['posi'][i] = True
 
-                    self.state_ended_at['susc'][i] = 0.0
-                    self.state_started_at['expo'][i] = 0.0
-                    self.state_ended_at['expo'][i] = 0.0
-                    self.state_started_at['ipre'][i] = 0.0
-                    self.state_started_at['posi'][i] = 0.0
+                    self.state_ended_at['susc'][i] = -1.0
+                    self.state_started_at['expo'][i] = -1.0
+                    self.state_ended_at['expo'][i] = -1.0
+                    self.state_started_at['ipre'][i] = -1.0
+                    self.state_started_at['posi'][i] = -1.0
 
                     self.bernoulli_is_iasy[i] = 0
                     self.__push_contact_exposure_events(0.0, i, 1.0)
@@ -256,13 +256,13 @@ class DiseaseModel(object):
                     self.state['isym'][i] = True
                     self.state['posi'][i] = True
 
-                    self.state_ended_at['susc'][i] = 0.0
-                    self.state_started_at['expo'][i] = 0.0
-                    self.state_ended_at['expo'][i] = 0.0
-                    self.state_started_at['ipre'][i] = 0.0
-                    self.state_ended_at['ipre'][i] = 0.0
-                    self.state_started_at['isym'][i] = 0.0
-                    self.state_started_at['posi'][i] = 0.0
+                    self.state_ended_at['susc'][i] = -1.0
+                    self.state_started_at['expo'][i] = -1.0
+                    self.state_ended_at['expo'][i] = -1.0
+                    self.state_started_at['ipre'][i] = -1.0
+                    self.state_ended_at['ipre'][i] = -1.0
+                    self.state_started_at['isym'][i] = -1.0
+                    self.state_started_at['posi'][i] = -1.0
 
                     self.bernoulli_is_iasy[i] = 0
                     self.__process_resistant_event(0.0, i)
@@ -273,12 +273,12 @@ class DiseaseModel(object):
                     self.state['susc'][i] = False
                     self.state['isym'][i] = True
 
-                    self.state_ended_at['susc'][i] = 0.0
-                    self.state_started_at['expo'][i] = 0.0
-                    self.state_ended_at['expo'][i] = 0.0
-                    self.state_started_at['ipre'][i] = 0.0
-                    self.state_ended_at['ipre'][i] = 0.0
-                    self.state_started_at['isym'][i] = 0.0
+                    self.state_ended_at['susc'][i] = -1.0
+                    self.state_started_at['expo'][i] = -1.0
+                    self.state_ended_at['expo'][i] = -1.0
+                    self.state_started_at['ipre'][i] = -1.0
+                    self.state_ended_at['ipre'][i] = -1.0
+                    self.state_started_at['isym'][i] = -1.0
 
                     self.bernoulli_is_iasy[i] = 0
                     self.__process_resistant_event(0.0, i)
