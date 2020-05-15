@@ -21,6 +21,10 @@ python calibrate.py --seed "tu0" --country "GER" --area "TU" --start "2020-03-10
 python calibrate.py --seed "kl0" --country "GER" --area "KL" --start "2020-03-18" --end "2020-03-26" --mob "lib/mobility/Kaiserslautern_settings_10_10_hh.pk" --downsample 10 --rollouts 80 --ninit 20 --niters 300
 ```
 
+* Tirschenreuth
+```
+python calibrate.py --seed "tr0" --country "GER" --area "TR" --start "2020-03-10" --end "2020-03-26" --mob "lib/mobility/Tirschenreuth_settings_10_10_hh.pk" --downsample 10 --rollouts 80 --ninit 20 --niters 300
+```
 
 * Ruedesheim
 ```
