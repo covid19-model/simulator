@@ -79,31 +79,93 @@ command_line_area_codes = {
         'LU': 'LU',     # Canton Lucerne
         'VD': 'VD',     # Canton Vaud
     }
-}
+}				
 
 # optimized model parameters
 settings_optimized_town_params = {
     'GER': {
         'TU': { # dummy settings
             'betas': {
-                'education': 0.5,
-                'social': 1.0,
-                'bus_stop': 1.0,
-                'office': 0.5,
-                'supermarket': 0.5,
+                'education': 0.2893,
+                'social': 1.5401,
+                'bus_stop': 0.9246,
+                'office': 1.3179,
+                'supermarket': 0.7882,
             },
-            'beta_household': 0.2,
-            'mu': 0.5
+            'beta_household': 0.0318,
         },
-        'KL': None,
-        'RH': None,
-        'TR': None,
+        'KL': {  # dummy settings
+            'betas': {
+                'education': 0.963,
+                'social': 1.573,
+                'bus_stop': 1.339,
+                'office': 1.112,
+                'supermarket': 1.671,
+            },
+            'beta_household': 1.442,
+        },
+        'RH': {  # dummy settings
+            'betas': {
+                'education': 0.245,
+                'social': 0.049,
+                'bus_stop': 1.932,
+                'office': 0.719,
+                'supermarket': 1.745,
+            },
+            'beta_household': 0.353,
+        },
+        'TR': {  # dummy settings
+            'betas': {
+                'education': 0.2359,
+                'social': 1.8845,
+                'bus_stop': 0.2532,
+                'office': 0.9434,
+                'supermarket': 0.6521,
+            },
+            'beta_household': 0.4105,
+        },
     },
     'CH': {
-        'SZ': None,     
-        'TI': None,     
-        'LU': None,
-        'VD': None,
+        'SZ': {  # dummy settings
+            'betas': {
+                'education': 0.188,
+                'social': 0.938,
+                'bus_stop': 1.688,
+                'office': 0.813,
+                'supermarket': 0.563,
+            },
+            'beta_household': 0.688,
+        },
+        'TI': {  # dummy settings
+            'betas': {
+                'education': 0.320,
+                'social': 2.303,
+                'bus_stop': 1.564,
+                'office': 2.791,
+                'supermarket': 0.862,
+            },
+            'beta_household': 2.467,
+        },
+        'LU': {  # dummy settings
+            'betas': {
+                'education': 0.109,
+                'social': 0.996,
+                'bus_stop': 1.404,
+                'office': 1.148,
+                'supermarket': 0.781,
+            },
+            'beta_household': 0.756,
+        },
+        'VD': {  # dummy settings
+            'betas': {
+                'education': 0.0799,
+                'social': 1.9321,
+                'bus_stop': 1.6837,
+                'office': 1.8394,
+                'supermarket': 0.2438,
+            },
+            'beta_household': 1.9072,
+        },
     }
 }
 

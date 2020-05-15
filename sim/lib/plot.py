@@ -27,6 +27,7 @@ from matplotlib.colors import ListedColormap
 TO_HOURS = 24.0
 DPI = 200
 NO_PLOT = False
+TEST_LAG = 48.0 # hours
 
 matplotlib.rcParams.update({
     "figure.autolayout": False,
@@ -156,10 +157,16 @@ class Plotter(object):
 
 
     def __is_state_at(self, sim, r, state, t):
-        return (sim.state_started_at[state][r] <= t) & (sim.state_ended_at[state][r] > t)
+        if state == 'posi':
+            return (sim.state_started_at[state][r] - TEST_LAG <= t) & (sim.state_ended_at[state][r] - TEST_LAG > t)
+        else:
+            return (sim.state_started_at[state][r] <= t) & (sim.state_ended_at[state][r] > t)
 
     def __state_started_before(self, sim, r, state, t):
-        return (sim.state_started_at[state][r] <= t)
+        if state == 'posi':
+            return (sim.state_started_at[state][r] - TEST_LAG <= t)
+        else:
+            return (sim.state_started_at[state][r] <= t)
 
     def __is_contained_at(self, sim, r, measure, t):
         contained = np.zeros(sim.n_people, dtype='bool')
@@ -917,27 +924,17 @@ class Plotter(object):
         fig, ax = plt.subplots(figsize=figsize)
 
         # inference
+        # automatically shifted by `test_lag` in the function
         ts, posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
-        # shift by `test_lag` to count the cases on the real dates, as the real data does
         T = posi_mu.shape[0]
-        test_lag_offset = int((test_lag * TO_HOURS / sim.max_time) * acc)
-        corr_posi, corr_sig = np.zeros(T - test_lag_offset), np.zeros(T - test_lag_offset)
-        corr_posi[0 : T - test_lag_offset] = posi_mu[test_lag_offset : T]
-        corr_sig[0: T - test_lag_offset] = posi_sig[test_lag_offset: T]
-
-        # Convert x-axis into posix timestamps and use pandas to plot as dates
-        xx = days_to_datetime(ts[:T - test_lag_offset], start_date=start_date)
-        ax.plot(xx, corr_posi, c='k', linestyle='-',
+    
+        xx = days_to_datetime(ts, start_date=start_date)
+        ax.plot(xx, posi_mu, c='k', linestyle='-',
                 label='COVID-19 simulated case data')
-        ax.fill_between(xx, corr_posi-corr_sig, corr_posi+corr_sig,
+        ax.fill_between(xx, posi_mu - posi_sig, posi_mu + posi_sig,
                         color='grey', alpha=0.1, linewidth=0.0)
 
         # target
-        # txx = np.linspace(0, targets.shape[0] - 1, num=targets.shape[0])
-        # # Convert x-axis into posix timestamps and use pandas to plot as dates
-        # txx = days_to_datetime(txx, start_date=start_date)
-        # ax.plot(txx, targets, linewidth=4, linestyle='', marker='X', ms=6,
-        #         color='red', label='COVID-19 case data')
         target_widget(targets, start_date, ax)
 
         # axis

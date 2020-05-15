@@ -30,7 +30,7 @@ python calibrate.py --seed "rh0" --country "GER" --area "RH" --start "2020-03-10
 Switzerland
 * Lausanne
 ```
-python calibrate.py --seed "vd0" --country "CH" --area "VD" --start "2020-03-06" --end "2020-03-18" --mob "lib/mobility/Lausanne_settings_10_10_hh.pk" --downsample 10 --rollouts 80 --ninit 20 --niters 300
+python calibrate.py --seed "vd0" --country "CH" --area "VD" --start "2020-03-04" --end "2020-03-18" --mob "lib/mobility/Lausanne_settings_10_10_hh.pk" --downsample 10 --rollouts 80 --ninit 20 --niters 300
 ```
 
 * Lucern
@@ -41,7 +41,7 @@ python calibrate.py --seed "lu0" --country "CH" --area "LU" --start "2020-03-06"
 
 * Locarno
 ```
-python calibrate.py --seed "lo0" --country "CH" --area "TI" --start "2020-03-06" --end "2020-03-18" --mob "lib/mobility/Locarno_settings_5_5_hh.pk" --downsample 5 --rollouts 80 --ninit 20 --niters 300
+python calibrate.py --seed "lo0" --country "CH" --area "TI" --start "2020-03-03" --end "2020-03-18" --mob "lib/mobility/Locarno_settings_5_5_hh.pk" --downsample 5 --rollouts 80 --ninit 20 --niters 300
 ```
 
 * Canton Schwyz
