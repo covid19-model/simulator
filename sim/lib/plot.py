@@ -24,6 +24,7 @@ import numpy as np
 import seaborn as sns
 from matplotlib.colors import ListedColormap
 
+TO_HOURS = 24.0
 DPI = 200
 NO_PLOT = False
 
@@ -188,7 +189,7 @@ class Plotter(object):
         for t in np.linspace(0.0, sim.max_time, num=acc, endpoint=True):
             restarts = [np.sum(self.__state_started_before(sim, r, state, t))
                 for r in range(sim.random_repeats)]
-            ts.append(t/24.0)
+            ts.append(t/TO_HOURS)
             means.append(np.mean(restarts))
             stds.append(np.std(restarts))
         return np.array(ts), np.array(means), np.array(stds)
@@ -201,7 +202,7 @@ class Plotter(object):
         for t in np.linspace(0.0, sim.max_time, num=acc, endpoint=True):
             restarts = [np.sum(self.__is_state_at(sim, r, state, t))
                 for r in range(sim.random_repeats)]
-            ts.append(t/24.0)
+            ts.append(t/TO_HOURS)
             means.append(np.mean(restarts))
             stds.append(np.std(restarts))
         return np.array(ts), np.array(means), np.array(stds)
@@ -214,7 +215,7 @@ class Plotter(object):
         for t in np.linspace(0.0, sim.max_time, num=acc, endpoint=True):
             restarts = [np.sum(self.__is_contained_at(sim, r, measure, t))
                 for r in range(sim.random_repeats)]
-            ts.append(t/24.0)
+            ts.append(t/TO_HOURS)
             means.append(np.mean(restarts))
             stds.append(np.std(restarts))
         return np.array(ts), np.array(means), np.array(stds)
@@ -432,7 +433,7 @@ class Plotter(object):
 
         # shift by `test_lag` to count the cases on the real dates, as the real data does
         T = posi_mu.shape[0]
-        test_lag_offset = int((test_lag * 24.0 / sim.max_time) * acc)
+        test_lag_offset = int((test_lag * TO_HOURS / sim.max_time) * acc)
         corr_posi, corr_sig_posi = np.zeros(T - test_lag_offset), np.zeros(T - test_lag_offset)
         corr_nega, corr_sig_nega = np.zeros(T - test_lag_offset), np.zeros(T - test_lag_offset)
 
@@ -607,7 +608,7 @@ class Plotter(object):
 
                 # shift by `test_lag` to count the cases on the real dates, as the real data does
                 T = posi_mu.shape[0]
-                test_lag_offset = int((test_lag * 24.0 / sim.max_time) * acc)
+                test_lag_offset = int((test_lag * TO_HOURS / sim.max_time) * acc)
                 corr_posi, corr_sig = np.zeros(T - test_lag_offset), np.zeros(T - test_lag_offset)
                 corr_posi[0 : T - test_lag_offset] = posi_mu[test_lag_offset : T]
                 corr_sig[0: T - test_lag_offset] = posi_sig[test_lag_offset: T]
@@ -919,7 +920,7 @@ class Plotter(object):
         ts, posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
         # shift by `test_lag` to count the cases on the real dates, as the real data does
         T = posi_mu.shape[0]
-        test_lag_offset = int((test_lag * 24.0 / sim.max_time) * acc)
+        test_lag_offset = int((test_lag * TO_HOURS / sim.max_time) * acc)
         corr_posi, corr_sig = np.zeros(T - test_lag_offset), np.zeros(T - test_lag_offset)
         corr_posi[0 : T - test_lag_offset] = posi_mu[test_lag_offset : T]
         corr_sig[0: T - test_lag_offset] = posi_sig[test_lag_offset: T]

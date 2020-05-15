@@ -6,6 +6,8 @@ import json
 import geopy.distance
 import requests
 
+TO_HOURS = 24.0
+
 # tile levels and corresponding width (degrees of longitudes)
 # from OpenStreetMap (https://wiki.openstreetmap.org/wiki/Zoom_levels) 
 tile_level_dict = {

@@ -24,6 +24,8 @@ from lib.measures import (MeasureList, BetaMultiplierMeasureBySite,
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from lib.mobilitysim import MobilitySimulator
 
+TO_HOURS = 24.0
+
 # Comment this in if you want to do map plots
 STORE_MOB = False
 

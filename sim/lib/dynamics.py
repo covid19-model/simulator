@@ -20,6 +20,8 @@ from lib.measures import (MeasureList, BetaMultiplierMeasureBySite,
     SocialDistancingByAgeMeasure, SocialDistancingForSmartTracing,
     ComplianceForAllMeasure, SocialDistancingForKGroups)
 
+TO_HOURS = 24.0
+
 class DiseaseModel(object):
     """
     Simulate continuous-time SEIR epidemics with exponentially distributed inter-event times.
@@ -816,7 +818,7 @@ class DiseaseModel(object):
 
             # sample event with maximum possible rate (in hours)
             lambda_max = max(self.betas.values()) * base_rate * Z
-            tau += 24.0 * np.random.exponential(scale=1.0 / lambda_max)
+            tau += TO_HOURS * np.random.exponential(scale=1.0 / lambda_max)
 
             # thinning step: compute current lambda(tau) and do rejection sampling
             sampled_at_infectious_contact, sampled_at_contact = self.mob.is_in_contact(indiv_i=j, indiv_j=infector, t=tau, site=None)
@@ -881,7 +883,7 @@ class DiseaseModel(object):
         lambda_household = self.beta_household * base_rate
 
         while tau < self.max_time and not sampled_event:
-            tau += 24.0 * np.random.exponential(scale=1.0 / lambda_household)
+            tau += TO_HOURS * np.random.exponential(scale=1.0 / lambda_household)
 
             # site = -1 means it is a household infection
             # at the expo time, it will be thinned if needed

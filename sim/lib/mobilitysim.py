@@ -9,6 +9,7 @@ import json
 
 from interlap import InterLap
 
+TO_HOURS = 24.0
 
 # Tuple representing a vist of an individual at a site
 # Note: first two elements must be('t_from', 't_to_shifted') to match contacts using `interlap`

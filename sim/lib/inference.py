@@ -60,7 +60,7 @@ warnings.filterwarnings('ignore', category=RuntimeWarning)
 warnings.filterwarnings('ignore', category=UserWarning)
 
 MIN_NOISE = torch.tensor(1e-6)
-
+TO_HOURS = 24.0
 
 class CalibrationLogger:
 
@@ -180,7 +180,7 @@ def extract_seeds_from_summary(summary, t, real_cases):
     cumulative = convert_timings_to_cumulative_daily(
         torch.tensor(summary.state_started_at['posi']), 
         torch.tensor(summary.people_age), 
-        real_cases.shape[0] * 24.0)
+        real_cases.shape[0] * TO_HOURS)
 
     # objectives per random restart
     # squared error
@@ -416,7 +416,7 @@ def make_bayes_opt_functions(args):
         daily_increase = new_cases.sum(axis=1)[1:] - new_cases.sum(axis=1)[:-1]
         testing_params['tests_per_batch'] = int(daily_increase.max())
 
-    test_lag_days = int(testing_params['test_reporting_lag'] / 24.0)
+    test_lag_days = int(testing_params['test_reporting_lag'] / TO_HOURS)
     assert(int(testing_params['test_reporting_lag']) % 24 == 0)
 
     # generate initial seeds based on case numbers
@@ -429,8 +429,8 @@ def make_bayes_opt_functions(args):
 
     # Maximum time fixed by real data, init mobility simulator simulation
     # maximum time to simulate, in hours
-    max_time = int(new_cases.shape[0] * 24.0)
-    max_time += 24.0 * test_lag_days  # longer due to test lag in simulations
+    max_time = int(new_cases.shape[0] * TO_HOURS)
+    max_time += TO_HOURS * test_lag_days  # longer due to test lag in simulations
     testing_params['testing_t_window'] = [0.0, max_time]
     mob.simulate(max_time=max_time, dynamic_tracing=True)
 
@@ -459,7 +459,7 @@ def make_bayes_opt_functions(args):
 
     # extract lockdown period
     sim_start_date = pd.to_datetime(args.start)
-    sim_end_date = sim_start_date + timedelta(days=int(max_time / 24.0))
+    sim_end_date = sim_start_date + timedelta(days=int(max_time / TO_HOURS))
 
     lockdown_start_date = pd.to_datetime(
         settings_lockdown_dates[args.country]['start'])
@@ -546,8 +546,8 @@ def make_bayes_opt_functions(args):
                 SocialDistancingForPositiveMeasureHousehold(
                     t_window=Interval(0.0, max_time), p_isolate=1.0),
                 SocialDistancingForAllMeasure(
-                    t_window=Interval(24.0 * days_until_lockdown_start,
-                                      24.0 * days_until_lockdown_end),
+                    t_window=Interval(TO_HOURS * days_until_lockdown_start,
+                                      TO_HOURS * days_until_lockdown_end),
                     p_stay_home=measure_params['p_stay_home']),
             ]
             
@@ -563,8 +563,8 @@ def make_bayes_opt_functions(args):
                                          f'Available are {str(list(beta_multipliers.keys()))}')
                 
                 measure_list_.append(BetaMultiplierMeasureByType(
-                    t_window=Interval(24.0 * days_until_lockdown_start,
-                                      24.0 * days_until_lockdown_end),
+                    t_window=Interval(TO_HOURS * days_until_lockdown_start,
+                                      TO_HOURS * days_until_lockdown_end),
                     beta_multiplier=beta_multipliers
                 ))
             
@@ -598,12 +598,12 @@ def make_bayes_opt_functions(args):
 
         # (random_repeats, n_people)
         posi_started = torch.tensor(summary.state_started_at['posi'])
-        posi_started -= test_lag_days * 24.0 # account for test lag
+        posi_started -= test_lag_days * TO_HOURS # account for test lag
 
         # (random_repeats, n_days)
         age_groups = torch.tensor(summary.people_age)
         posi_cumulative = convert_timings_to_cumulative_daily(
-            timings=posi_started, age_groups=age_groups, time_horizon=n_days * 24.0)
+            timings=posi_started, age_groups=age_groups, time_horizon=n_days * TO_HOURS)
 
         if posi_cumulative.shape[0] <= 1:
             raise ValueError('Must run at least 2 random restarts per setting to get estimate of noise in observation.')

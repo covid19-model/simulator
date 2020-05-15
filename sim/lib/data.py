@@ -15,6 +15,8 @@ import os
 import matplotlib.pyplot as plt
 import random
 
+TO_HOURS = 24.0
+
 from lib.settings.calibration_settings import command_line_area_codes
 
 

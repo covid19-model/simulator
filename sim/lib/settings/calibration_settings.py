@@ -3,6 +3,7 @@ import multiprocessing
 '''
 Default settings for model calibration
 '''
+TO_HOURS = 24.0
 
 settings_data = {
     'verbose' : True,
@@ -38,13 +39,13 @@ settings_measures_param_bounds = {
 # set testing parameters
 settings_testing_params = {
     'testing_t_window': None,  # [set automatically in code]
-    'testing_frequency': 24.0,  
-    'test_reporting_lag': 48.0, 
+    'testing_frequency': 1 * TO_HOURS,
+    'test_reporting_lag': 2 * TO_HOURS,
     'tests_per_batch': None,  # [set automatically in code]
     'test_fpr': 0.0,
     'test_fnr': 0.0,
-    'test_smart_delta': 24.0 * 3, 
-    'test_smart_duration': 24.0 * 7, 
+    'test_smart_delta': 3 * TO_HOURS,
+    'test_smart_duration': 7 * TO_HOURS, 
     'test_smart_action': 'isolate',
     'test_smart_num_contacts': 10,
     'test_targets': 'isym',
