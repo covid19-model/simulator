@@ -428,6 +428,7 @@ class Plotter(object):
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
 
+        # automatically shifted by `test_lag` in the function
         ts, posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
         _,  nega_mu, nega_sig = self.__comp_state_over_time(sim, 'nega', acc)
 
@@ -904,6 +905,7 @@ class Plotter(object):
         # inference
         # automatically shifted by `test_lag` in the function
         ts, posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
+
         T = posi_mu.shape[0]
     
         xx = days_to_datetime(ts, start_date=start_date)

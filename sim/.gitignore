@@ -1,6 +1,7 @@
 MANIFEST
 build
 *.pk
+*.csv
 *.txt #Ignore log files
 !requirements.txt #Except for requirements.txt
 plots/

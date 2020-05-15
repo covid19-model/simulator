@@ -100,10 +100,13 @@ if __name__ == '__main__':
         # write header and best prior observations
         logger.log_initial_lines(header)
         for i in range(train_theta.shape[0]):
+            loaded_train_G_objectives = objective(train_G[:i+1])
+            loaded_best_observed_obj = loaded_train_G_objectives[
+                loaded_train_G_objectives.argmax()].item()
             logger.log(
                 i=i - train_theta.shape[0],
                 time=0.0,
-                best=best_observed_obj,
+                best=loaded_best_observed_obj,
                 case_diff=case_diff(train_G[i]),
                 objective=objective(train_G[i]).item(),
                 theta=unnormalize_theta(train_theta[i].squeeze())

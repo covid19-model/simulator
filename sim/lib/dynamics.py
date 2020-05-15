@@ -247,7 +247,7 @@ class DiseaseModel(object):
 
                     self.bernoulli_is_iasy[i] = 0
                     self.__push_contact_exposure_events(0.0, i, 1.0)
-                    self.__process_symptomatic_event(0.0, i)
+                    self.__process_symptomatic_event(0.0, i, apply_for_test=False)
 
                 # initial resistant and positive
                 elif state == 'resi_posi':
@@ -372,7 +372,7 @@ class DiseaseModel(object):
         self.initial_seeds = dict()
         for k, v in initial_counts.items():
             self.initial_seeds[k] = initial_people[ptr:ptr + v].tolist()
-            ptr += v                    
+            ptr += v          
 
         ### sample all iid events ahead of time in batch
         batch_size = (self.n_people, )
@@ -632,7 +632,7 @@ class DiseaseModel(object):
         if self.households is not None and self.beta_household > 0:
             self.__push_household_exposure_events(t, i, 1.0)
 
-    def __process_symptomatic_event(self, t, i):
+    def __process_symptomatic_event(self, t, i, apply_for_test=True):
         """
         Mark person `i` as symptomatic at time `t`
         Push resistant queue event
@@ -646,7 +646,7 @@ class DiseaseModel(object):
         self.state_started_at['isym'][i] = t
 
         # testing
-        if self.test_targets == 'isym':
+        if self.test_targets == 'isym' and apply_for_test:
             self.__apply_for_testing(t, i)
 
         # hospitalized?
@@ -997,18 +997,37 @@ class DiseaseModel(object):
         Test person `i` at time `t`
         """
         
-        # update test result preemptively, to account for the state at the time of testing
+        # collect test result based on "blood sample" taken before via `outcome_of_test`
+        # ... if positive
         if self.outcome_of_test[i]: 
+
+            # record timing only if tested positive for the first time
+            if not self.state['posi'][i]:
+                self.state_started_at['posi'][i] = t
+
+            # mark as positive
             self.state['posi'][i] = True
-            self.state_started_at['posi'][i] = t
-                
+
+            # mark as not negative
             if self.state['nega'][i]:
                 self.state['nega'][i] = False
-                self.state_ended_at['nega'][i] = self.state_started_at['posi'][i]
+                self.state_ended_at['nega'][i] = t
+
+        # ... if negative
         else:
-            self.state['nega'][i] = True
-            self.state_started_at['nega'][i] = t
             
+            # record timing only if tested negative for the first time
+            if not self.state['nega'][i]:
+                self.state_started_at['nega'][i] = t
+
+            # mark as negative
+            self.state['nega'][i] = True
+            
+            # mark as not positive
+            if self.state['posi'][i]:
+                self.state['posi'][i] = False
+                self.state_ended_at['posi'][i] = t
+
         # smart tracing
         # if i is not compliant, skip
         is_i_not_compliant = self.measure_list.is_contained(
