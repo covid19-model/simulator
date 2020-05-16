@@ -6,6 +6,7 @@ build
 !lib/data/cases/RKI_COVID19.csv
 *.txt #Ignore log files
 !requirements.txt #Except for requirements.txt
+!lib/mobility/*
 plots/
 maps/
 sim/*.txt
