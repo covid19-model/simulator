@@ -82,7 +82,7 @@ command_line_area_codes = {
 }				
 
 # optimized model parameters
-beta_dummy = 0.7
+beta_dummy = 0.5
 
 settings_optimized_town_params = {
     'GER': {

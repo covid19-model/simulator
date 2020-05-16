@@ -27,8 +27,6 @@ class CovidDistributions(object):
         Covid-19 specific constants from literature
         ALL UNITS IN DAYS
         '''
-
-        # https://www.who.int/docs/default-source/coronaviruse/who-china-joint-mission-on-covid-19-final-report.pdf
         self.R0 = 2.0 # for seeding
 
         # proportion of infections that are asymptomatic
