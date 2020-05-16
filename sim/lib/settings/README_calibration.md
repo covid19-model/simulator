@@ -13,22 +13,22 @@ Inference runs:
 ## Germany
 * Tubingen 
 ```
-python calibrate.py --seed "tu0" --country "GER" --area "TU" --start "2020-03-11" --end "2020-03-26" --mob "lib/mobility/Tubingen_settings_10.pk" --rollouts 80 --ninit 30 --niters 300
+python calibrate.py --seed "tu0" --country "GER" --area "TU" --start "2020-03-10" --end "2020-03-26" --mob "lib/mobility/Tubingen_settings_10.pk" --rollouts 80 --ninit 30 --niters 300
 ```
 
 * Kaiserslautern 
 ```
-python calibrate.py --seed "kl0" --country "GER" --area "KL" --start "2020-03-11" --end "2020-03-26" --mob "lib/mobility/Kaiserslautern_settings_10.pk" --rollouts 80 --ninit 30 --niters 300
+python calibrate.py --seed "kl0" --country "GER" --area "KL" --start "2020-03-10" --end "2020-03-26" --mob "lib/mobility/Kaiserslautern_settings_10.pk" --rollouts 80 --ninit 30 --niters 300
 ```
 
 * Tirschenreuth 
 ```
-python calibrate.py --seed "tr0" --country "GER" --area "TR" --start "2020-03-11" --end "2020-03-26" --mob "lib/mobility/Tirschenreuth_settings_10.pk" --rollouts 80 --ninit 30 --niters 300
+python calibrate.py --seed "tr0" --country "GER" --area "TR" --start "2020-03-10" --end "2020-03-26" --mob "lib/mobility/Tirschenreuth_settings_10.pk" --rollouts 80 --ninit 30 --niters 300
 ```
 
 * Ruedesheim
 ```
-python calibrate.py --seed "rh0" --country "GER" --area "RH" --start "2020-03-11" --end "2020-03-26" --mob "lib/mobility/Ruedesheim_settings_10.pk" --rollouts 80 --ninit 30 --niters 300
+python calibrate.py --seed "rh0" --country "GER" --area "RH" --start "2020-03-10" --end "2020-03-26" --mob "lib/mobility/Ruedesheim_settings_10.pk" --rollouts 80 --ninit 30 --niters 300
 ```
 
 ## Switzerland
