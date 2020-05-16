@@ -44,7 +44,7 @@ python calibrate.py --seed "lu0" --country "CH" --area "LU" --start "2020-03-04"
 
 * Locarno 
 ```
-python calibrate.py --seed "ti0" --country "CH" --area "TI" --start "2020-03-04" --end "2020-03-18" --mob "lib/mobility/Locarno_settings_3.pk" --rollouts 80 --ninit 30 --niters 300
+python calibrate.py --seed "ti0" --country "CH" --area "TI" --start "2020-03-04" --end "2020-03-18" --mob "lib/mobility/Locarno_settings_2.pk" --rollouts 80 --ninit 30 --niters 300
 ```
 
 * Canton Schwyz 
