@@ -357,7 +357,6 @@ def make_bayes_opt_functions(args):
     mob_settings = args.mob
     data_area = args.area
     data_country = args.country
-    case_downsampling = args.downsample
 
     # initialize mobility object to obtain information (no trace generation yet)
     with open(mob_settings, 'rb') as fp:
@@ -405,9 +404,15 @@ def make_bayes_opt_functions(args):
               'Consider setting a later start date for calibration using the "--start" flag.')
         exit(0)
 
-    # Scale down cases based on number of people in simulation
-    new_cases = np.ceil(1/case_downsampling * new_cases_)
+    # Scale down cases based on number of people in town, region, and downsampling
+    new_cases = np.ceil(
+        (new_cases_ * mob.num_people_unscaled) /
+        (mob.downsample * mob.region_population))
     num_age_groups = new_cases.shape[1]
+    header.append('Downsampling : ' + str(mob.downsample))
+    header.append('Town population: ' + str(mob.num_people))
+    header.append('Town population (unscaled): ' + str(mob.num_people_unscaled))
+    header.append('Region population : ' + str(mob.region_population))
 
     # Set test capacity per day as (a) command line; or (b) maximum daily positive case increase over observed period
     if args.testingcap:

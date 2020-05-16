@@ -28,7 +28,7 @@ town_population = region_population # Population of the town of interest
 
 # Daily testing capacity per 100k people
 # Roughly 100k tests per day in Germany: https://www.rki.de/DE/Content/Infekt/EpidBull/Archiv/2020/Ausgaben/15_20.pdf?__blob=publicationFile
-daily_tests_per_100k = int(100000 * town_population / 83000000)
+daily_tests_unscaled = int(100000 * town_population / 83000000)
 
 # Information about household structure (set to None if not available)
 # Source for Germany: https://www.destatis.de/EN/Themes/Society-Environment/Population/Households-Families/Tables/lrbev05.html 
