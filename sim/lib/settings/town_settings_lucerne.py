@@ -27,7 +27,7 @@ population_per_age_group = np.array([42599,     # 0-9
                                      ])
 
 region_population = population_per_age_group.sum()
-town_population = 81673     # Consider full region in simulation
+town_population = 81673  
 
 # Daily testing capacity per 100k people
 # Roughly 5k tests per day in Switzerland (rough average over time frame 10.03.-27.04.2020:

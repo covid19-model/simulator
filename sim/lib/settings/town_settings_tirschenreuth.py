@@ -27,7 +27,7 @@ population_per_age_group = np.array([
 
 
 region_population = population_per_age_group.sum()
-town_population = region_population     # We simulate the whole region
+town_population = region_population   
 
 
 # Daily testing capacity per 100k people

@@ -23,7 +23,7 @@ population_per_age_group = np.array([
     41441,  # 60-79
     11750]) # 80+
 
-town_population = 90546 # Population of the town of interest
+town_population = 90546 
 region_population = population_per_age_group.sum()
 
 # Daily testing capacity per 100k people

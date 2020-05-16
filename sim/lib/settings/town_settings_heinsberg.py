@@ -23,7 +23,6 @@ population_per_age_group = np.array([
     55703,  # 60-79
     15555]) # 80+
 
-
 town_population = 41673 # Population of the central town of the region
 region_population = population_per_age_group.sum()
 
