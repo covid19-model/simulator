@@ -183,6 +183,9 @@ class DiseaseModel(object):
     def initialize_states_for_seeds(self):
         """
         Sets state variables according to invariants as given by `self.initial_seeds`
+
+        NOTE: by the seeding heuristic using the reproductive rate
+        we assume that exposures already took place
         """
         assert(isinstance(self.initial_seeds, dict))
         for state, seeds_ in self.initial_seeds.items():
@@ -208,6 +211,7 @@ class DiseaseModel(object):
 
                 # initial asymptomatic
                 elif state == 'iasy':
+
                     self.state['susc'][i] = False
                     self.state['expo'][i] = True
 
@@ -215,7 +219,7 @@ class DiseaseModel(object):
                     self.state_started_at['expo'][i] = -1.0
 
                     self.bernoulli_is_iasy[i] = 1
-                    self.__process_asymptomatic_event(0.0, i)
+                    self.__process_asymptomatic_event(0.0, i, add_exposures=False)
 
                 # initial symptomatic
                 elif state == 'isym' or state == 'isym_notposi':
@@ -229,7 +233,6 @@ class DiseaseModel(object):
                     self.state_started_at['ipre'][i] = -1.0
 
                     self.bernoulli_is_iasy[i] = 0
-                    self.__push_contact_exposure_events(0.0, i, 1.0)
                     self.__process_symptomatic_event(0.0, i)
 
                 # initial symptomatic and positive
@@ -246,7 +249,6 @@ class DiseaseModel(object):
                     self.state_started_at['posi'][i] = -1.0
 
                     self.bernoulli_is_iasy[i] = 0
-                    self.__push_contact_exposure_events(0.0, i, 1.0)
                     self.__process_symptomatic_event(0.0, i, apply_for_test=False)
 
                 # initial resistant and positive
@@ -665,7 +667,7 @@ class DiseaseModel(object):
                 (t + self.delta_isym_to_resi[i], 'resi', i, None, None),
                 priority=t + self.delta_isym_to_resi[i])
 
-    def __process_asymptomatic_event(self, t, i):
+    def __process_asymptomatic_event(self, t, i, add_exposures=True):
         """
         Mark person `i` as asymptomatic at time `t`
         Push resistant queue event
@@ -683,12 +685,13 @@ class DiseaseModel(object):
             (t + self.delta_iasy_to_resi[i], 'resi', i, None, None),
             priority=t + self.delta_iasy_to_resi[i])
 
-        # contact exposure of others
-        self.__push_contact_exposure_events(t, i, self.mu)
-        
-        # household exposures
-        if self.households is not None and self.beta_household > 0:
-            self.__push_household_exposure_events(t, i, self.mu)
+        if add_exposures:
+            # contact exposure of others
+            self.__push_contact_exposure_events(t, i, self.mu)
+            
+            # household exposures
+            if self.households is not None and self.beta_household > 0:
+                self.__push_household_exposure_events(t, i, self.mu)
 
     def __process_resistant_event(self, t, i):
         """

@@ -22,14 +22,13 @@ settings_simulation = {
 # parameter bounds
 settings_model_param_bounds = {
     'betas': {
-        'education': [0.0, 3.0],
-        'social': [0.0, 3.0],
-        'bus_stop': [0.0, 3.0],
-        'office': [0.0, 3.0],
-        'supermarket': [0.0, 3.0],
+        'education': [0.0, 2.0],
+        'social': [0.0, 2.0],
+        'bus_stop': [0.0, 2.0],
+        'office': [0.0, 2.0],
+        'supermarket': [0.0, 2.0],
     },
-    'beta_household': [0.0, 3.0],
-    'mu': [0.0, 1.0]
+    'beta_household': [0.0, 2.0],
 }
 
 settings_measures_param_bounds = {
@@ -78,11 +77,12 @@ command_line_area_codes = {
         'TI': 'TI',     # Canton Ticino
         'LU': 'LU',     # Canton Lucerne
         'VD': 'VD',     # Canton Vaud
+        'JU': 'JU',     # Canton Jura
     }
 }				
 
 # optimized model parameters
-beta_dummy = 0.8
+beta_dummy = 0.7
 
 settings_optimized_town_params = {
     'GER': {
@@ -128,7 +128,7 @@ settings_optimized_town_params = {
         },
     },
     'CH': {
-        'SZ': {  # dummy settings
+        'JU': {  # dummy settings
             'betas': {
                 'education': beta_dummy,
                 'social': beta_dummy,

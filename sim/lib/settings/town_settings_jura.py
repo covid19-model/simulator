@@ -11,7 +11,8 @@ town_name = 'Jura'
 population_path = 'lib/data/population/population_che_2019-07-01.csv'   # Population density file
 
 sites_path='lib/data/queries/'  # Directory containing OSM site query details
-bbox = (47.2380, 47.4736, 7.4363, 7.5590)   # Coordinate bounding box
+bbox = (47.3000, 47.4736, 6.9514, 7.4500)   # Coordinate bounding box
+
 
 # Population per age group in the region
 # Source: https://www.citypopulation.de/en/switzerland/admin/26__jura/
