@@ -34,7 +34,7 @@ def make_calibration_parser():
 
     # data
     parser.add_argument("--mob", 
-        help="specify path to mobility settings for trace generation, e.g. 'lib/tu_settings_10_10_hh.pk'")
+        help="specify path to mobility settings for trace generation, e.g. 'lib/tu_settings_10.pk'")
     parser.add_argument("--country", 
         help="specify country indicator for data import")
     parser.add_argument("--area", 
@@ -45,8 +45,6 @@ def make_calibration_parser():
     parser.add_argument("--end",
         help="set end date for which case data is retrieved "
              "e.g. '2020-03-26'")
-    parser.add_argument("--downsample", type=int,
-        help="update default case downsampling factor")
 
     # simulation
     parser.add_argument("--no_households", action="store_true",

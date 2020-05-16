@@ -27,6 +27,7 @@ from matplotlib.colors import ListedColormap
 TO_HOURS = 24.0
 DPI = 200
 NO_PLOT = False
+TEST_LAG = 48.0 # hours
 
 matplotlib.rcParams.update({
     "figure.autolayout": False,
@@ -156,10 +157,16 @@ class Plotter(object):
 
 
     def __is_state_at(self, sim, r, state, t):
-        return (sim.state_started_at[state][r] <= t) & (sim.state_ended_at[state][r] > t)
+        if state == 'posi' or state == 'nega':
+            return (sim.state_started_at[state][r] - TEST_LAG <= t) & (sim.state_ended_at[state][r] - TEST_LAG > t)
+        else:
+            return (sim.state_started_at[state][r] <= t) & (sim.state_ended_at[state][r] > t)
 
     def __state_started_before(self, sim, r, state, t):
-        return (sim.state_started_at[state][r] <= t)
+        if state == 'posi' or state == 'nega':
+            return (sim.state_started_at[state][r] - TEST_LAG <= t)
+        else:
+            return (sim.state_started_at[state][r] <= t)
 
     def __is_contained_at(self, sim, r, measure, t):
         contained = np.zeros(sim.n_people, dtype='bool')
@@ -408,7 +415,7 @@ class Plotter(object):
         return
 
     def plot_daily_tested(self, sim, title='Example', filename='daily_tested_0', figsize=(10, 10), errorevery=20,
-        acc=1000, ymax=None, test_lag=2):
+        acc=1000, ymax=None):
 
         ''''
         Plots daily tested, positive daily tested, negative daily tested
@@ -421,6 +428,7 @@ class Plotter(object):
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
 
+        # automatically shifted by `test_lag` in the function
         ts, posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
         _,  nega_mu, nega_sig = self.__comp_state_over_time(sim, 'nega', acc)
 
@@ -431,27 +439,18 @@ class Plotter(object):
         error_posi = posi_sig
         error_nega = nega_sig + posi_sig
 
-        # shift by `test_lag` to count the cases on the real dates, as the real data does
         T = posi_mu.shape[0]
-        test_lag_offset = int((test_lag * TO_HOURS / sim.max_time) * acc)
-        corr_posi, corr_sig_posi = np.zeros(T - test_lag_offset), np.zeros(T - test_lag_offset)
-        corr_nega, corr_sig_nega = np.zeros(T - test_lag_offset), np.zeros(T - test_lag_offset)
-
-        corr_posi[0 : T - test_lag_offset] = posi_mu[test_lag_offset : T]
-        corr_sig_posi[0: T - test_lag_offset] = posi_sig[test_lag_offset: T]
-        corr_nega[0 : T - test_lag_offset] = nega_mu[test_lag_offset : T]
-        corr_sig_nega[0: T - test_lag_offset] = nega_sig[test_lag_offset: T]
 
         # lines
-        ax.errorbar(ts[0 : T - test_lag_offset], corr_posi, yerr=corr_sig_posi, elinewidth=0.8, errorevery=errorevery,
+        ax.errorbar(ts, posi_mu, yerr=posi_sig, elinewidth=0.8, errorevery=errorevery,
                 c='black', linestyle='-')
-        ax.errorbar(ts[0: T - test_lag_offset], corr_nega, yerr=corr_sig_nega, elinewidth=0.8, errorevery=errorevery,
+        ax.errorbar(ts, nega_mu, yerr=nega_sig, elinewidth=0.8, errorevery=errorevery,
                 c='black', linestyle='-')
 
         # filling
-        ax.fill_between(ts[0: T - test_lag_offset], line_xaxis[0: T - test_lag_offset], corr_posi, alpha=self.filling_alpha, label=r'Positive tests',
+        ax.fill_between(ts, line_xaxis, posi_mu, alpha=self.filling_alpha, label=r'Positive tests',
                         edgecolor=self.color_posi, facecolor=self.color_posi, linewidth=0, zorder=0)
-        ax.fill_between(ts[0: T - test_lag_offset], corr_posi, corr_nega, alpha=self.filling_alpha, label=r'Negative tests',
+        ax.fill_between(ts, posi_mu, nega_mu, alpha=self.filling_alpha, label=r'Negative tests',
                         edgecolor=self.color_nega, facecolor=self.color_nega, linewidth=0, zorder=0)
         # axis
         ax.set_xlim((0, np.max(ts)))
@@ -574,7 +573,7 @@ class Plotter(object):
     def compare_total_infections(self, sims, titles, figtitle='Title',
         filename='compare_inf_0', figsize=(10, 10), errorevery=20, acc=1000, ymax=None,
         lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None,
-        show_positives=False, test_lag=2, show_legend=True, legendYoffset=0.0, legend_is_left=False,
+        show_positives=False, show_legend=True, legendYoffset=0.0, legend_is_left=False,
         subplot_adjust=None, start_date='1970-01-01', first_one_dashed=False):
 
         ''''
@@ -606,27 +605,14 @@ class Plotter(object):
                 ax.errorbar(ts, line_infected, yerr=error_infected, label='[Infected] ' + titles[i], errorevery=errorevery,
                            c=self.color_different_scenarios[i], linestyle='-')
 
-                # shift by `test_lag` to count the cases on the real dates, as the real data does
                 T = posi_mu.shape[0]
-                test_lag_offset = int((test_lag * TO_HOURS / sim.max_time) * acc)
-                corr_posi, corr_sig = np.zeros(T - test_lag_offset), np.zeros(T - test_lag_offset)
-                corr_posi[0 : T - test_lag_offset] = posi_mu[test_lag_offset : T]
-                corr_sig[0: T - test_lag_offset] = posi_sig[test_lag_offset: T]
-                ax.errorbar(ts[:T - test_lag_offset], corr_posi, yerr=corr_sig, label='[Tested positive]', errorevery=errorevery,
+                ax.errorbar(ts, posi_mu, yerr=posi_sig, label='[Tested positive]', errorevery=errorevery,
                             c=self.color_different_scenarios[i], linestyle='--', elinewidth=0.8)
             else:
 
 
                 ax.errorbar(ts, line_infected, yerr=error_infected, label=titles[i], errorevery=errorevery, elinewidth=0.8,
                     capsize=3.0, c=self.color_different_scenarios[i], linestyle='--' if i == 0 and first_one_dashed else '-')
-
-
-
-            # filling
-            # ax.fill_between(ts, line_xaxis, line_infected, alpha=self.filling_alpha, zorder=0,
-            #                edgecolor=self.color_different_scenarios[i], facecolor=self.color_different_scenarios[i], linewidth=0)
-
-
 
 
         # axis
@@ -902,7 +888,7 @@ class Plotter(object):
             plt.close()
         return
 
-    def plot_positives_vs_target(self, sim, targets, test_lag, title='Example',
+    def plot_positives_vs_target(self, sim, targets, title='Example',
         filename='inference_0', figsize=(6, 5), errorevery=1, acc=17, ymax=None,
         start_date='1970-01-01', lockdown_label='Lockdown', lockdown_at=None,
         lockdown_label_y=None, subplot_adjust=None):
@@ -917,27 +903,18 @@ class Plotter(object):
         fig, ax = plt.subplots(figsize=figsize)
 
         # inference
+        # automatically shifted by `test_lag` in the function
         ts, posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
-        # shift by `test_lag` to count the cases on the real dates, as the real data does
-        T = posi_mu.shape[0]
-        test_lag_offset = int((test_lag * TO_HOURS / sim.max_time) * acc)
-        corr_posi, corr_sig = np.zeros(T - test_lag_offset), np.zeros(T - test_lag_offset)
-        corr_posi[0 : T - test_lag_offset] = posi_mu[test_lag_offset : T]
-        corr_sig[0: T - test_lag_offset] = posi_sig[test_lag_offset: T]
 
-        # Convert x-axis into posix timestamps and use pandas to plot as dates
-        xx = days_to_datetime(ts[:T - test_lag_offset], start_date=start_date)
-        ax.plot(xx, corr_posi, c='k', linestyle='-',
+        T = posi_mu.shape[0]
+    
+        xx = days_to_datetime(ts, start_date=start_date)
+        ax.plot(xx, posi_mu, c='k', linestyle='-',
                 label='COVID-19 simulated case data')
-        ax.fill_between(xx, corr_posi-corr_sig, corr_posi+corr_sig,
+        ax.fill_between(xx, posi_mu - posi_sig, posi_mu + posi_sig,
                         color='grey', alpha=0.1, linewidth=0.0)
 
         # target
-        # txx = np.linspace(0, targets.shape[0] - 1, num=targets.shape[0])
-        # # Convert x-axis into posix timestamps and use pandas to plot as dates
-        # txx = days_to_datetime(txx, start_date=start_date)
-        # ax.plot(txx, targets, linewidth=4, linestyle='', marker='X', ms=6,
-        #         color='red', label='COVID-19 case data')
         target_widget(targets, start_date, ax)
 
         # axis

@@ -27,12 +27,12 @@ population_per_age_group = np.array([42599,     # 0-9
                                      ])
 
 region_population = population_per_age_group.sum()
-town_population = 81673     # Consider full region in simulation
+town_population = 81673  
 
 # Daily testing capacity per 100k people
 # Roughly 5k tests per day in Switzerland (rough average over time frame 10.03.-27.04.2020:
 # https://www.bag.admin.ch/bag/en/home/krankheiten/ausbrueche-epidemien-pandemien/aktuelle-ausbrueche-epidemien/novel-cov/situation-schweiz-und-international.html
-daily_tests_per_100k = int(5000 * town_population / 8570000)
+daily_tests_unscaled = int(5000 * town_population / 8570000)
 
 # Information about household structure (set to None if not available)
 # Source for Switzerland: https://www.bfs.admin.ch/bfs/de/home/statistiken/bevoelkerung/stand-entwicklung/haushalte.html

@@ -51,14 +51,13 @@ if __name__ == '__main__':
     args.filename = args.filename or f'calibration_{seed}'
     
     # check required settings
-    if not (args.mob and args.area and args.country and args.start and args.end and args.downsample):
+    if not (args.mob and args.area and args.country and args.start and args.end):
         print(
             "The following keyword arguments are required, for example as follows:\n"
             "python calibrate.py \n"
             "   --country \"GER\" \n"
             "   --area \"TU\" \n"
-            "   --mob \"lib/tu_settings_10_10_hh.pk\" \n"
-            "   --downsample 10 \n"
+            "   --mob \"lib/tu_settings_10.pk\" \n"
             "   --start \"2020-03-10\" \n"
             "   --end \"2020-03-26\" \n"
         )
@@ -97,16 +96,20 @@ if __name__ == '__main__':
         header.append('Loaded initial observations from: ' + args.load)
         header.append(f'Observations: {train_theta.shape[0]}, Best objective: {best_observed_obj}')
         
-        # write header and best prior observation
+        # write header and best prior observations
         logger.log_initial_lines(header)
-        logger.log(
-            i=-1,
-            time=0.0,
-            best=best_observed_obj,
-            case_diff=case_diff(train_G[best_observed_idx]),
-            objective=objective(train_G[best_observed_idx]).item(),
-            theta=unnormalize_theta(train_theta[best_observed_idx].squeeze())
-        )
+        for i in range(train_theta.shape[0]):
+            loaded_train_G_objectives = objective(train_G[:i+1])
+            loaded_best_observed_obj = loaded_train_G_objectives[
+                loaded_train_G_objectives.argmax()].item()
+            logger.log(
+                i=i - train_theta.shape[0],
+                time=0.0,
+                best=loaded_best_observed_obj,
+                case_diff=case_diff(train_G[i]),
+                objective=objective(train_G[i]).item(),
+                theta=unnormalize_theta(train_theta[i].squeeze())
+            )
 
     else:
         
