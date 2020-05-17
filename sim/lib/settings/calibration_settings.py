@@ -22,13 +22,13 @@ settings_simulation = {
 # parameter bounds
 settings_model_param_bounds = {
     'betas': {
-        'education': [0.0, 2.0],
-        'social': [0.0, 2.0],
-        'bus_stop': [0.0, 2.0],
-        'office': [0.0, 2.0],
-        'supermarket': [0.0, 2.0],
+        'education': [0.0, 1.5],
+        'social': [0.0, 1.5],
+        'bus_stop': [0.0, 1.5],
+        'office': [0.0, 1.5],
+        'supermarket': [0.0, 1.5],
     },
-    'beta_household': [0.0, 2.0],
+    'beta_household': [0.0, 1.5],
 }
 
 settings_measures_param_bounds = {
