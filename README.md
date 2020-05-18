@@ -25,7 +25,7 @@ The preliminary results generated using in this repository are focused on real C
 ## Version of arXiv pre-print results
 
 As we are in the process of significantly refactoring the code base and extending the experiments, we did not update the notebook used to simulate the paper experiments, as it is now deprecated.
-We release an up-to-date [example notebook](sim/exe-inference.ipynb) that shows how to use the code, simulation, and various measures
+We release an up-to-date [example notebook](sim/sim-example.ipynb) that shows how to use the code, simulation, and various measures.
 
 __If you would nevertheless like to play with the prior version or reproduce results currently shown in the arXiv pre-print, revert to commit__
 `062f03bd809a5df3db7158e4075f855ce110dfcc`
