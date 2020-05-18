@@ -10,13 +10,10 @@ The sampling algorithm provided in this repository can be used to predict the sp
 
 <p align="center">
 <img width="33%" src="./img/rt_no_lockdown.png">
-<em>Effective reproduction number with no measures taken.</em>
+<img width="33%" src="./img/rt_lockdown.png">
 </p>
 
-<p align="center">
-<img width="33%" src="./img/rt_lockdown.png">
-<em>Effective reproduction number with measures.</em>
-</p>
+<center><i>Effective reproduction number without and with measures taken.</i></center>
 
 An inference script based on Bayesian Optimization allows to calibrate the exposure risk at various sites to match real case data over time and per age group.
 
