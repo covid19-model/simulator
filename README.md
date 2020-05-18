@@ -9,21 +9,32 @@ We introduce a modeling framework for studying epidemics that is specifically de
 The sampling algorithm provided in this repository can be used to predict the spread of COVID-19 under different testing & tracing strategies, social distancing measures and business restrictions, given location or contact histories of individuals. Moreover, it gives a detailed representation of the disease's effect on each individual through time, distinguishing between several known states like asymptomatic, presymptomatic, symptomatic or recovered. 
 
 <p align="center">
-<img width="33%" src="./img/run0_opt_002.png">
+<img width="33%" src="./img/rt_no_lockdown.png">
+<em>Effective reproduction number with no measures taken.</em>
 </p>
-
-Additionally, an inference script based on Bayesian Optimization allows the estimation of the risk of exposure of each individual at sites, the percentage of symptomatic individuals, and the difference in transmission rate between asymptomatic and symptomatic individuals from historical longitudinal testing data.
 
 <p align="center">
-<img width="33%" src="./img/fig_exp2.png">
+<img width="33%" src="./img/rt_lockdown.png">
+<em>Effective reproduction number with measures.</em>
 </p>
 
-The notebooks in this repository are focused on real COVID-19 data and mobility patterns from Tübingen, a town in the Southwest of Germany, but can be easily parameterized and used for generating realistic mobility patterns and simulating the spread of a disease for any given city/town.
+An inference script based on Bayesian Optimization allows to calibrate the exposure risk at various sites to match real case data over time and per age group.
+
+The preliminary results generated using in this repository are focused on real COVID-19 data and mobility patterns from Tübingen, a town in the Southwest of Germany, but can be easily parameterized and used for generating realistic mobility patterns and simulating the spread of a disease for any given city/town. We are currently working on extending results for several towns and cities.
 
 <p align="center">
 <img width="33%" src="./img/population_distribution.png">
 <img width="33%" src="./img/site_distribution.png">
 </p>
+
+## Version of arXiv pre-print results
+
+As we are in the process of significantly refactoring the code base and extending the experiments, we did not update the notebook used to simulate the paper experiments, as it is now deprecated.
+We release an up-to-date [example notebook](sim/exe-inference.ipynb) that shows how to use the code, simulation, and various measures
+
+__If you would nevertheless like to play with the prior version or reproduce results currently shown in the arXiv pre-print, revert to commit__
+`062f03bd809a5df3db7158e4075f855ce110dfcc`
+
 
 ## Dependencies
 
@@ -35,22 +46,6 @@ source env/bin/activate
 pip install -r sim/requirements.txt
 ```
 
-Otherwise, you can manually install the following packages:
-
-* numpy
-* pandas
-* numba
-* networkx
-* scipy
-* interlap
-* seaborn
-* bayesian-optimization
-* joblib
-* geopy
-* pathos
-* requests
-* folium
-
 ## Code organization
 
 In the following tables, short descriptions of notebooks and main scripts are given. The notebooks are self-explanatory and execution details can be found within them.
@@ -58,10 +53,14 @@ In the following tables, short descriptions of notebooks and main scripts are gi
 | Notebook              | Description                                                   |
 |-----------------------|---------------------------------------------------------------|
 | [town-generator.ipynb](sim/town-generator.ipynb)  | Generates population, site and mobility data for a given town. |
-| [exe-inference.ipynb](sim/exe-inference.ipynb)   | Performs Bayesian optimization to infer the model parameters based on mobility patterns and reported cases of infection. |
-| [experiments.ipynb](sim/experiments.ipynb)     | Performs experiments about the spread of the disease under testing, contact tracing and/or containment measures. |
+| [sim-example.ipynb](sim/sim-example.ipynb)     | Example experiment on the spread of the disease under testing, contact tracing and/or containment measures. |
 
-| Script                | Description                                                   |
+| Scripts              | Description                                                   |
+|-----------------------|---------------------------------------------------------------|
+| [calibrate.py](sim/calibrate.py)  | Calibrates the model based on real case data. Run `calibrate.py --help` for help. |
+
+
+| Modules                | Description                                                   |
 |-----------------------|---------------------------------------------------------------|
 | [distributions.py](sim/lib/distributions.py) | Contains COVID-19 constants and distribution sampling functions. |
 | [town_data.py](sim/lib/town_data.py)  | Contains functions for population and site generation. |
@@ -73,6 +72,7 @@ In the following tables, short descriptions of notebooks and main scripts are gi
 | [inference.py](sim/lib/inference.py) | Contains functions used for Bayesian optimization. |
 | [plot.py](sim/lib/plot.py) | Produces a **Plotter** object for generating plots. |
 | [town_maps.py](sim/lib/plot.py) | Produces a **MapIllustrator** object for generating interactive maps. |
+
 
 ## Citation
 
