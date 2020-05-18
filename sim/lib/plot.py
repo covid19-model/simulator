@@ -214,6 +214,20 @@ class Plotter(object):
             stds.append(np.std(restarts))
         return np.array(ts), np.array(means), np.array(stds)
 
+    def __comp_state_over_time_per_age(self, sim, state, acc, age):
+        '''
+        Computes `state` variable over time [0, self.max_time] with given accuracy `acc
+        for a given age group `age`
+        '''
+        ts, means, stds = [], [], []
+        for t in np.linspace(0.0, sim.max_time, num=acc, endpoint=True):
+            restarts = [np.sum(self.__is_state_at(sim, r, state, t) & (sim.people_age[r] == age))
+                        for r in range(sim.random_repeats)]
+            ts.append(t/TO_HOURS)
+            means.append(np.mean(restarts))
+            stds.append(np.std(restarts))
+        return np.array(ts), np.array(means), np.array(stds)
+
     def __comp_contained_over_time(self, sim, measure, acc):
         '''
         Computes `state` variable over time [0, self.max_time] with given accuracy `acc
@@ -954,6 +968,89 @@ class Plotter(object):
 
         plt.savefig('plots/' + filename + '.png', format='png', facecolor=None,
                     dpi=DPI)#, bbox_inches='tight')
+
+        if NO_PLOT:
+            plt.close()
+        return
+
+    def plot_age_group_positives_vs_target(self, sim, targets, ytitle=None,
+                                 filename='inference_0', figsize=(6, 5), errorevery=1, acc=17, ymax=None,
+                                 start_date='1970-01-01', lockdown_label='Lockdown', lockdown_at=None,
+                                 lockdown_label_y=None, subplot_adjust=None):
+        
+        ''''
+        Plots daily tested averaged over random restarts, using error bars for std-dev
+        together with targets from inference
+        '''
+
+        if acc > sim.max_time:
+            acc = int(sim.max_time)
+
+        n_age_groups = targets.shape[1]
+        fig, axs = plt.subplots(1, n_age_groups, figsize=figsize)
+
+        for age in range(n_age_groups):
+
+            # automatically shifted by `test_lag` in the function
+            ts, posi_mu, posi_sig = self.__comp_state_over_time_per_age(
+                sim, 'posi', acc, age)
+
+            T = posi_mu.shape[0]
+
+            xx = days_to_datetime(ts, start_date=start_date)
+            axs[age].plot(xx, posi_mu, c='k', linestyle='-',
+                    label='COVID-19 simulated case data')
+            axs[age].fill_between(xx, posi_mu - posi_sig, posi_mu + posi_sig,
+                            color='grey', alpha=0.1, linewidth=0.0)
+
+            # target
+            target_widget(targets[:, age], start_date, axs[age])
+
+            # axis
+            #ax.set_xlim((0, np.max(ts)))
+            if ymax is None:
+                ymax = 1.5 * np.max(posi_mu)
+            axs[age].set_ylim((0, ymax))
+
+            # ax.set_xlabel('Days')
+            if age == 0:
+                if ytitle is not None:
+                    axs[age].set_ylabel(ytitle)
+
+            axs[age].set_title(f'{age}')
+
+            if lockdown_at is not None:
+                lockdown_widget(lockdown_at, start_date,
+                                lockdown_label_y, ymax,
+                                lockdown_label, axs[age])
+
+            # Hide the right and top spines
+            axs[age].spines['right'].set_visible(False)
+            axs[age].spines['top'].set_visible(False)
+            axs[age].spines['left'].set_visible(False)
+            axs[age].spines['bottom'].set_visible(False)
+            axs[age].get_xaxis().set_ticks([])
+
+            # Only show ticks on the left and bottom spines
+            # axs[age].yaxis.set_ticks_position('left')
+
+            #set ticks every week
+            # axs[age].xaxis.set_major_locator(mdates.WeekdayLocator())
+            #set major ticks format
+            # axs[age].xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+            # fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
+
+        # legend
+        # axs[age].legend(loc='upper left', borderaxespad=0.5)
+
+        subplot_adjust = subplot_adjust or {
+            'bottom': 0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
+        plt.subplots_adjust(**subplot_adjust)
+
+        plt.draw()
+
+        plt.savefig('plots/' + filename + '.png', format='png', facecolor=None,
+                    dpi=DPI)  # , bbox_inches='tight')
 
         if NO_PLOT:
             plt.close()
