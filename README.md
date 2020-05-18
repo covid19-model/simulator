@@ -13,8 +13,6 @@ The sampling algorithm provided in this repository can be used to predict the sp
 <img width="33%" src="./img/rt_lockdown.png">
 </p>
 
-<p style="text-align:center;"><i>Effective reproduction number without and with measures taken.</i></p>
-
 An inference script based on Bayesian Optimization allows to calibrate the exposure risk at various sites to match real case data over time and per age group.
 
 The preliminary results generated using in this repository are focused on real COVID-19 data and mobility patterns from Tübingen, a town in the Southwest of Germany, but can be easily parameterized and used for generating realistic mobility patterns and simulating the spread of a disease for any given city/town. We are currently working on extending results for several towns and cities.
