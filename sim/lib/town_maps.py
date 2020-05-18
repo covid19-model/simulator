@@ -4,9 +4,11 @@ import folium.plugins
 import matplotlib
 import os
 
-from lib.measures import (MeasureList, BetaMultiplierMeasure,
-                      SocialDistancingForAllMeasure, BetaMultiplierMeasureByType,
-                      SocialDistancingForPositiveMeasure, SocialDistancingByAgeMeasure, SocialDistancingForSmartTracing, ComplianceForAllMeasure)
+from lib.measures import (MeasureList, SocialDistancingForAllMeasure,
+                        SocialDistancingForPositiveMeasure, SocialDistancingByAgeMeasure,
+                        SocialDistancingForSmartTracing, ComplianceForAllMeasure)
+
+TO_HOURS = 24.0
 
 class MapIllustrator():
 
@@ -104,7 +106,7 @@ class MapIllustrator():
                                                                 state_resi_started_at=sim.state_started_at['resi'][r, :],
                                                                 state_dead_started_at=sim.state_started_at['dead'][r, :])) and
                      (sim.state_started_at['dead'][r, indiv] > t) and
-                     (len(list(sim.mob[r].list_intervals_in_window_individual_at_site(indiv=indiv, site=site, t0=t, t1=t+24.0))) > 0) ):
+                     (len(list(sim.mob[r].list_intervals_in_window_individual_at_site(indiv=indiv, site=site, t0=t, t1=t+TO_HOURS))) > 0) ):
                     site_checkins[site] += 1
         
         return site_checkins
@@ -118,8 +120,8 @@ class MapIllustrator():
         for j in range(sim.n_people):
             if ( (sim.state_started_at['posi'][r, j] < t1 + delta) and
                  (sim.state_started_at['posi'][r, j] >= t0 - delta) ):
-                for visit in sim.mob[r].mob_traces[j][site].find((t0, t1)):
-                    if visit.t_to > t0:
+                for visit in sim.mob[r].mob_traces[j].find((t0, t1)):
+                    if visit.t_to > t0 and visit.site == site:
                         # skip if j was contained
                         j_visit_id = visit.id
             

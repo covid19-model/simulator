@@ -19,7 +19,7 @@ class CovidDistributions(object):
     Class to sample from specific distributions for SARS COV2
     """
 
-    def __init__(self, fatality_rates_by_age):
+    def __init__(self, country):
 
         self.tadj = 24.0 
 
@@ -27,9 +27,25 @@ class CovidDistributions(object):
         Covid-19 specific constants from literature
         ALL UNITS IN DAYS
         '''
+        self.R0 = 2.0 # for seeding
+
+        # proportion of infections that are asymptomatic
+        self.alpha = 0.4
+
+        # Li et al (Science, 2020): "multiplicative factor reducing the transmission rate of unreported infected patients"
+        self.mu = 0.55
+
         self.lambda_0 = 0.0
-        self.fatality_rates_by_age = fatality_rates_by_age
-        self.p_hospital_by_age = np.array([0.001, 0.002, 0.012, 0.065, 0.205, 0.273])
+
+        if country == 'GER':
+            self.fatality_rates_by_age = np.array([0.0, 0.0, 0.0, 0.004, 0.073, 0.247])
+            self.p_hospital_by_age = np.array([0.001, 0.002, 0.012, 0.065, 0.205, 0.273])
+        elif country == 'CH':
+            # Data taken from: https://www.bag.admin.ch/bag/en/home/krankheiten/ausbrueche-epidemien-pandemien/aktuelle-ausbrueche-epidemien/novel-cov/situation-schweiz-und-international.html
+            self.p_hospital_by_age = np.array([0.155, 0.038, 0.028, 0.033, 0.054, 0.089, 0.178, 0.326, 0.29])
+            self.fatality_rates_by_age = np.array([0, 0, 0, 0.001, 0.001, 0.005, 0.031, 0.111, 0.265])
+        else:
+            raise NotImplementedError('Invalid country requested.')
 
         self.gamma = np.log(2.0) / 2.0 # 2 hour half life
         self.delta = np.log(5.0) / self.gamma # time of intensity decrease to below 20 %
@@ -139,9 +155,7 @@ class CovidDistributions(object):
 
 if __name__ == '__main__':
 
-    fatality_rates_by_age = np.array([0., 0., 0., 0., 0.00671141, 0.15555556])
-
-    dist = CovidDistributions(fatality_rates_by_age)
+    dist = CovidDistributions(country='GER')
 
     print('expo to ipre/iasy (subtracted infectious window before symptoms) : ', 
           dist.normal_to_lognormal(dist.incubation_mean_of_lognormal - dist.median_infectious_without_symptom, dist.incubation_std_of_lognormal))

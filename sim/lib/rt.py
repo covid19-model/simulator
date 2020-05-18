@@ -16,6 +16,7 @@ import pandas as pd
 from scipy import stats as sps
 from scipy.optimize import minimize
 
+TO_HOURS = 24.0
 
 # Gamma is 1/serial interval
 # https://wwwnc.cdc.gov/eid/article/26/7/20-0282_article
@@ -47,14 +48,14 @@ def prepare_cases(new_cases, window=7, cutoff=None):
 
 
 def format_simulation(sim, start_date, window=3):
-    days_start_time = np.arange(0.0, sim.max_time, step=24.0)
+    days_start_time = np.arange(0.0, sim.max_time, step=1 * TO_HOURS)
     days_index = days_to_datetime(days_start_time/24, start_date=start_date)
     data = list()
     for r in range(sim.random_repeats):
         new_cases_r = np.zeros_like(days_start_time)
         for i, t0 in enumerate(days_start_time):
             # end of day
-            t1 = t0 + 24.0
+            t1 = t0 + 1 * TO_HOURS
             # people that got infectious in this window
             new_cases_r[i] = (
                 np.sum((sim.state_started_at['iasy'][r] >= t0) & (sim.state_started_at['iasy'][r] < t1)) +
@@ -179,7 +180,7 @@ def find_sigma(data, r_t_range):
     return res
 
 
-def compute_daily_rts(sim, start_date, sigma=None, r_t_range=R_T_RANGE, window=3):
+def compute_daily_rts(sim, start_date, sigma=None, r_t_range=R_T_RANGE, window=3, ci=0.9):
     # Format the observations
     data = format_simulation(sim, start_date, window)
     # If not provided, find the variance of the prior using MLE
@@ -199,7 +200,7 @@ def compute_daily_rts(sim, start_date, sigma=None, r_t_range=R_T_RANGE, window=3
         posteriors += post_r
     posteriors /= len(all_posteriors)
     # Aggregate high density areas of posteriors
-    hdis = highest_density_interval(posteriors, p=0.9)
+    hdis = highest_density_interval(posteriors, p=ci)
     most_likely = posteriors.idxmax().rename('ML')
     result = pd.concat([most_likely, hdis], axis=1)
     return result

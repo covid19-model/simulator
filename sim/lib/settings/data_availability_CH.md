@@ -1,0 +1,31 @@
+***************************
+This a list of Canton districts in Switzerland
+Each can be added with identifier to `calibration_settings.py ` to be considered for data retrieval.
+***************************
+
+'ZH' 'Zürich' 
+'BE' 'Bern'
+'LU' 'Luzern'
+'UR' 'Uri'
+'SZ' 'Schwyz'
+'OW' 'Obwalden'
+'NW' 'Nidwalden'
+'GL' 'Glarus'
+'ZG' 'Zug'
+'FR' 'Friburg'
+'SO' 'Solothurn'
+'BS' 'Basel-Stadt'
+'BL' 'Basel-Landschaft'
+'SH' 'Schaffhausen'
+'AR' 'Appenzell Ausserrhoden'
+'AI' 'Appenzell Innerrhoden'
+'SG' 'St. Gallen'
+'GR' 'Graubünden'
+'AG' 'Aargau'
+'TG' 'Thurgau'
+'TI' 'Ticino'
+'VD' 'Vaud'
+'VS' 'Valais'
+'NE' 'Neuchâtel'
+'GE' 'Geneva'
+'JU' 'Jura'
