@@ -1033,11 +1033,11 @@ class DiseaseModel(object):
                 self.state_ended_at['posi'][i] = t
 
         # smart tracing
-        # if i is not compliant, skip
-        is_i_not_compliant = self.measure_list.is_contained(
+        is_i_compliant = self.measure_list.is_compliant(
             ComplianceForAllMeasure, t=t-self.test_smart_delta, j=i)
-            
-        if is_i_not_compliant:
+
+        # if i is not compliant, skip
+        if not is_i_compliant:
             return
         
         if self.state['posi'][i] and (self.smart_tracing != None):
@@ -1072,11 +1072,12 @@ class DiseaseModel(object):
         contacts = PriorityQueue()
         
         for j in valid_contacts:
-            # if j is not compliant, skip
-            is_j_not_compliant = self.measure_list.is_contained(
+            # check compliance
+            is_j_compliant = self.measure_list.is_compliant(
                 ComplianceForAllMeasure, t=t-self.test_smart_delta, j=j)
             
-            if is_j_not_compliant:
+            # if j is not compliant, skip
+            if not is_j_compliant:
                 continue
 
             valid_contact, s = self.__compute_empirical_survival_probability(t, i, j)
