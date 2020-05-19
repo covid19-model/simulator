@@ -81,43 +81,102 @@ def get_preprocessed_data_switzerland(canton='ZH', start_date_string='2020-03-10
 
     '''
 
-    # preprocessing
-    df = pd.read_csv('lib/data/cases/CH_COVID19.csv', header=0, delimiter='\t', encoding='utf-16')
+
+    # # preprocessing
+    # df = pd.read_csv('lib/data/cases/CH_COVID19_prev.csv', header=0, delimiter='\t', encoding='utf-16')
+    # # print('Data last updated at: ', df.Datenstand.unique()[0])
+
+    # # delete unnecessary
+    # df = df[df['Canton'] == canton]
+    # df = df[['Canton', 'Altersklasse', 'Datum_Todes_LaborsFälle']]
+
+    # # Altersgruppe map
+    # agemap = {
+    #     '0 - 9 Jahren' : 0,
+    #     '10 - 19 Jahren' : 1,
+    #     '20 - 29 Jahren' : 2,
+    #     '30 - 39 Jahren' : 3,
+    #     '40 - 49 Jahren' : 4,
+    #     '50 - 59 Jahren' : 5,
+    #     '60 - 69 Jahren' : 6,
+    #     '70 - 79 Jahren' : 7,
+    #     '80+ Jahren' : 8,
+    # }
+    # df['age_group'] = 0
+    # for k,v in agemap.items():
+    #     df.loc[df.Altersklasse == k, 'age_group'] = v
+    # df.drop(['Altersklasse'], axis=1, inplace=True)
+
+    # # process date to a number of days until start of actual case growth
+    # df['Datum_Todes_LaborsFälle'] = pd.to_datetime(df['Datum_Todes_LaborsFälle'], format='%d.%m.%Y')
+    # start_date = pd.to_datetime(start_date_string) # only 4 cases in 2 weeks before that
+    # df['days'] = (df['Datum_Todes_LaborsFälle'] - start_date).dt.days
+
+    # # filter days 
+    # if until:
+    #     df = df[df['days'] <= until]
+
+    # if end_date_string:
+    #     df = df[df['Datum_Todes_LaborsFälle'] <= pd.to_datetime(end_date_string)]
+
+    # df0 = df.copy()
+
+     # preprocessing
+    df = pd.read_csv('lib/data/cases/CH_COVID19.csv',
+                     header=0, delimiter='\t', encoding='utf-16')
     # print('Data last updated at: ', df.Datenstand.unique()[0])
 
     # delete unnecessary
     df = df[df['Canton'] == canton]
-    df = df[['Canton', 'Altersklasse', 'Datum_Todes_LaborsFälle']]
+    df = df[['Canton', 'Altersklasse', 'Datum', 'Anzahl laborbestätigte Fälle']]
 
     # Altersgruppe map
     agemap = {
-        '0 - 9 Jahren' : 0,
-        '10 - 19 Jahren' : 1,
-        '20 - 29 Jahren' : 2,
-        '30 - 39 Jahren' : 3,
-        '40 - 49 Jahren' : 4,
-        '50 - 59 Jahren' : 5,
-        '60 - 69 Jahren' : 6,
-        '70 - 79 Jahren' : 7,
-        '80+ Jahren' : 8,
+        '0 - 9 Jahren': 0,
+        '10 - 19 Jahren': 1,
+        '20 - 29 Jahren': 2,
+        '30 - 39 Jahren': 3,
+        '40 - 49 Jahren': 4,
+        '50 - 59 Jahren': 5,
+        '60 - 69 Jahren': 6,
+        '70 - 79 Jahren': 7,
+        '80+ Jahren': 8,
     }
     df['age_group'] = 0
-    for k,v in agemap.items():
+    for k, v in agemap.items():
         df.loc[df.Altersklasse == k, 'age_group'] = v
     df.drop(['Altersklasse'], axis=1, inplace=True)
 
     # process date to a number of days until start of actual case growth
-    df['Datum_Todes_LaborsFälle'] = pd.to_datetime(df['Datum_Todes_LaborsFälle'], format='%d.%m.%Y')
-    start_date = pd.to_datetime(start_date_string) # only 4 cases in 2 weeks before that
-    df['days'] = (df['Datum_Todes_LaborsFälle'] - start_date).dt.days
+    df['Datum'] = pd.to_datetime(
+        df['Datum'], format='%d.%m.%Y')
+    # only 4 cases in 2 weeks before that
+    start_date = pd.to_datetime(start_date_string)
+    df['days'] = ((df['Datum'] - start_date).dt.days)
+    df = df[df['days'].notna()] # drop nan dates
+    df.days = df.days.astype(int) # 
 
-    # filter days 
+    # print((np.isinf(df['days'])).sum())
+    # print((np.isnan(df['days'])).sum())
+    # .astype(int)
+    # df['days'] = ((df['Datum'] - start_date).dt.days).astype(int)
+
+    # filter days
     if until:
         df = df[df['days'] <= until]
 
     if end_date_string:
-        df = df[df['Datum_Todes_LaborsFälle'] <= pd.to_datetime(end_date_string)]
+        df = df[df['Datum']
+                <= pd.to_datetime(end_date_string)]
 
+    # print(df0)
+    print(df)
+
+    # print(df0)
+    # print(df)
+
+    # assert(False)
+    # return df0
     return df
 
 
@@ -185,6 +244,8 @@ def collect_data_from_df(country, area, datatype, start_date_string, until=None,
         # count up each day and them make cumulative
         maxt = int(df_tmp.days.max())
         data = np.zeros((maxt, 9)) # value, agegroup
+
+        print(data.shape)
         for t in range(maxt):
             for agegroup in range(9):
                 data[t, agegroup] += df_tmp[(df_tmp.days <= t) & (df_tmp.age_group == agegroup)].shape[0]

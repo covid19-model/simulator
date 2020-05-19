@@ -39,8 +39,8 @@ from lib.settings.calibration_settings import (
     settings_model_param_bounds, 
     settings_measures_param_bounds, 
     settings_testing_params,
-    settings_optimized_town_params,
-    settings_lockdown_dates
+    settings_lockdown_dates,
+    calibration_states
 )
 
 from lib.data import collect_data_from_df
@@ -213,7 +213,6 @@ def extract_seeds_from_summary(summary, t, real_cases):
     }
     return seeds
 
-
 def save_state(obj, filename):
     """Saves `obj` to `filename`"""
     with open('logs/' + filename + '_state.pk', 'wb') as fp:
@@ -225,7 +224,6 @@ def load_state(filename):
     with open(filename, 'rb') as fp:
         obj = torch.load(fp)
     return obj
-
 
 def pdict_to_parr(d, measures_optimized):
     """Convert parameter dict to BO parameter tensor"""
@@ -268,7 +266,32 @@ def parr_to_pdict(arr, measures_optimized):
         }
         return d
 
-def gen_initial_seeds(cases):
+def get_calibrated_params(country, area):
+    '''Returns calibrated parameters for a `country` and an `area`'''
+    state = load_state(calibration_states[country][area])
+    theta = state['train_theta']
+    best_observed_idx = state['best_observed_idx']
+    norm_params = theta[best_observed_idx]
+    sim_bounds = pdict_to_parr(
+        settings_model_param_bounds, measures_optimized=False).T
+    params = transforms.unnormalize(norm_params, sim_bounds)
+    param_dict = parr_to_pdict(params, measures_optimized=False)
+    return param_dict
+    
+    # try:
+    #     state = load_state(calibration_states[country][area])
+    #     theta = state['train_theta']
+    #     best_observed_idx = state['best_observed_idx']
+    #     norm_params = theta[best_observed_idx]
+    #     sim_bounds = pdict_to_parr(
+    #         settings_model_param_bounds, measures_optimized=False).T
+    #     params = transforms.unnormalize(norm_params, sim_bounds)
+    #     param_dict = parr_to_pdict(params, measures_optimized=False)
+    #     return param_dict
+    # except:
+    #     return None
+
+def gen_initial_seeds(cases, t=0):
     """
     Generates initial seed counts based on `cases` np.array.
     `cases` has to have shape (num_days, num_age_groups).
@@ -287,7 +310,7 @@ def gen_initial_seeds(cases):
     # set initial seed count (approximately based on infection counts on March 10)
     dists = CovidDistributions(country='GER') # country doesn't matter here
     alpha = dists.alpha
-    isym = cases[0].sum().item()
+    isym = cases[t].sum().item()
     iasy = alpha / (1 - alpha) * isym
     expo = dists.R0 * (isym + iasy)
 
@@ -576,7 +599,7 @@ def make_bayes_opt_functions(args):
             kwargs['measure_list'] = MeasureList(measure_list_)
 
             # get optimized model paramters for this country and area
-            calibrated_model_params = settings_optimized_town_params[args.country][args.area]
+            calibrated_model_params = get_calibrated_params(args.country, args.area)
             if calibrated_model_params is None:
                 raise ValueError(f'Cannot optimize measures for {args.country}-{args.area} because model parameters ' 
                                   'have not been fitted yet. Set values in `calibration_settings.py`')

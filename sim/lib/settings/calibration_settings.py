@@ -1,4 +1,7 @@
+
 import multiprocessing
+
+
 
 '''
 Default settings for model calibration
@@ -81,105 +84,49 @@ command_line_area_codes = {
     }
 }				
 
-# optimized model parameters
-beta_dummy = 0.5
-
-settings_optimized_town_params = {
-    'GER': {
-        'TU': { # dummy settings
-            'betas': {
-                'education': beta_dummy,
-                'social': beta_dummy,
-                'bus_stop': beta_dummy,
-                'office': beta_dummy,
-                'supermarket': beta_dummy,
-            },
-            'beta_household': beta_dummy,
-        },
-        'KL': {  # dummy settings
-            'betas': {
-                'education': beta_dummy,
-                'social': beta_dummy,
-                'bus_stop': beta_dummy,
-                'office': beta_dummy,
-                'supermarket': beta_dummy,
-            },
-            'beta_household': beta_dummy,
-        },
-        'RH': {  # dummy settings
-            'betas': {
-                'education': beta_dummy,
-                'social': beta_dummy,
-                'bus_stop': beta_dummy,
-                'office': beta_dummy,
-                'supermarket': beta_dummy,
-            },
-            'beta_household': beta_dummy,
-        },
-        'TR': {  # dummy settings
-            'betas': {
-                'education': beta_dummy,
-                'social': beta_dummy,
-                'bus_stop': beta_dummy,
-                'office': beta_dummy,
-                'supermarket': beta_dummy,
-            },
-            'beta_household': beta_dummy,
-        },
-    },
-    'CH': {
-        'JU': {  # dummy settings
-            'betas': {
-                'education': beta_dummy,
-                'social': beta_dummy,
-                'bus_stop': beta_dummy,
-                'office': beta_dummy,
-                'supermarket': beta_dummy,
-            },
-            'beta_household': beta_dummy,
-        },
-        'TI': {  # dummy settings
-            'betas': {
-                'education': beta_dummy,
-                'social': beta_dummy,
-                'bus_stop': beta_dummy,
-                'office': beta_dummy,
-                'supermarket': beta_dummy,
-            },
-            'beta_household': beta_dummy,
-        },
-        'LU': {  # dummy settings
-            'betas': {
-                'education': beta_dummy,
-                'social': beta_dummy,
-                'bus_stop': beta_dummy,
-                'office': beta_dummy,
-                'supermarket': beta_dummy,
-            },
-            'beta_household': beta_dummy,
-        },
-        'VD': {  # dummy settings
-            'betas': {
-                'education': beta_dummy,
-                'social': beta_dummy,
-                'bus_stop': beta_dummy,
-                'office': beta_dummy,
-                'supermarket': beta_dummy,
-            },
-            'beta_household': beta_dummy,
-        },
-    }
-}
-
 # lockdown dates
 settings_lockdown_dates = {
     'GER': {
-        'start' : '03-23-2020',
-        'end': '05-03-2020',
+        'start' : '2020-03-23',
+        'end': '2020-05-03',
     },
     'CH': {
-        'start': '03-16-2020',
-        'end': '05-10-2020',
+        'start': '2020-03-16',
+        'end': '2020-05-10',
     },
 }
+
+# settings path; calibration start date; calibration end date;
+mob_setting_paths = {
+    'GER': {
+        'TU': ['lib/mobility/Tubingen_settings_10.pk', '2020-03-08', '2020-03-27'],
+        'KL': ['lib/mobility/Kaiserslautern_settings_10.pk', '2020-03-08', '2020-03-27'],
+        'RH': ['lib/mobility/Ruedesheim_settings_10.pk', '2020-03-08', '2020-03-27'],
+        'TR': ['lib/mobility/Tirschenreuth_settings_10.pk', '2020-03-10', '2020-03-27'],
+    },
+    'CH': {
+        'VD': ['lib/mobility/Lausanne_settings_10.pk', '2020-02-28', '2020-03-20'],
+        'LU': ['lib/mobility/Lucerne_settings_5.pk', '2020-03-03', '2020-03-20'],
+        'TI': ['lib/mobility/Locarno_settings_2.pk', '2020-02-28', '2020-03-20'],
+        'JU': ['lib/mobility/Jura_settings_10.pk', '2020-03-03', '2020-03-20'],
+    }
+}
+
+
+# calibration states loaded for calibrated parameters
+calibration_states = {
+    'GER': {
+        'TU': 'logs/calibration_tu0_state.pk',
+        'KL': 'logs/calibration_kl0_state.pk',
+        'RH': 'logs/calibration_rh0_state.pk',
+        'TR': 'logs/calibration_tr0_state.pk',
+    },
+    'CH': {
+        'VD': 'logs/calibration_vd0_state.pk',
+        'LU': 'logs/calibration_lu0_state.pk',
+        'TI': 'logs/calibration_ti0_state.pk',
+        'JU': 'logs/calibration_ju0_state.pk',
+    }
+}
+
 
