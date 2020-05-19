@@ -13,7 +13,7 @@ from lib.parallel import launch_parallel_simulations
 from lib.distributions import CovidDistributions
 from lib.data import collect_data_from_df
 from lib.measures import *
-from lib.settings.calibration_settings import (settings_lockdown_dates, settings_testing_params)
+from lib.calibration_settings import (settings_lockdown_dates, settings_testing_params)
 
 TO_HOURS = 24.0
 
@@ -35,13 +35,12 @@ def load_summary(filename):
 
 
 def run_experiment(country, area, mob_settings, start_date, end_date, random_repeats, measure_list, 
-        test_update=None, heuristic_seeds=False, dry_run=False):
+                   test_update=None, seed_summary_path=None):
 
     '''
     Runs experiment for `country` and `area` from a `start_date` until an `end_date`
     given a provided `measure_list`.
-    The test parameter dictionary can be amended by passing a fucntion `test_update`.\
-
+    The test parameter dictionary in `calibration_settings.py` can be amended by passing a function `test_update`.\
     '''
 
     # Load mobility object for country + area
@@ -53,28 +52,25 @@ def run_experiment(country, area, mob_settings, start_date, end_date, random_rep
     sim_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
     max_time = TO_HOURS * sim_days  # in hours
 
-    # Obtain COVID19 case date for country and area to estimate testing capacity and seeds
-    print(start_date, end_date)
+    # Obtain COVID19 case date for country and area to estimate testing capacity and heuristic seeds in necessary
     new_cases_ = collect_data_from_df(country=country, area=area, datatype='new',
                                       start_date_string=start_date, end_date_string=end_date)
 
-    print(new_cases_.astype(int))
-    assert(False)
     new_cases = np.ceil(
         (new_cases_ * mob.num_people_unscaled) /
         (mob.downsample * mob.region_population))
 
     # Get initial seeds for simulation
     # (a) Define heuristically based on true cases and literature distribution estimates
-    if heuristic_seeds:
+    if seed_summary_path is None:
         initial_seeds = gen_initial_seeds(new_cases)
 
     # (b) Define based state of previous batch of simulations,
     # using the random rollout that best matched the true cases in terms of squared error
     else:
-        seed_summary_ = load_summary('summary_example.pk')
-        seed_day_ = 30
-        initial_seeeds = extract_seeds_from_summary(
+        seed_summary_ = load_summary(seed_summary_path)
+        seed_day_ = seed_summary_.max_time # take seeds at the end of simulaiton
+        initial_seeds = extract_seeds_from_summary(
             seed_summary_, seed_day_, new_cases)
 
     # Instantiate correct state transition distributions (estimated from in literature)
@@ -102,24 +98,20 @@ def run_experiment(country, area, mob_settings, start_date, end_date, random_rep
         testing_params = test_update(testing_params)
 
     # Run simulations
-    if dry_run:
-        return None
-    else:
-
-        summary = launch_parallel_simulations(
-            mob_settings=mob_settings,
-            distributions=distributions,
-            random_repeats=random_repeats,
-            cpu_count=multiprocessing.cpu_count(),
-            params=calibrated_params,
-            initial_seeds=initial_seeds,
-            testing_params=testing_params,
-            measure_list=measure_list,
-            max_time=max_time,
-            num_people=mob.num_people,
-            num_sites=mob.num_sites,
-            site_loc=mob.site_loc,
-            home_loc=mob.home_loc,
-            dynamic_tracing=True,
-            verbose=False)
-        return summary
+    summary = launch_parallel_simulations(
+        mob_settings=mob_settings,
+        distributions=distributions,
+        random_repeats=random_repeats,
+        cpu_count=multiprocessing.cpu_count(),
+        params=calibrated_params,
+        initial_seeds=initial_seeds,
+        testing_params=testing_params,
+        measure_list=measure_list,
+        max_time=max_time,
+        num_people=mob.num_people,
+        num_sites=mob.num_sites,
+        site_loc=mob.site_loc,
+        home_loc=mob.home_loc,
+        dynamic_tracing=True,
+        verbose=False)
+    return summary

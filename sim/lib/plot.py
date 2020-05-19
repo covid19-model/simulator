@@ -600,7 +600,7 @@ class Plotter(object):
 
         for i in range(len(sims)):
             if acc > sims[i].max_time:
-                acc = sims[i].max_time
+                acc = int(sims[i].max_time)
 
             ts, iasy_mu, iasy_sig = self.__comp_state_over_time(sims[i], 'iasy', acc)
             _,  ipre_mu, ipre_sig = self.__comp_state_over_time(sims[i], 'ipre', acc)
@@ -698,7 +698,7 @@ class Plotter(object):
         # hospitalizations
         for i in range(len(sims)):
             if acc > sims[i].max_time:
-                acc = sims[i].max_time
+                acc = int(sims[i].max_time)
 
             ts, hosp_mu, hosp_sig = self.__comp_state_over_time(
                 sims[i], 'hosp', acc)
@@ -854,7 +854,7 @@ class Plotter(object):
 
         for i in range(len(sims)):
             if acc > sims[i].max_time:
-                acc = sims[i].max_time
+                acc = int(sims[i].max_time)
 
             ts, line_hosp, error_sig = self.__comp_state_over_time(
                 sims[i], 'hosp', acc)

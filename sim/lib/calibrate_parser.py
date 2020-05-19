@@ -3,7 +3,7 @@ if '..' not in sys.path:
     sys.path.append('..')
 
 import argparse
-from lib.settings.calibration_settings import *
+from lib.calibration_settings import *
 
 
 def make_calibration_parser():

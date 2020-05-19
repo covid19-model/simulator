@@ -35,7 +35,7 @@ from botorch.optim import gen_batch_initial_conditions
 
 from lib.inference_kg import qKnowledgeGradient, gen_one_shot_kg_initial_conditions
 from lib.distributions import CovidDistributions
-from lib.settings.calibration_settings import (
+from lib.calibration_settings import (
     settings_model_param_bounds, 
     settings_measures_param_bounds, 
     settings_testing_params,
