@@ -112,31 +112,39 @@ class UpperBoundCasesSocialDistancing(SocialDistancingForAllMeasure):
         max_pos_test_per_week : int
             If the number of positive tests per week exceeds this number the measure becomes active
         intervention_times : list of floats
-            List of points in time at which interventions can be changed. If 'None' interventions can be changed at any time
+            List of points in time at which measures can become active. If 'None' measures can be changed at any time
         """
 
         super().__init__(t_window, p_stay_home)
         self.max_pos_tests_per_week = max_pos_tests_per_week
-        self.intervention_history = []
+        self.intervention_history = InterLap()
         if intervention_times is not None:
             self.intervention_times = np.asarray(intervention_times)
         else:
             self.intervention_times = None
 
-    def _are_cases_above_threshold(self, t, t_pos_tests):
-        # If measures can be changed continuously
-        if self.intervention_times is None:
-            t_intervention = t
-        else:  # If measures can be changed at intervention times
-            # Find largest time in intervention_times s.t. t > time
-            t_intervention = np.where(t - self.intervention_times > 0, t - self.intervention_times, np.inf).min()
+    def _is_measure_active(self, t, t_pos_tests):
+        # If measures can only become active at 'intervention_times'
+        if self.intervention_times is not None:
+            # Find largest 'time' in intervention_times s.t. t > time
+            idx = np.where(t - self.intervention_times > 0, t - self.intervention_times, np.inf).argmin()
+            t = self.intervention_times[idx]
 
+        t_in_history = list(self.intervention_history.find((t, t)))
+        if t_in_history:
+            is_active = t_in_history[0][2]
+        else:
+            is_active = self._are_cases_above_threshold(t, t_pos_tests)
+            if is_active:
+                self.intervention_history.update([(t, t + 7 * 24 - EPS, True)])
+        return is_active
+
+    def _are_cases_above_threshold(self, t, t_pos_tests):
         # Count positive tests in last 7 days from last intervention time
-        tmin = t_intervention - 7 * 24
-        num_pos_tests = np.sum(np.greater(t_pos_tests, tmin) * np.less(t_pos_tests, t_intervention))
-        is_measure_active = num_pos_tests > self.max_pos_tests_per_week
-        self.intervention_history.append((t, is_measure_active))
-        return is_measure_active
+        tmin = t - 7 * 24
+        num_pos_tests = np.sum(np.greater(t_pos_tests, tmin) * np.less(t_pos_tests, t))
+        is_above_threshold = num_pos_tests > self.max_pos_tests_per_week
+        return is_above_threshold
 
     @enforce_init_run
     def is_contained(self, *, j, j_visit_id, t, t_pos_tests):
@@ -146,7 +154,7 @@ class UpperBoundCasesSocialDistancing(SocialDistancingForAllMeasure):
             return False
 
         is_home_now = self.bernoulli_stay_home[j, j_visit_id]
-        return is_home_now and self._are_cases_above_threshold(t, t_pos_tests)
+        return is_home_now and self._is_measure_active(t, t_pos_tests)
 
     @enforce_init_run
     def is_contained_prob(self, *, j, t, t_pos_tests):
@@ -155,7 +163,7 @@ class UpperBoundCasesSocialDistancing(SocialDistancingForAllMeasure):
         if not self._in_window(t):
             return 0.0
 
-        if self._are_cases_above_threshold(t, t_pos_tests):
+        if self._is_measure_active(t, t_pos_tests):
             return self.p_stay_home
         return 0.0
 
@@ -290,6 +298,7 @@ class SocialDistancingForPositiveMeasureHousehold(Measure):
             t < state_resi_started_at[j] and t < state_dead_started_at[j]):
             return p_isolate
         return 0.0
+            
             
 class SocialDistancingByAgeMeasure(Measure):
     """
@@ -526,26 +535,34 @@ class UpperBoundCasesBetaMultiplier(BetaMultiplierMeasure):
 
         super().__init__(t_window, beta_multiplier)
         self.max_pos_tests_per_week = max_pos_tests_per_week
-        self.intervention_history = []
+        self.intervention_history = InterLap()
         if intervention_times is not None:
             self.intervention_times = np.asarray(intervention_times)
         else:
             self.intervention_times = None
 
-    def _are_cases_above_threshold(self, t, t_pos_tests):
-        # If measures can be changed continuously
-        if self.intervention_times is None:
-            t_intervention = t
-        else:  # If measures can be changed at intervention times
-            # Find largest time in intervention_times s.t. t > time
-            t_intervention = np.where(t - self.intervention_times > 0, t - self.intervention_times, np.inf).min()
+    def _is_measure_active(self, t, t_pos_tests):
+        # If measures can only become active at 'intervention_times'
+        if self.intervention_times is not None:
+            # Find largest 'time' in intervention_times s.t. t > time
+            idx = np.where(t - self.intervention_times > 0, t - self.intervention_times, np.inf).argmin()
+            t = self.intervention_times[idx]
 
+        t_in_history = list(self.intervention_history.find((t, t)))
+        if t_in_history:
+            is_active = t_in_history[0][2]
+        else:
+            is_active = self._are_cases_above_threshold(t, t_pos_tests)
+            if is_active:
+                self.intervention_history.update([(t, t+7*24 - EPS, True)])
+        return is_active
+
+    def _are_cases_above_threshold(self, t, t_pos_tests):
         # Count positive tests in last 7 days from last intervention time
-        tmin = t_intervention - 7 * 24
-        num_pos_tests = np.sum(np.greater(t_pos_tests, tmin) * np.less(t_pos_tests, t_intervention))
-        is_measure_active = num_pos_tests > self.max_pos_tests_per_week
-        self.intervention_history.append((t, is_measure_active))
-        return is_measure_active
+        tmin = t - 7 * 24
+        num_pos_tests = np.sum(np.greater(t_pos_tests, tmin) * np.less(t_pos_tests, t))
+        is_above_threshold = num_pos_tests > self.max_pos_tests_per_week
+        return is_above_threshold
 
     def beta_factor(self, *, typ, t, t_pos_tests):
         """Returns the multiplicative factor for site type `typ` at time `t`. The
@@ -554,7 +571,7 @@ class UpperBoundCasesBetaMultiplier(BetaMultiplierMeasure):
         if not self._in_window(t):
             return 1.0
 
-        is_measure_active = self._are_cases_above_threshold(t, t_pos_tests)
+        is_measure_active = self._is_measure_active(t, t_pos_tests)
         return self.beta_multiplier[typ] if is_measure_active else 1.0
 
 
