@@ -105,7 +105,7 @@ class SocialDistancingForAllMeasure(Measure):
 
 class UpperBoundCasesSocialDistancing(SocialDistancingForAllMeasure):
 
-    def __init__(self, t_window, p_stay_home, max_pos_tests_per_week=50, intervention_times=None):
+    def __init__(self, t_window, p_stay_home, max_pos_tests_per_week=50, intervention_times=None, init_active=False):
         """
         Additional parameters:
         ----------------------
@@ -117,18 +117,18 @@ class UpperBoundCasesSocialDistancing(SocialDistancingForAllMeasure):
 
         super().__init__(t_window, p_stay_home)
         self.max_pos_tests_per_week = max_pos_tests_per_week
+        self.intervention_times = intervention_times
         self.intervention_history = InterLap()
-        if intervention_times is not None:
-            self.intervention_times = np.asarray(intervention_times)
-        else:
-            self.intervention_times = None
+        if init_active:
+            self.intervention_history.update([(0, 7 * 24 - EPS, True)])
 
     def _is_measure_active(self, t, t_pos_tests):
         # If measures can only become active at 'intervention_times'
         if self.intervention_times is not None:
             # Find largest 'time' in intervention_times s.t. t > time
-            idx = np.where(t - self.intervention_times > 0, t - self.intervention_times, np.inf).argmin()
-            t = self.intervention_times[idx]
+            intervention_times = np.asarray(self.intervention_times)
+            idx = np.where(t - intervention_times > 0, t - intervention_times, np.inf).argmin()
+            t = intervention_times[idx]
 
         t_in_history = list(self.intervention_history.find((t, t)))
         if t_in_history:
@@ -523,7 +523,7 @@ class BetaMultiplierMeasureByType(BetaMultiplierMeasure):
 
 class UpperBoundCasesBetaMultiplier(BetaMultiplierMeasure):
 
-    def __init__(self, t_window, beta_multiplier, max_pos_tests_per_week=50, intervention_times=None):
+    def __init__(self, t_window, beta_multiplier, max_pos_tests_per_week=50, intervention_times=None, init_active=False):
         """
         Additional parameters:
         ----------------------
@@ -531,22 +531,24 @@ class UpperBoundCasesBetaMultiplier(BetaMultiplierMeasure):
             If the number of positive tests per week exceeds this number the measure becomes active
         intervention_times : list of floats
             List of points in time at which interventions can be changed. If 'None' interventions can be changed at any time
+        init_active : bool
+            If true measure is active in the first week of the simulation when there are no test counts yet
         """
 
         super().__init__(t_window, beta_multiplier)
         self.max_pos_tests_per_week = max_pos_tests_per_week
+        self.intervention_times = intervention_times
         self.intervention_history = InterLap()
-        if intervention_times is not None:
-            self.intervention_times = np.asarray(intervention_times)
-        else:
-            self.intervention_times = None
+        if init_active:
+            self.intervention_history.update([(0, 7 * 24 - EPS, True)])
 
     def _is_measure_active(self, t, t_pos_tests):
         # If measures can only become active at 'intervention_times'
         if self.intervention_times is not None:
             # Find largest 'time' in intervention_times s.t. t > time
-            idx = np.where(t - self.intervention_times > 0, t - self.intervention_times, np.inf).argmin()
-            t = self.intervention_times[idx]
+            intervention_times = np.asarray(self.intervention_times)
+            idx = np.where(t - intervention_times > 0, t - intervention_times, np.inf).argmin()
+            t = intervention_times[idx]
 
         t_in_history = list(self.intervention_history.find((t, t)))
         if t_in_history:

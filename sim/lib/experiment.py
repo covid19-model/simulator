@@ -11,7 +11,7 @@ from lib.inference import (
 from lib.mobilitysim import MobilitySimulator
 from lib.parallel import launch_parallel_simulations
 from lib.distributions import CovidDistributions
-from lib.data import collect_data_from_df
+from lib.data import collect_data_from_df, get_test_capacity
 from lib.measures import *
 from lib.calibration_settings import (settings_lockdown_dates, settings_testing_params)
 
@@ -91,9 +91,9 @@ def run_experiment(country, area, mob_settings, start_date, end_date, random_rep
     calibrated_params = get_calibrated_params(country, area)
 
     # Set testing conditions
-    daily_case_increase = new_cases.sum(axis=1)[1:] - new_cases.sum(axis=1)[:-1]
+    scaled_test_capacity = get_test_capacity(country, area, mob, end_date_string=end_date)
     testing_params = copy.deepcopy(settings_testing_params)
-    testing_params['tests_per_batch'] = int(daily_case_increase.max())
+    testing_params['tests_per_batch'] = scaled_test_capacity
     testing_params['testing_t_window'] = [0.0, max_time]
     if test_update:
         testing_params = test_update(testing_params)

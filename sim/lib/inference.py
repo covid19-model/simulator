@@ -43,7 +43,7 @@ from lib.calibration_settings import (
     calibration_states
 )
 
-from lib.data import collect_data_from_df
+from lib.data import collect_data_from_df, get_test_capacity
 
 from lib.measures import (
     MeasureList,
@@ -428,8 +428,8 @@ def make_bayes_opt_functions(args):
     if args.testingcap:
         testing_params['tests_per_batch'] = (args.testingcap / mob.num_people_unscaled)
     else:
-        daily_increase = new_cases.sum(axis=1)[1:] - new_cases.sum(axis=1)[:-1]
-        testing_params['tests_per_batch'] = int(daily_increase.max())
+        scaled_test_capacity = get_test_capacity(country=data_country, area=data_area, mob=mob, end_date_string=data_end_date)
+        testing_params['tests_per_batch'] = scaled_test_capacity
 
     test_lag_days = int(testing_params['test_reporting_lag'] / TO_HOURS)
     assert(int(testing_params['test_reporting_lag']) % 24 == 0)

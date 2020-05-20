@@ -61,11 +61,11 @@ def days_to_datetime(arr, start_date):
 
 
 def lockdown_widget(lockdown_at, start_date, lockdown_label_y, ymax,
-                    lockdown_label, ax, ls='--', xshift=0.0, zorder=None):
+                    lockdown_label, ax, ls='--', xshift=0.0, zorder=None, color='black'):
     # Convert x-axis into posix timestamps and use pandas to plot as dates
     lckdn_x = days_to_datetime(lockdown_at, start_date=start_date)
     ax.plot([lckdn_x, lckdn_x], [0, ymax], linewidth=2.5, linestyle=ls,
-            color='black', label='_nolegend_', zorder=zorder)
+            color=color, label='_nolegend_', zorder=zorder)
     lockdown_label_y = lockdown_label_y or ymax*0.4
     ax.text(x=lckdn_x - pd.Timedelta(2.1 + xshift, unit='d'),
             y=lockdown_label_y, s=lockdown_label, rotation=90)
@@ -638,10 +638,24 @@ class Plotter(object):
         # ax.set_xlabel('Days')
         ax.set_ylabel('People')
 
-        if lockdown_at is not None:
-            lockdown_widget(lockdown_at, start_date,
-                            lockdown_label_y, ymax,
-                            lockdown_label, ax, xshift=0.5)
+        if not isinstance(lockdown_at, dict):
+            if lockdown_at is not None:
+                lockdown_widget(lockdown_at, start_date,
+                                lockdown_label_y, ymax,
+                                lockdown_label, ax, xshift=0.5)
+        else:
+            # This is only for plotting the activity of the case dependent measures (sim-conditional-measures.ipynb)
+            ii = 1
+            for i in lockdown_at.keys():
+                interventions = lockdown_at[i]
+                labels = lockdown_label[i]
+                label_pos_y = lockdown_label_y[i]
+                simcolor = self.color_different_scenarios[ii]
+                ii += 1
+                for k in range(len(interventions)):
+                    lockdown_widget(interventions[k], start_date,
+                                    label_pos_y, ymax,
+                                    labels[k], ax, xshift=0.5, color=simcolor)
 
         # Hide the right and top spines
         ax.spines['right'].set_visible(False)
