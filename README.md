@@ -38,7 +38,7 @@ All the experiments were executed using Python 3. In order to create a virtual e
 ```bash
 python3 -m venv env
 source env/bin/activate
-pip install -r sim/requirements.txt
+pip install -r requirements.txt
 ```
 
 ## Code organization

@@ -617,14 +617,13 @@ class ComplianceForAllMeasure(Measure):
         self._is_init = True
 
     @enforce_init_run
-    def is_contained(self, *, j, t):
-        """Indicate if individual `j` respects measure 
+    def is_compliant(self, *, j, t):
+        """Indicate if individual `j` is compliant 
         """
-        is_not_compliant = 1 - self.bernoulli_compliant[j]
-        return is_not_compliant and self._in_window(t)
+        return self.bernoulli_compliant[j] and self._in_window(t)
     
-    def is_contained_prob(self, *, j, t):
-        """Returns probability of containment for individual `j` at time `t`
+    def is_compliant_prob(self, *, j, t):
+        """Returns probability of compliance for individual `j` at time `t`
         """
         if self._in_window(t):
             return self.p_compliance
@@ -687,6 +686,14 @@ class MeasureList:
             # FIXME: time is checked twice, both filtered in the list, and in the is_valid query, not a big problem though...
             return m.is_contained(t=t, **kwargs)
         return False  # No active measure
+
+    def is_compliant(self, measure_type, t, **kwargs):
+        m = self.find(measure_type, t)
+        # If there is an active compliance measure, 
+        # not necessarily related to containment
+        if m is not None:  
+            return m.is_compliant(t=t, **kwargs)
+        return False  # No active compliance measure
     
     def start_containment(self, measure_type, t, **kwargs):
         m = self.find(measure_type, t)
