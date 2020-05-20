@@ -277,27 +277,14 @@ def get_calibrated_params(country, area):
     params = transforms.unnormalize(norm_params, sim_bounds)
     param_dict = parr_to_pdict(params, measures_optimized=False)
     return param_dict
-    
-    # try:
-    #     state = load_state(calibration_states[country][area])
-    #     theta = state['train_theta']
-    #     best_observed_idx = state['best_observed_idx']
-    #     norm_params = theta[best_observed_idx]
-    #     sim_bounds = pdict_to_parr(
-    #         settings_model_param_bounds, measures_optimized=False).T
-    #     params = transforms.unnormalize(norm_params, sim_bounds)
-    #     param_dict = parr_to_pdict(params, measures_optimized=False)
-    #     return param_dict
-    # except:
-    #     return None
 
-def gen_initial_seeds(cases, t=0):
+def gen_initial_seeds(cases, day=0):
     """
     Generates initial seed counts based on `cases` np.array.
     `cases` has to have shape (num_days, num_age_groups).
 
     Assumptions:
-    - Cases on day t=0 set to number of symptomatic `isym` and positively tested
+    - Cases on day `day` set to number of symptomatic `isym` and positively tested
     - Following literature, asyptomatic indiviudals `iasy` make out approx `alpha` percent of all symtomatics
     - Following literature on R0, set `expo` = R0 * (`isym` + `iasy`)
     - Recovered cases are also considered
@@ -310,7 +297,7 @@ def gen_initial_seeds(cases, t=0):
     # set initial seed count (approximately based on infection counts on March 10)
     dists = CovidDistributions(country='GER') # country doesn't matter here
     alpha = dists.alpha
-    isym = cases[t].sum().item()
+    isym = cases[day].sum().item()
     iasy = alpha / (1 - alpha) * isym
     expo = dists.R0 * (isym + iasy)
 

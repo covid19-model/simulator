@@ -111,6 +111,21 @@ calibration_setting_paths = {
         'JU': ['lib/mobility/Jura_settings_10.pk', '2020-03-03', '2020-03-20'],
     }
 }
+# copy of above but with full scale town versions
+calibration_setting_paths_full = {
+    'GER': {
+        'TU': ['lib/mobility/Tubingen_settings_1.pk', '2020-03-08', '2020-03-27'],
+        'KL': ['lib/mobility/Kaiserslautern_settings_1.pk', '2020-03-08', '2020-03-27'],
+        'RH': ['lib/mobility/Ruedesheim_settings_1.pk', '2020-03-08', '2020-03-27'],
+        'TR': ['lib/mobility/Tirschenreuth_settings_1.pk', '2020-03-10', '2020-03-27'],
+    },
+    'CH': {
+        'VD': ['lib/mobility/Lausanne_settings_1.pk', '2020-02-28', '2020-03-20'],
+        'LU': ['lib/mobility/Lucerne_settings_1.pk', '2020-03-03', '2020-03-20'],
+        'TI': ['lib/mobility/Locarno_settings_1.pk', '2020-02-28', '2020-03-20'],
+        'JU': ['lib/mobility/Jura_settings_1.pk', '2020-03-03', '2020-03-20'],
+    }
+}
 
 
 # calibration states loaded for calibrated parameters
