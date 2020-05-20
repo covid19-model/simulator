@@ -641,7 +641,7 @@ class MobilitySimulator:
             mob_traces_dict[v.indiv].update([v])
         return mob_traces_dict
 
-    def simulate(self, max_time, seed=None, dynamic_tracing=False):
+    def simulate(self, max_time, seed=None, lazy_contacts=False):
         """
         Simulate contacts between individuals in time window [0, max_time].
 
@@ -651,7 +651,7 @@ class MobilitySimulator:
             Maximum time to simulate
         seed : int
             Random seed for mobility simulation
-        dynamic_tracing : bool
+        lazy_contacts : bool
             If true the contact dictionary is not computed and contacts
             need to be computed on-the-fly during launch_epidemic
 
@@ -676,7 +676,7 @@ class MobilitySimulator:
         if self.verbose:
             print(f'Simulated {len(all_mob_traces)} visits.', flush=True)
 
-        if not dynamic_tracing:
+        if not lazy_contacts:
             # Find the contacts in all sites in the histories
             if self.verbose:
                 print(f'Find contacts... ', end='')

@@ -398,7 +398,7 @@ def make_bayes_opt_functions(args):
     n_iterations = args.niters
     simulation_roll_outs = args.rollouts
     cpu_count = args.cpu_count
-    dynamic_tracing = not args.no_dynamic_tracing
+    lazy_contacts = not args.no_lazy_contacts
     load_observations = args.load
 
     # set testing parameters
@@ -460,7 +460,7 @@ def make_bayes_opt_functions(args):
     max_time = int(new_cases.shape[0] * TO_HOURS)
     max_time += TO_HOURS * test_lag_days  # longer due to test lag in simulations
     testing_params['testing_t_window'] = [0.0, max_time]
-    mob.simulate(max_time=max_time, dynamic_tracing=True)
+    mob.simulate(max_time=max_time, lazy_contacts=True)
 
     header.append(
         'Daily test capacity in sim.: ' + str(testing_params['tests_per_batch']))
@@ -515,7 +515,7 @@ def make_bayes_opt_functions(args):
         num_sites=mob.num_sites,
         home_loc=mob.home_loc,
         site_loc=mob.site_loc,
-        dynamic_tracing=dynamic_tracing,
+        lazy_contacts=lazy_contacts,
         verbose=False)
 
 

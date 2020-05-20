@@ -49,8 +49,8 @@ def make_calibration_parser():
     # simulation
     parser.add_argument("--no_households", action="store_true",
                         help="no households should be used for simulation")
-    parser.add_argument("--no_dynamic_tracing", action="store_true",
-                        help="no dynamic online computation of mobility traces (default is online)")
+    parser.add_argument("--no_lazy_contacts", action="store_true",
+                        help="no lazy online computation of mobility traces (default is lazy)")
     parser.add_argument("--endsimat", type=int,
                         help="for debugging: specify number of days after which simulation should be cut off")
     parser.add_argument("--testingcap", type=int,

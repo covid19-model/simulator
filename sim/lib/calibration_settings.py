@@ -19,7 +19,7 @@ settings_simulation = {
     'n_iterations': 500,  # iterations of BO
     'simulation_roll_outs': 40, # roll-outs done in parallel per parameter setting
     'cpu_count':  multiprocessing.cpu_count(), # cpus used for parallel computation
-    'dynamic_tracing' : True,
+    'lazy_contacts' : True,
 }
 
 # parameter bounds

@@ -29,7 +29,7 @@ class DiseaseModel(object):
     assumed to be in units of days as usual in epidemiology
     """
 
-    def __init__(self, mob, distributions, dynamic_tracing=False):
+    def __init__(self, mob, distributions, lazy_contacts=False):
         """
         Init simulation object with parameters
 
@@ -38,7 +38,7 @@ class DiseaseModel(object):
         mob:
             object of class MobilitySimulator providing mobility data
 
-        dynamic_tracing: bool
+        lazy_contacts: bool
             If true contacts are computed on-the-fly during launch_epidemic
             instead of using the previously filled contact array
 
@@ -47,7 +47,7 @@ class DiseaseModel(object):
         # cache settings
         self.mob = mob
         self.d = distributions
-        self.dynamic_tracing = dynamic_tracing
+        self.lazy_contacts = lazy_contacts
 
         # parse distributions object
         self.lambda_0 = self.d.lambda_0
@@ -763,7 +763,7 @@ class DiseaseModel(object):
         of person `i` (equivalent to `\mu` in model definition)
         """
 
-        if not self.dynamic_tracing:
+        if not self.lazy_contacts:
             def valid_j():
                 '''Generates indices j where `infector` is present
                 at least `self.delta` hours before j '''
@@ -1049,7 +1049,7 @@ class DiseaseModel(object):
         Iterates over possible contacts `j`
 
         '''
-        if not self.dynamic_tracing:
+        if not self.lazy_contacts:
             def valid_j():
                 '''Generate individuals j where `i` was present
                 up to `self.test_smart_delta` hours before t '''

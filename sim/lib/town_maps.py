@@ -4,9 +4,7 @@ import folium.plugins
 import matplotlib
 import os
 
-from lib.measures import (MeasureList, SocialDistancingForAllMeasure,
-                        SocialDistancingForPositiveMeasure, SocialDistancingByAgeMeasure,
-                        SocialDistancingForSmartTracing, ComplianceForAllMeasure)
+from lib.measures import *
 
 TO_HOURS = 24.0
 
@@ -145,7 +143,7 @@ class MapIllustrator():
                         # FIXME: \beta value is not available in summary in sim, we should add it and multiply with beta_fact
                         beta_fact = 1.0
                         
-                        beta_mult_measure = sim.measure_list[r].find(BetaMultiplierMeasure, t=visit.t_from)
+                        beta_mult_measure = sim.measure_list[r].find(BetaMultiplierMeasureBySite, t=visit.t_from)
                         beta_fact *= beta_mult_measure.beta_factor(k=site, t=visit.t_from) if beta_mult_measure else 1.0
             
                         beta_mult_measure = sim.measure_list[r].find(BetaMultiplierMeasureByType, t=visit.t_from)

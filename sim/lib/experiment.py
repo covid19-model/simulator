@@ -35,7 +35,7 @@ def load_summary(filename):
 
 
 def run_experiment(country, area, mob_settings, start_date, end_date, random_repeats, measure_list, 
-                   test_update=None, seed_summary_path=None):
+                   test_update=None, seed_summary_path=None, return_mob=False):
 
     '''
     Runs experiment for `country` and `area` from a `start_date` until an `end_date`
@@ -43,14 +43,15 @@ def run_experiment(country, area, mob_settings, start_date, end_date, random_rep
     The test parameter dictionary in `calibration_settings.py` can be amended by passing a function `test_update`.\
     '''
 
+    # Set time window based on start and end date
+    sim_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+    max_time = TO_HOURS * sim_days  # in hours
+
     # Load mobility object for country + area
     with open(mob_settings, 'rb') as fp:
         obj = pickle.load(fp)
     mob = MobilitySimulator(**obj)
-
-    # Set time window based on start and end date
-    sim_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
-    max_time = TO_HOURS * sim_days  # in hours
+    mob.simulate(max_time=max_time, lazy_contacts=True)
 
     # Obtain COVID19 case date for country and area to estimate testing capacity and heuristic seeds in necessary
     new_cases_ = collect_data_from_df(country=country, area=area, datatype='new',
@@ -112,6 +113,10 @@ def run_experiment(country, area, mob_settings, start_date, end_date, random_rep
         num_sites=mob.num_sites,
         site_loc=mob.site_loc,
         home_loc=mob.home_loc,
-        dynamic_tracing=True,
+        lazy_contacts=True,
         verbose=False)
-    return summary
+
+    if return_mob:
+        return summary, mob
+    else:
+        return summary
