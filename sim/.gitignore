@@ -3,7 +3,7 @@ build
 *.pk
 *.csv
 !lib/data/cases/CH_COVID19.csv
-!lib/data/cases/RKI_COVID19.csv
+!lib/data/cases/GER_COVID19.csv
 *.txt #Ignore log files
 !requirements.txt #Except for requirements.txt
 !lib/mobility/*

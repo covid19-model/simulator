@@ -97,7 +97,7 @@ settings_lockdown_dates = {
 }
 
 # settings path; calibration start date; calibration end date;
-mob_setting_paths = {
+calibration_setting_paths = {
     'GER': {
         'TU': ['lib/mobility/Tubingen_settings_10.pk', '2020-03-08', '2020-03-27'],
         'KL': ['lib/mobility/Kaiserslautern_settings_10.pk', '2020-03-08', '2020-03-27'],
