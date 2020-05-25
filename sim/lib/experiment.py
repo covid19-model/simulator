@@ -7,11 +7,11 @@ import pandas as pd
 import numpy as np
 import botorch.utils.transforms as transforms
 from lib.inference import (
-    pdict_to_parr, parr_to_pdict, save_state, load_state, get_calibrated_params, gen_initial_seeds)
+    pdict_to_parr, parr_to_pdict, save_state, load_state, get_calibrated_params, gen_initial_seeds, get_test_capacity)
 from lib.mobilitysim import MobilitySimulator
 from lib.parallel import launch_parallel_simulations
 from lib.distributions import CovidDistributions
-from lib.data import collect_data_from_df, get_test_capacity
+from lib.data import collect_data_from_df
 from lib.measures import *
 from lib.calibration_settings import (settings_lockdown_dates, settings_testing_params)
 

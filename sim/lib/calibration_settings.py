@@ -23,15 +23,16 @@ settings_simulation = {
 }
 
 # parameter bounds
+beta_upper_bound = 2.5
 settings_model_param_bounds = {
     'betas': {
-        'education': [0.0, 1.5],
-        'social': [0.0, 1.5],
-        'bus_stop': [0.0, 1.5],
-        'office': [0.0, 1.5],
-        'supermarket': [0.0, 1.5],
+        'education': [0.0, beta_upper_bound],
+        'social': [0.0, beta_upper_bound],
+        'bus_stop': [0.0, beta_upper_bound],
+        'office': [0.0, beta_upper_bound],
+        'supermarket': [0.0, beta_upper_bound],
     },
-    'beta_household': [0.0, 1.5],
+    'beta_household': [0.0, beta_upper_bound],
 }
 
 settings_measures_param_bounds = {
@@ -99,34 +100,33 @@ settings_lockdown_dates = {
 # settings path; calibration start date; calibration end date;
 calibration_setting_paths = {
     'GER': {
-        'TU': ['lib/mobility/Tubingen_settings_10.pk', '2020-03-08', '2020-03-27'],
-        'KL': ['lib/mobility/Kaiserslautern_settings_10.pk', '2020-03-08', '2020-03-27'],
-        'RH': ['lib/mobility/Ruedesheim_settings_10.pk', '2020-03-08', '2020-03-27'],
-        'TR': ['lib/mobility/Tirschenreuth_settings_10.pk', '2020-03-10', '2020-03-27'],
+        'TU': ['lib/mobility/Tubingen_settings_10.pk', '2020-03-12', '2020-03-28'],
+        'KL': ['lib/mobility/Kaiserslautern_settings_10.pk', '2020-03-15', '2020-03-28'],
+        'RH': ['lib/mobility/Ruedesheim_settings_10.pk', '2020-03-10', '2020-03-28'],
+        'TR': ['lib/mobility/Tirschenreuth_settings_10.pk', '2020-03-13', '2020-03-28'],
     },
     'CH': {
-        'VD': ['lib/mobility/Lausanne_settings_10.pk', '2020-02-28', '2020-03-20'],
-        'LU': ['lib/mobility/Lucerne_settings_5.pk', '2020-03-03', '2020-03-20'],
-        'TI': ['lib/mobility/Locarno_settings_2.pk', '2020-02-28', '2020-03-20'],
-        'JU': ['lib/mobility/Jura_settings_10.pk', '2020-03-03', '2020-03-20'],
+        'VD': ['lib/mobility/Lausanne_settings_10.pk', '2020-03-07', '2020-03-21'],
+        'LU': ['lib/mobility/Lucerne_settings_5.pk', '2020-03-14', '2020-03-21'],
+        'TI': ['lib/mobility/Locarno_settings_2.pk', '2020-03-09', '2020-03-21'],
+        'JU': ['lib/mobility/Jura_settings_10.pk', '2020-03-09', '2020-03-21'],
     }
 }
 # copy of above but with full scale town versions
 calibration_setting_paths_full = {
     'GER': {
-        'TU': ['lib/mobility/Tubingen_settings_1.pk', '2020-03-08', '2020-03-27'],
-        'KL': ['lib/mobility/Kaiserslautern_settings_1.pk', '2020-03-08', '2020-03-27'],
-        'RH': ['lib/mobility/Ruedesheim_settings_1.pk', '2020-03-08', '2020-03-27'],
-        'TR': ['lib/mobility/Tirschenreuth_settings_1.pk', '2020-03-10', '2020-03-27'],
+        'TU': ['lib/mobility/Tubingen_settings_1.pk', '2020-03-12', '2020-03-28'],
+        'KL': ['lib/mobility/Kaiserslautern_settings_1.pk', '2020-03-15', '2020-03-28'],
+        'RH': ['lib/mobility/Ruedesheim_settings_1.pk', '2020-03-10', '2020-03-28'],
+        'TR': ['lib/mobility/Tirschenreuth_settings_1.pk', '2020-03-13', '2020-03-28'],
     },
     'CH': {
-        'VD': ['lib/mobility/Lausanne_settings_1.pk', '2020-02-28', '2020-03-20'],
-        'LU': ['lib/mobility/Lucerne_settings_1.pk', '2020-03-03', '2020-03-20'],
-        'TI': ['lib/mobility/Locarno_settings_1.pk', '2020-02-28', '2020-03-20'],
-        'JU': ['lib/mobility/Jura_settings_1.pk', '2020-03-03', '2020-03-20'],
+        'VD': ['lib/mobility/Lausanne_settings_1.pk', '2020-03-07', '2020-03-21'],
+        'LU': ['lib/mobility/Lucerne_settings_1.pk', '2020-03-14', '2020-03-21'],
+        'TI': ['lib/mobility/Locarno_settings_1.pk', '2020-03-09', '2020-03-21'],
+        'JU': ['lib/mobility/Jura_settings_1.pk', '2020-03-09', '2020-03-21'],
     }
 }
-
 
 # calibration states loaded for calibrated parameters
 calibration_states = {
@@ -143,5 +143,3 @@ calibration_states = {
         'JU': 'logs/calibration_ju0_state.pk',
     }
 }
-
-

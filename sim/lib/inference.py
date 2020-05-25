@@ -43,7 +43,7 @@ from lib.calibration_settings import (
     calibration_states
 )
 
-from lib.data import collect_data_from_df, get_test_capacity
+from lib.data import collect_data_from_df
 
 from lib.measures import (
     MeasureList,
@@ -278,10 +278,32 @@ def get_calibrated_params(country, area):
     param_dict = parr_to_pdict(params, measures_optimized=False)
     return param_dict
 
-def gen_initial_seeds(cases, day=0):
+
+def downsample_cases(unscaled_area_cases, mob):
     """
-    Generates initial seed counts based on `cases` np.array.
-    `cases` has to have shape (num_days, num_age_groups).
+    Generates downsampled case counts based on town, area, and downsampling 
+    factor provided by `mob` for a given 2d `cases` array.
+    
+    Scaled case count in age group a at time t is
+
+    scaled[t, a] = cases-area[t, a] * (town population / (downsampling factor * area population))
+
+    """
+
+    unscaled_sim_cases = np.round(unscaled_area_cases * \
+        (mob.num_people_unscaled / mob.region_population)).astype(int)
+
+    # use the rounded version here, to avoid disparity between unscaled and scaled town simulations
+    # in age groups due to rounding for small case numbers
+    sim_cases = np.round(unscaled_sim_cases / mob.downsample).astype(int)
+    
+    return sim_cases, unscaled_sim_cases
+
+
+def gen_initial_seeds(unscaled_new_cases, downsampling, day=0):
+    """
+    Generates initial seed counts based on unscaled case counts `unscaled_new_cases`.
+    The 2d np.array `unscaled_new_cases` has to have shape (num_days, num_age_groups). 
 
     Assumptions:
     - Cases on day `day` set to number of symptomatic `isym` and positively tested
@@ -289,24 +311,51 @@ def gen_initial_seeds(cases, day=0):
     - Following literature on R0, set `expo` = R0 * (`isym` + `iasy`)
     - Recovered cases are also considered
     - All other seeds are omitted
-    
+
+    Scaled according to `downsampling` afterwards.
     """
 
-    num_days, num_age_groups = cases.shape
+    num_days, num_age_groups = unscaled_new_cases.shape
 
     # set initial seed count (approximately based on infection counts on March 10)
     dists = CovidDistributions(country='GER') # country doesn't matter here
     alpha = dists.alpha
-    isym = cases[day].sum().item()
+    isym = unscaled_new_cases[day].sum()
     iasy = alpha / (1 - alpha) * isym
     expo = dists.R0 * (isym + iasy)
 
     seed_counts = {
-        'expo': math.ceil(expo),
-        'isym_posi': math.ceil(isym),
-        'iasy': math.ceil(iasy),
+        'expo': int(np.round(expo / downsampling).item()),
+        'isym_posi': int(np.round(isym / downsampling).item()),
+        'iasy': int(np.round(iasy / downsampling).item()),
     }
     return seed_counts
+
+
+def get_test_capacity(country, area, mob, end_date_string='2021-01-01'):
+    '''
+    Computes heuristic test capacity in `country` and `area` based
+    on true case data by determining the maximum daily increase
+    in positive cases.
+    '''
+
+    unscaled_area_cases = collect_data_from_df(
+        country=country, area=area, datatype='new',
+        start_date_string='2020-01-01', end_date_string=end_date_string)
+
+    sim_cases, _ = downsample_cases(unscaled_area_cases, mob)
+
+    daily_increase = sim_cases.sum(axis=1)[1:] - sim_cases.sum(axis=1)[:-1]
+    test_capacity = int(daily_increase.max())
+    return test_capacity
+
+
+def get_scaled_test_threshold(threshold_tests_per_100k, mob):
+    '''
+    Computes scaled test threshold for conditional measures concept
+    '''
+    return int(threshold_tests_per_100k / 100000 * mob.num_people)
+
 
 def convert_timings_to_cumulative_daily(timings, age_groups, time_horizon):
     '''
@@ -402,27 +451,32 @@ def make_bayes_opt_functions(args):
     Bayesian optimization pipeline
     """
 
-
     # Import Covid19 data
     # Shape (max_days, num_age_groups)
-    new_cases_ = collect_data_from_df(country=data_country, area=data_area, datatype='new',
-                                      start_date_string=data_start_date, end_date_string=data_end_date)
-    assert(len(new_cases_.shape) == 2)
+    unscaled_area_cases = collect_data_from_df(country=data_country, area=data_area, datatype='new',
+                                               start_date_string=data_start_date, end_date_string=data_end_date)
+    assert(len(unscaled_area_cases.shape) == 2)
 
-    if new_cases_[0].sum() == 0:
-        print('No positive cases at provided start time; cannot seed simulation.\n'
+    # Scale down cases based on number of people in town, region, and downsampling
+    sim_cases, unscaled_sim_cases = downsample_cases(unscaled_area_cases, mob)
+
+    # Generate initial seeds based on unscaled case numbers in town
+    initial_seeds = gen_initial_seeds(
+        unscaled_sim_cases,
+        downsampling=mob.downsample,
+        day=0)
+
+    if sum(initial_seeds.values()) == 0:
+        print('No states seeded at start time; cannot start simulation.\n'
               'Consider setting a later start date for calibration using the "--start" flag.')
         exit(0)
 
-    # Scale down cases based on number of people in town, region, and downsampling
-    new_cases = np.ceil(
-        (new_cases_ * mob.num_people_unscaled) /
-        (mob.downsample * mob.region_population))
-    num_age_groups = new_cases.shape[1]
+    num_age_groups = sim_cases.shape[1]
     header.append('Downsampling : ' + str(mob.downsample))
     header.append('Town population: ' + str(mob.num_people))
     header.append('Town population (unscaled): ' + str(mob.num_people_unscaled))
     header.append('Region population : ' + str(mob.region_population))
+    header.append('Initial seed counts : ' + str(initial_seeds))
 
     # Set test capacity per day as (a) command line; or (b) maximum daily positive case increase over observed period
     if args.testingcap:
@@ -434,17 +488,13 @@ def make_bayes_opt_functions(args):
     test_lag_days = int(testing_params['test_reporting_lag'] / TO_HOURS)
     assert(int(testing_params['test_reporting_lag']) % 24 == 0)
 
-    # generate initial seeds based on case numbers
-    initial_seeds = gen_initial_seeds(new_cases)
-    header.append('Initial seed counts : ' + str(initial_seeds))
-
     # in debug mode, shorten time of simulation, shorten time
     if debug_simulation_days:
-        new_cases = new_cases[:debug_simulation_days]
+        sim_cases = sim_cases[:debug_simulation_days]
 
     # Maximum time fixed by real data, init mobility simulator simulation
     # maximum time to simulate, in hours
-    max_time = int(new_cases.shape[0] * TO_HOURS)
+    max_time = int(sim_cases.shape[0] * TO_HOURS)
     max_time += TO_HOURS * test_lag_days  # longer due to test lag in simulations
     testing_params['testing_t_window'] = [0.0, max_time]
     mob.simulate(max_time=max_time, lazy_contacts=True)
@@ -452,18 +502,18 @@ def make_bayes_opt_functions(args):
     header.append(
         'Daily test capacity in sim.: ' + str(testing_params['tests_per_batch']))
     header.append(
-        'Max time T (days): ' + str(new_cases.shape[0]))
+        'Max time T (days): ' + str(sim_cases.shape[0]))
     header.append(
-        'Target cases per age group at t=0:   ' + str(list(map(int, new_cases[0].tolist()))))
+        'Target cases per age group at t=0:   ' + str(list(map(int, sim_cases[0].tolist()))))
     header.append(
-        'Target cases per age group at t=T:   ' + str(list(map(int, new_cases[-1].tolist()))))
+        'Target cases per age group at t=T:   ' + str(list(map(int, sim_cases[-1].tolist()))))
 
     # instantiate correct distributions
     distributions = CovidDistributions(country=args.country)
 
     # set Bayesian optimization target as positive cases
-    n_days, n_age = new_cases.shape
-    G_obs = torch.tensor(new_cases).reshape(n_days * n_age)  # flattened
+    n_days, n_age = sim_cases.shape
+    G_obs = torch.tensor(sim_cases).reshape(n_days * n_age)  # flattened
 
     sim_bounds = pdict_to_parr(param_bounds, measures_optimized=args.measures_optimized).T
 
@@ -510,7 +560,7 @@ def make_bayes_opt_functions(args):
     Define central functions for optimization
     '''
 
-    G_obs = torch.tensor(new_cases).reshape(1, n_days * n_age)
+    G_obs = torch.tensor(sim_cases).reshape(1, n_days * n_age)
     
     def composite_squared_loss(G):
         '''
@@ -526,7 +576,7 @@ def make_bayes_opt_functions(args):
         '''
         Computes case difference of predictions and ground truth at t=T
         '''
-        return  preds.reshape(n_days, n_age)[-1].sum() - torch.tensor(new_cases)[-1].sum()
+        return preds.reshape(n_days, n_age)[-1].sum() - torch.tensor(sim_cases)[-1].sum()
 
     def unnormalize_theta(theta):
         '''

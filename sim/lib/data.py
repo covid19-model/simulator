@@ -205,21 +205,3 @@ def collect_data_from_df(country, area, datatype, start_date_string, until=None,
     else:
         raise NotImplementedError('Invalid country requested.')
 
-
-def get_test_capacity(country, area, mob, end_date_string='2021-01-01'):
-    new_cases = collect_data_from_df(country=country, area=area, datatype='new',
-                                     start_date_string='2020-01-01', end_date_string=end_date_string)
-
-    new_cases = np.ceil((new_cases * mob.num_people_unscaled) / (mob.downsample * mob.region_population))
-
-    daily_increase = new_cases.sum(axis=1)[1:] - new_cases.sum(axis=1)[:-1]
-    test_capacity = int(daily_increase.max())
-    return test_capacity
-
-
-def get_scaled_test_threshold(threshold_tests_per_100k, mob):
-    return int(threshold_tests_per_100k / 100000 * mob.num_people)
-
-
-
-
