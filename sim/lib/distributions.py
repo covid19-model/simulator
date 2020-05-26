@@ -66,7 +66,7 @@ class CovidDistributions(object):
         # when sampling the arrival times. The infectious period std dev is heuristically set to 1 day.
         
         # https://www.medrxiv.org/content/10.1101/2020.03.05.20030502v1
-        # https://www.medrxiv.org/content/10.1101/2020.03.15.20036707v2
+        # https://www.nature.com/articles/s41591-020-0869-5
         # https://www.who.int/docs/default-source/coronaviruse/who-china-joint-mission-on-covid-19-final-report.pdf
         # https://jamanetwork.com/journals/jama/fullarticle/2761044
         # https://pubmed.ncbi.nlm.nih.gov/32079150/
