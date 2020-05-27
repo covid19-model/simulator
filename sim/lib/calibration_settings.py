@@ -23,7 +23,7 @@ settings_simulation = {
 }
 
 # parameter bounds
-beta_upper_bound = 2.5
+beta_upper_bound = 3.5
 settings_model_param_bounds = {
     'betas': {
         'education': [0.0, beta_upper_bound],
