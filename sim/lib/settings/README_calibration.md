@@ -18,7 +18,7 @@ python calibrate.py --seed "tu0" --country "GER" --area "TU" --start "2020-03-12
 
 * Kaiserslautern 
 ```
-python calibrate.py --seed "kl0" --country "GER" --area "KL" --start "2020-03-15" --end "2020-03-28" --mob "lib/mobility/Kaiserslautern_settings_10.pk" --rollouts 80 --ninit 30 --niters 200
+python calibrate.py --seed "kl0" --country "GER" --area "KL" --start "2020-03-15" --end "2020-03-28" --mob "lib/mobility/Kaiserslautern_settings_5.pk" --rollouts 80 --ninit 30 --niters 200
 ```
 
 * Ruedesheim
@@ -38,9 +38,9 @@ python calibrate.py --seed "tr0" --country "GER" --area "TR" --start "2020-03-13
 python calibrate.py --seed "vd0" --country "CH" --area "VD" --start "2020-03-07" --end "2020-03-21" --mob "lib/mobility/Lausanne_settings_10.pk" --rollouts 80 --ninit 30 --niters 200
 ```
 
-* Lucerne
+* Bern
 ```
-python calibrate.py --seed "lu0" --country "CH" --area "LU" --start "2020-03-14" --end "2020-03-21" --mob "lib/mobility/Lucerne_settings_5.pk" --rollouts 80 --ninit 30 --niters 200
+python calibrate.py --seed "be0" --country "CH" --area "BE" --start "2020-03-06" --end "2020-03-21" --mob "lib/mobility/Bern_settings_5.pk" --rollouts 80 --ninit 30 --niters 200
 ```
 
 * Locarno (Ticino)

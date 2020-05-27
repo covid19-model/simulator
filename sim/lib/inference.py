@@ -291,11 +291,10 @@ def downsample_cases(unscaled_area_cases, mob):
     """
 
     unscaled_sim_cases = np.round(unscaled_area_cases * \
-        (mob.num_people_unscaled / mob.region_population)).astype(int)
+        (mob.num_people_unscaled / mob.region_population))
 
-    # use the rounded version here, to avoid disparity between unscaled and scaled town simulations
-    # in age groups due to rounding for small case numbers
-    sim_cases = np.round(unscaled_sim_cases / mob.downsample).astype(int)
+    # use the rounded version here, to be consistent accross scaling within a town 
+    sim_cases = unscaled_sim_cases / mob.downsample
     
     return sim_cases, unscaled_sim_cases
 
@@ -346,7 +345,7 @@ def get_test_capacity(country, area, mob, end_date_string='2021-01-01'):
     sim_cases, _ = downsample_cases(unscaled_area_cases, mob)
 
     daily_increase = sim_cases.sum(axis=1)[1:] - sim_cases.sum(axis=1)[:-1]
-    test_capacity = int(daily_increase.max())
+    test_capacity = int(np.round(daily_increase.max()))
     return test_capacity
 
 
@@ -504,9 +503,9 @@ def make_bayes_opt_functions(args):
     header.append(
         'Max time T (days): ' + str(sim_cases.shape[0]))
     header.append(
-        'Target cases per age group at t=0:   ' + str(list(map(int, sim_cases[0].tolist()))))
+        'Target cases per age group at t=0:   ' + str(list(sim_cases[0].tolist())))
     header.append(
-        'Target cases per age group at t=T:   ' + str(list(map(int, sim_cases[-1].tolist()))))
+        'Target cases per age group at t=T:   ' + str(list(sim_cases[-1].tolist())))
 
     # instantiate correct distributions
     distributions = CovidDistributions(country=args.country)
@@ -744,7 +743,7 @@ def make_bayes_opt_functions(args):
                 'best_observed_obj': best,
                 'best_observed_idx': best_idx,
             }
-            save_state(state, logger.filename + '_init')
+            save_state(state, logger.filename)
 
         # compute best objective from simulations
         f = objective(new_G)

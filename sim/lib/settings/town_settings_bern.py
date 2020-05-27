@@ -14,15 +14,15 @@ sites_path='lib/data/queries/'  # Directory containing OSM site query details
 bbox = (46.936785, 46.962799, 7.417316, 7.482204) # Coordinate bounding box
 
 # Population per age group in the region
-# Source: https://www.citypopulation.de/en/switzerland/admin/03__luzern/
+# Source: https://www.citypopulation.de/en/switzerland/admin/02__bern/
 population_per_age_group = np.array([100744,     # 0-9
-                                     96337,     # 10-19
+                                     96337,      # 10-19
                                      121374,     # 20-29
                                      140048,     # 30-39
                                      139161,     # 40-49
                                      155954,     # 50-59
                                      124107,     # 60-69
-                                     96542,     # 70-79
+                                     96542,      # 70-79
                                      60710       # 80+
                                      ])
 

@@ -80,6 +80,7 @@ command_line_area_codes = {
         'SZ': 'SZ',     # Canton Schwyz
         'TI': 'TI',     # Canton Ticino
         'LU': 'LU',     # Canton Lucerne
+        'BE': 'BE',     # Canton Bern
         'VD': 'VD',     # Canton Vaud
         'JU': 'JU',     # Canton Jura
     }
@@ -101,19 +102,19 @@ settings_lockdown_dates = {
 calibration_setting_paths = {
     'GER': {
         'TU': ['lib/mobility/Tubingen_settings_10.pk', '2020-03-12', '2020-03-28'],
-        'KL': ['lib/mobility/Kaiserslautern_settings_10.pk', '2020-03-15', '2020-03-28'],
+        'KL': ['lib/mobility/Kaiserslautern_settings_5.pk', '2020-03-15', '2020-03-28'],
         'RH': ['lib/mobility/Ruedesheim_settings_10.pk', '2020-03-10', '2020-03-28'],
         'TR': ['lib/mobility/Tirschenreuth_settings_10.pk', '2020-03-13', '2020-03-28'],
     },
     'CH': {
         'VD': ['lib/mobility/Lausanne_settings_10.pk', '2020-03-07', '2020-03-21'],
-        'LU': ['lib/mobility/Lucerne_settings_5.pk', '2020-03-14', '2020-03-21'],
+        'BE': ['lib/mobility/Bern_settings_5.pk', '2020-03-06', '2020-03-21'],
         'TI': ['lib/mobility/Locarno_settings_2.pk', '2020-03-09', '2020-03-21'],
         'JU': ['lib/mobility/Jura_settings_10.pk', '2020-03-09', '2020-03-21'],
     }
 }
 # copy of above but with full scale town versions
-calibration_setting_paths_full = {
+calibration_setting_paths = {
     'GER': {
         'TU': ['lib/mobility/Tubingen_settings_1.pk', '2020-03-12', '2020-03-28'],
         'KL': ['lib/mobility/Kaiserslautern_settings_1.pk', '2020-03-15', '2020-03-28'],
@@ -122,7 +123,7 @@ calibration_setting_paths_full = {
     },
     'CH': {
         'VD': ['lib/mobility/Lausanne_settings_1.pk', '2020-03-07', '2020-03-21'],
-        'LU': ['lib/mobility/Lucerne_settings_1.pk', '2020-03-14', '2020-03-21'],
+        'BE': ['lib/mobility/Bern_settings_1.pk', '2020-03-06', '2020-03-21'],
         'TI': ['lib/mobility/Locarno_settings_1.pk', '2020-03-09', '2020-03-21'],
         'JU': ['lib/mobility/Jura_settings_1.pk', '2020-03-09', '2020-03-21'],
     }
@@ -138,7 +139,7 @@ calibration_states = {
     },
     'CH': {
         'VD': 'logs/calibration_vd0_state.pk',
-        'LU': 'logs/calibration_lu0_state.pk',
+        'BE': 'logs/calibration_be0_state.pk',
         'TI': 'logs/calibration_ti0_state.pk',
         'JU': 'logs/calibration_ju0_state.pk',
     }
