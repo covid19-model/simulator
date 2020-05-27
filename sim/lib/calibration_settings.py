@@ -114,7 +114,7 @@ calibration_setting_paths = {
     }
 }
 # copy of above but with full scale town versions
-calibration_setting_paths = {
+calibration_setting_paths_full = {
     'GER': {
         'TU': ['lib/mobility/Tubingen_settings_1.pk', '2020-03-12', '2020-03-28'],
         'KL': ['lib/mobility/Kaiserslautern_settings_1.pk', '2020-03-15', '2020-03-28'],
