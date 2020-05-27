@@ -9,7 +9,7 @@
 
 # #### Import libs
 
-# In[ ]:
+# In[1]:
 
 
 import numpy as np
@@ -18,7 +18,7 @@ import pandas as pd
 import multiprocessing
 
 
-# In[ ]:
+# In[2]:
 
 
 from lib.mobilitysim import MobilitySimulator
@@ -32,7 +32,7 @@ from lib.measures import (
     SocialDistancingForPositiveMeasure,
     SocialDistancingForPositiveMeasureHousehold)
 
-from lib.inference import gen_initial_seeds
+from lib.inference import gen_initial_seeds, downsample_cases
 from lib.plot import Plotter
 
 from lib.experiment import run_experiment, save_summary, load_summary, get_calibrated_params
@@ -47,18 +47,18 @@ from lib.calibration_settings import (
 import matplotlib.pyplot as plt
 
 
-# In[ ]:
+# In[3]:
 
 
-calibration_period_only = False
-p_stay_home = 1.0 # TBD
+calibration_period_only = True
 full_scale = True
+p_stay_home = 1.0 # TBD
+dry_run = False
+plot = False
 
 #
 ######
 #
-dry_run = False
-plot = False
 random_repeats = 80 
 c = 0
 np.random.seed(c)
@@ -66,11 +66,11 @@ num_workers = multiprocessing.cpu_count()
 TO_HOURS = 24.0
 
 
-# In[ ]:
+# In[4]:
 
 
-def standard_testing(max_time, new_cases__):
-    daily_increase = new_cases__.sum(axis=1)[1:] - new_cases__.sum(axis=1)[:-1]
+def standard_testing(max_time, cases):
+    daily_increase = cases.sum(axis=1)[1:] - cases.sum(axis=1)[:-1]
     standard_testing_params = {
         'testing_t_window'    : [0.0, max_time], # in hours
         'testing_frequency'   : 1 * TO_HOURS,     # in hours
@@ -104,7 +104,7 @@ headerstr = ' educat | social | bus_st | office | superm | househ '
 
 # #### Simulate for each town
 
-# In[ ]:
+# In[5]:
 
 
 if full_scale:
@@ -123,11 +123,11 @@ for country in ['GER', 'CH']:
         mob_settings = setting_paths[country][area][0]
         start_date_calibration = setting_paths[country][area][1]
         end_date_calibration = setting_paths[country][area][2]
-        
+
         # lockdown dates
         start_date_lockdown = settings_lockdown_dates[country]['start']
         end_date_lockdown = settings_lockdown_dates[country]['end']      
-        
+
         # set time frame
         if calibration_period_only:
             start_date = start_date_calibration
@@ -135,7 +135,7 @@ for country in ['GER', 'CH']:
         else:
             start_date = start_date_calibration
             end_date = end_date_lockdown
-        
+
         sim_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
         max_time = TO_HOURS * sim_days # in hours
 
@@ -144,28 +144,35 @@ for country in ['GER', 'CH']:
             obj = pickle.load(fp)
         mob = MobilitySimulator(**obj)
 
-        # case data
-        new_cases_ = collect_data_from_df(country=country, area=area, datatype='new',
-        start_date_string=start_date, end_date_string=end_date)
-        new_cases = np.ceil((mob.num_people_unscaled * new_cases_) 
-                          / (mob.downsample * mob.region_population))
-
+        # case data + scaling
+        unscaled_area_cases = collect_data_from_df(country=country, area=area, datatype='new',
+            start_date_string=start_date, end_date_string=end_date)
+        
+        sim_cases, unscaled_sim_cases = downsample_cases(unscaled_area_cases, mob)
+        
         # distributions
         distributions = CovidDistributions(country=country)
 
         # seeds
-        initial_seeds = gen_initial_seeds(new_cases, day=0)
+        initial_seeds = gen_initial_seeds(
+            unscaled_sim_cases, 
+            downsampling=mob.downsample,
+            day=0)
 
         # calibrated parameters
         calibrated_params = get_calibrated_params(country, area)
+
+        print(country, area, f'{mob.downsample}x', ' Days: ', sim_days,'  Start: ', start_date, '  End: ', end_date, )
+        print('Start cases: Scaled : ', sim_cases[0].sum(), sim_cases[0], 'Unscaled : ' , unscaled_sim_cases[0].sum(), unscaled_sim_cases[0])
+        print('End cases:   Scaled : ',  sim_cases[-1].sum(), sim_cases[-1], 'Unscaled : ' , unscaled_sim_cases[-1].sum(), unscaled_sim_cases[-1])
+        print('Scaled seeds:  ', initial_seeds)
+        print('Unscaled seeds:',  gen_initial_seeds(
+            unscaled_sim_cases, 
+            downsampling=1,
+            day=0))
         
-        print(country, area)
-        print('Seeds: ', initial_seeds)
-        print('Start: ', start_date, ' Cases : ', new_cases[0].sum())
-        print('End:   ', end_date, ' Cases : ', new_cases[-1].sum())
-        print(headerstr)
-        print(params_to_strg(calibrated_params))
-        print()
+        # print(headerstr)
+        # print(params_to_strg(calibrated_params))
 
         # run
         measure_list =  [
@@ -175,7 +182,7 @@ for country in ['GER', 'CH']:
             SocialDistancingForPositiveMeasureHousehold(
                 t_window=Interval(0.0, max_time), p_isolate=1.0)
         ]
-        
+
         if not calibration_period_only:
             days_until_lockdown = (pd.to_datetime(start_date_lockdown) - pd.to_datetime(start_date)).days
             measure_list += [
@@ -196,8 +203,9 @@ for country in ['GER', 'CH']:
         measure_list = MeasureList(measure_list)
 
         # testing
-        testing_params = standard_testing(max_time, new_cases)
-        
+        testing_params = standard_testing(max_time, sim_cases)
+        print('Test capacity: Scaled: ', testing_params['tests_per_batch'], ' Unscaled: ', standard_testing(max_time, unscaled_sim_cases)['tests_per_batch'])
+        print()
         if not dry_run:
             # run simulations
             summary = launch_parallel_simulations(
@@ -216,7 +224,7 @@ for country in ['GER', 'CH']:
                 home_loc=mob.home_loc,
                 lazy_contacts=True,
                 verbose=False)
-            
+
             appdx = 'full' if full_scale else 'downscaled'
             if calibration_period_only:
                 save_summary(summary, 'summary-calib--{}-{}--{}.pk'.format(country, area, appdx))
@@ -232,80 +240,89 @@ for country in ['GER', 'CH']:
 
 ymax = {
     'GER' : {
-        'TU' : 30,
-        'KL' : 30,
-        'RH' : 30,
-        'TR' : 30,
+        'TU' : 50,
+        'KL' : 20,
+        'RH' : 20,
+        'TR' : 50,
     },
     'CH' : {
-        'VD' : 30,
-        'LU' : 30,
-        'TI' : 30,
-        'JU' : 30,
+        'VD' : 50,
+        'LU' : 20,
+        'TI' : 50,
+        'JU' : 20,
     }
 }
 
 if plot:
     for country in ['GER', 'CH']:
         for area in setting_paths[country].keys():
+            
+            try:
+            
+#             if True:
+                print(country, area)
 
-            print(country, area)
+                # start simulation when calibration started       
+                mob_settings = setting_paths[country][area][0]
+                start_date_calibration = setting_paths[country][area][1]
+                end_date_calibration = setting_paths[country][area][2]
 
-            # start simulation when calibration started       
-            mob_settings = setting_paths[country][area][0]
-            start_date_calibration = setting_paths[country][area][1]
-            end_date_calibration = setting_paths[country][area][2]
+                # lockdown dates
+                start_date_lockdown = settings_lockdown_dates[country]['start']
+                end_date_lockdown = settings_lockdown_dates[country]['end']      
 
-            # lockdown dates
-            start_date_lockdown = settings_lockdown_dates[country]['start']
-            end_date_lockdown = settings_lockdown_dates[country]['end']      
+                # set time frame
+                if calibration_period_only:
+                    start_date = start_date_calibration
+                    end_date = end_date_calibration
+                else:
+                    start_date = start_date_calibration
+                    end_date = end_date_lockdown
 
-            # set time frame
-            if calibration_period_only:
-                start_date = start_date_calibration
-                end_date = end_date_calibration
-            else:
-                start_date = start_date_calibration
-                end_date = end_date_lockdown
+                sim_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+                max_time = TO_HOURS * sim_days # in hours
 
-            sim_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
-            max_time = TO_HOURS * sim_days # in hours
+                # load mobility file
+                with open(mob_settings, 'rb') as fp:
+                    obj = pickle.load(fp)
+                mob = MobilitySimulator(**obj)
 
-            # load mobility file
-            with open(mob_settings, 'rb') as fp:
-                obj = pickle.load(fp)
-            mob = MobilitySimulator(**obj)
+                # case data + scaling
+                unscaled_area_cases = collect_data_from_df(country=country, area=area, datatype='new',
+                    start_date_string=start_date, end_date_string=end_date)
 
-            # case data
-            new_cases_ = collect_data_from_df(country=country, area=area, datatype='new',
-            start_date_string=start_date, end_date_string=end_date)
-            new_cases = np.ceil((mob.num_people_unscaled * new_cases_) 
-                              / (mob.downsample * mob.region_population))
+                sim_cases, unscaled_sim_cases = downsample_cases(unscaled_area_cases, mob)
 
-            appdx = 'full' if full_scale else 'downscaled'
-            if calibration_period_only:
-                summary = load_summary('summary-calib--{}-{}--{}.pk'.format(country, area, appdx))
-            else:
-                summary = load_summary('summary-calib_lockdown--{}-{}--{}-{}.pk'.format(
-                    country, area, appdx, p_stay_home))
+                appdx = 'full' if full_scale else 'downscaled'
+                if calibration_period_only:
+                    summary = load_summary('summary-calib--{}-{}--{}.pk'.format(country, area, appdx))
+                else:
+                    summary = load_summary('summary-calib_lockdown--{}-{}--{}-{}.pk'.format(
+                        country, area, appdx, p_stay_home))
 
-            plotter = Plotter()
-            plotter.plot_positives_vs_target(
-                summary, new_cases.sum(axis=1), 
-                title='Calibration period', 
-                filename='calibration--{}-{}'.format(country, area),
-                figsize=(6, 4),
-                start_date=start_date,
-                errorevery=1, acc=1000, 
-                ymax=ymax[country][area])
 
-            plotter.plot_age_group_positives_vs_target(summary, new_cases, 
-                ytitle=f'{country}-{area}',
-                filename='calibration--{}-{}-age'.format(country, area),
-                figsize=(16, 2.5),
-                start_date=start_date,
-                errorevery=1, acc=1000, 
-                ymax=ymax[country][area] / 4)
+                plotter = Plotter()
+                plotter.plot_positives_vs_target(
+                    summary, sim_cases.sum(axis=1), 
+                    title='Calibration period', 
+                    filename='calibration--{}-{}'.format(country, area),
+                    figsize=(6, 4),
+                    start_date=start_date,
+                    errorevery=1, acc=1000, 
+                    ymax=ymax[country][area],
+                )
+
+                plotter.plot_age_group_positives_vs_target(
+                    summary, sim_cases, 
+                    ytitle=f'{country}-{area}',
+                    filename='calibration--{}-{}-age'.format(country, area),
+                    figsize=(16, 2.5),
+                    start_date=start_date,
+                    errorevery=1, acc=1000, 
+                    ymax=ymax[country][area] / 4)
+
+            except:
+                print(country, area, ' not found.')
         
 
 
