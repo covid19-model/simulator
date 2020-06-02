@@ -36,11 +36,13 @@ from botorch.optim import gen_batch_initial_conditions
 from lib.inference_kg import qKnowledgeGradient, gen_one_shot_kg_initial_conditions
 from lib.distributions import CovidDistributions
 from lib.calibration_settings import (
-    settings_model_param_bounds, 
-    settings_measures_param_bounds, 
-    settings_testing_params,
-    settings_lockdown_dates,
-    calibration_states
+    calibration_model_param_bounds, 
+    calibration_measures_param_bounds,
+    calibration_testing_params,
+    calibration_lockdown_dates,
+    calibration_states,
+    calibration_mob_paths,
+    calibration_start_dates
 )
 
 from lib.data import collect_data_from_df
@@ -273,7 +275,7 @@ def get_calibrated_params(country, area):
     best_observed_idx = state['best_observed_idx']
     norm_params = theta[best_observed_idx]
     sim_bounds = pdict_to_parr(
-        settings_model_param_bounds, measures_optimized=False).T
+        calibration_model_param_bounds, measures_optimized=False).T
     params = transforms.unnormalize(norm_params, sim_bounds)
     param_dict = parr_to_pdict(params, measures_optimized=False)
     return param_dict
@@ -412,9 +414,9 @@ def make_bayes_opt_functions(args):
     header.append('python ' + ' '.join(sys.argv))
     header.append('=' * 100)
 
-    mob_settings = args.mob
-    data_area = args.area
     data_country = args.country
+    data_area = args.area
+    mob_settings = args.mob or calibration_mob_paths[data_country][data_area][0] # 0: scaled; 1: unscaled
 
     # initialize mobility object to obtain information (no trace generation yet)
     with open(mob_settings, 'rb') as fp:
@@ -424,8 +426,8 @@ def make_bayes_opt_functions(args):
     # data settings
     verbose = not args.not_verbose
     use_households = not args.no_households
-    data_start_date = args.start
-    data_end_date = args.end
+    data_start_date = args.start or calibration_start_dates[data_country][data_area]
+    data_end_date = args.end or settings_lockdown_dates[data_country][data_area]
     debug_simulation_days = args.endsimat
 
     # simulation settings

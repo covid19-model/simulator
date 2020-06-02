@@ -51,15 +51,12 @@ if __name__ == '__main__':
     args.filename = args.filename or f'calibration_{seed}'
     
     # check required settings
-    if not (args.mob and args.area and args.country and args.start and args.end):
+    if not (args.area and args.country):
         print(
             "The following keyword arguments are required, for example as follows:\n"
             "python calibrate.py \n"
             "   --country \"GER\" \n"
             "   --area \"TU\" \n"
-            "   --mob \"lib/tu_settings_10.pk\" \n"
-            "   --start \"2020-03-10\" \n"
-            "   --end \"2020-03-26\" \n"
         )
         exit(0)
 

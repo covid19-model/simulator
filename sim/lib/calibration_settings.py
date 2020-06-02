@@ -1,20 +1,19 @@
 
 import multiprocessing
 
-
-
 '''
 Default settings for model calibration
 '''
+
 TO_HOURS = 24.0
 
-settings_data = {
+calibration_data = {
     'verbose' : True,
     'use_households' : True,
     'data_start_date': '2020-03-10',
 }
 
-settings_simulation = {
+calibration_simulation = {
     'n_init_samples': 20,  # initial random evaluations
     'n_iterations': 500,  # iterations of BO
     'simulation_roll_outs': 40, # roll-outs done in parallel per parameter setting
@@ -23,8 +22,8 @@ settings_simulation = {
 }
 
 # parameter bounds
-beta_upper_bound = 3.5
-settings_model_param_bounds = {
+beta_upper_bound = 5.0
+calibration_model_param_bounds = {
     'betas': {
         'education': [0.0, beta_upper_bound],
         'social': [0.0, beta_upper_bound],
@@ -33,14 +32,12 @@ settings_model_param_bounds = {
         'supermarket': [0.0, beta_upper_bound],
     },
     'beta_household': [0.0, beta_upper_bound],
-}
-
-settings_measures_param_bounds = {
     'p_stay_home': [0.0, 1.0],
 }
 
+
 # set testing parameters
-settings_testing_params = {
+calibration_testing_params = {
     'testing_t_window': None,  # [set automatically in code]
     'testing_frequency': 1 * TO_HOURS,
     'test_reporting_lag': 2 * TO_HOURS,
@@ -58,7 +55,7 @@ settings_testing_params = {
 
 # BO acquisition function optimization (Knowledge gradient)
 # default settings from botorch
-settings_acqf = {
+calibration_acqf = {
     'acqf_opt_num_fantasies': 64,
     'acqf_opt_num_restarts': 10,
     'acqf_opt_raw_samples': 256,
@@ -87,7 +84,7 @@ command_line_area_codes = {
 }				
 
 # lockdown dates
-settings_lockdown_dates = {
+calibration_lockdown_dates = {
     'GER': {
         'start' : '2020-03-23',
         'end': '2020-05-03',
@@ -98,34 +95,35 @@ settings_lockdown_dates = {
     },
 }
 
-# settings path; calibration start date; calibration end date;
-calibration_setting_paths = {
+# mobs settings path;
+calibration_mob_paths = {
     'GER': {
-        'TU': ['lib/mobility/Tubingen_settings_10.pk', '2020-03-12', '2020-03-28'],
-        'KL': ['lib/mobility/Kaiserslautern_settings_5.pk', '2020-03-15', '2020-03-28'],
-        'RH': ['lib/mobility/Ruedesheim_settings_10.pk', '2020-03-10', '2020-03-28'],
-        'TR': ['lib/mobility/Tirschenreuth_settings_10.pk', '2020-03-13', '2020-03-28'],
+        'TU': ['lib/mobility/Tubingen_settings_10.pk', 'lib/mobility/Tubingen_settings_1.pk'],
+        'KL': ['lib/mobility/Kaiserslautern_settings_5.pk', 'lib/mobility/Kaiserslautern_settings_1.pk'],
+        'RH': ['lib/mobility/Ruedesheim_settings_10.pk', 'lib/mobility/Ruedesheim_settings_1.pk'],
+        'TR': ['lib/mobility/Tirschenreuth_settings_10.pk', 'lib/mobility/Tirschenreuth_settings_1.pk'],
     },
     'CH': {
-        'VD': ['lib/mobility/Lausanne_settings_10.pk', '2020-03-07', '2020-03-21'],
-        'BE': ['lib/mobility/Bern_settings_5.pk', '2020-03-06', '2020-03-21'],
-        'TI': ['lib/mobility/Locarno_settings_2.pk', '2020-03-09', '2020-03-21'],
-        'JU': ['lib/mobility/Jura_settings_10.pk', '2020-03-09', '2020-03-21'],
+        'VD': ['lib/mobility/Lausanne_settings_10.pk', 'lib/mobility/Lausanne_settings_1.pk'],
+        'BE': ['lib/mobility/Bern_settings_5.pk', 'lib/mobility/Bern_settings_1.pk'],
+        'TI': ['lib/mobility/Locarno_settings_2.pk', 'lib/mobility/Locarno_settings_1.pk'],
+        'JU': ['lib/mobility/Jura_settings_10.pk', 'lib/mobility/Jura_settings_1.pk'],
     }
 }
-# copy of above but with full scale town versions
-calibration_setting_paths_full = {
+
+# calibration start dates
+calibration_start_dates = {
     'GER': {
-        'TU': ['lib/mobility/Tubingen_settings_1.pk', '2020-03-12', '2020-03-28'],
-        'KL': ['lib/mobility/Kaiserslautern_settings_1.pk', '2020-03-15', '2020-03-28'],
-        'RH': ['lib/mobility/Ruedesheim_settings_1.pk', '2020-03-10', '2020-03-28'],
-        'TR': ['lib/mobility/Tirschenreuth_settings_1.pk', '2020-03-13', '2020-03-28'],
+        'TU': '2020-03-12',
+        'KL': '2020-03-15',
+        'RH': '2020-03-10',
+        'TR': '2020-03-13',
     },
     'CH': {
-        'VD': ['lib/mobility/Lausanne_settings_1.pk', '2020-03-07', '2020-03-21'],
-        'BE': ['lib/mobility/Bern_settings_1.pk', '2020-03-06', '2020-03-21'],
-        'TI': ['lib/mobility/Locarno_settings_1.pk', '2020-03-09', '2020-03-21'],
-        'JU': ['lib/mobility/Jura_settings_1.pk', '2020-03-09', '2020-03-21'],
+        'VD': '2020-03-07',
+        'BE': '2020-03-06',
+        'TI': '2020-03-09',
+        'JU': '2020-03-09',
     }
 }
 
