@@ -75,7 +75,6 @@ if __name__ == '__main__':
     # logger
     logger = CalibrationLogger(
         filename=args.filename, 
-        measures_optimized=args.measures_optimized,
         verbose=not args.not_verbose)
 
     # generate initial training data (either load or simulate)
@@ -192,6 +191,6 @@ if __name__ == '__main__':
     # scale back to simulation parameters (from unit cube parameters in BO)
     normalized_calibrated_params = train_theta[best_observed_idx]
     calibrated_params = unnormalize_theta(normalized_calibrated_params)
-    pprint.pprint(parr_to_pdict(calibrated_params, measures_optimized=args.measures_optimized))
+    pprint.pprint(parr_to_pdict(calibrated_params))
 
 

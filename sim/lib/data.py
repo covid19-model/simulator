@@ -143,7 +143,15 @@ def collect_data_from_df(country, area, datatype, start_date_string, until=None,
     if until and end_date_string:
         print('Can only specify `until` (days until end) or `end_date_string` (end date). ')
         exit(0)
+    if end_date_string:
+        max_days = (pd.to_datetime(end_date_string) -
+                    pd.to_datetime(start_date_string)).days
+    elif until:
+        max_days = until
 
+    else:
+        raise ValueError('Need to pass either `until` or `end_date_string`')
+   
     if country == 'GER':
 
         if datatype == 'new':
@@ -169,9 +177,8 @@ def collect_data_from_df(country, area, datatype, start_date_string, until=None,
         df_tmp['new'] = counts_as_new * df_tmp[ctr]
 
         # count up each day and them make cumulative
-        maxt = int(df_tmp.days.max())
-        data = np.zeros((maxt, 6)) # value, agegroup
-        for t in range(maxt):
+        data = np.zeros((max_days, 6))  # value, agegroup
+        for t in range(max_days):
             for agegroup in range(6):
                 data[t, agegroup] += df_tmp[
                     (df_tmp.days <= t) & (df_tmp.age_group == agegroup)].new.sum()
@@ -193,9 +200,8 @@ def collect_data_from_df(country, area, datatype, start_date_string, until=None,
                                                    until=until, end_date_string=end_date_string)
 
         # count up each day and them make cumulative
-        maxt = int(df_tmp.days.max())
-        data = np.zeros((maxt, 9)) # value, agegroup
-        for t in range(maxt):
+        data = np.zeros((max_days, 9))  # value, agegroup
+        for t in range(max_days):
             for agegroup in range(9):
                 age_group_at_t = (df_tmp.days <= t) & (df_tmp.age_group == agegroup)
                 data[t, agegroup] += df_tmp[age_group_at_t].new.sum()

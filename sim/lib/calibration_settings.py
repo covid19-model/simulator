@@ -23,7 +23,7 @@ calibration_simulation = {
 
 # parameter bounds
 beta_upper_bound = 5.0
-settings_model_param_bounds = {
+calibration_model_param_bounds = {
     'betas': {
         'education': [0.0, beta_upper_bound],
         'social': [0.0, beta_upper_bound],
@@ -142,3 +142,11 @@ calibration_states = {
         'JU': 'logs/calibration_ju0_state.pk',
     }
 }
+
+# calibration lockdown beta multipliers
+calibration_lockdown_beta_multipliers = {
+    'education': 0.5, 
+    'social': 0.5,
+    'bus_stop': 1.0, 
+    'office': 0.5, 
+    'supermarket': 1.0}

@@ -13,7 +13,7 @@ from lib.parallel import launch_parallel_simulations
 from lib.distributions import CovidDistributions
 from lib.data import collect_data_from_df
 from lib.measures import *
-from lib.calibration_settings import (settings_lockdown_dates, settings_testing_params)
+from lib.calibration_settings import (calibration_lockdown_dates, calibration_testing_params)
 
 TO_HOURS = 24.0
 
