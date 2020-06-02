@@ -135,7 +135,7 @@ class CovidDistributions(object):
         '''
         Samples r.v. of iasy -> resi
         '''
-        return self.__mean_distribution(self.median_asymp_to_resi, 1.0, size=size)
+        return self.tadj * self.__mean_distribution(self.median_asymp_to_resi, 1.0, size=size)
 
     def sample_is_fatal(self, ages, size=1):
         '''
