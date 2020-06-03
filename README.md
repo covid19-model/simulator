@@ -28,7 +28,7 @@ As we are in the process of significantly refactoring the code base and extendin
 We release an up-to-date [example notebook](sim/sim-example.ipynb) that shows how to use the code, simulation, and various measures.
 
 __If you would nevertheless like to play with the prior version or reproduce results currently shown in the arXiv pre-print, revert to commit__
-`062f03bd809a5df3db7158e4075f855ce110dfcc`
+`28b14a1dca53e12573eabf99317b2c7517c81761`
 
 
 ## Dependencies

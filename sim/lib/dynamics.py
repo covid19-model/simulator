@@ -479,7 +479,11 @@ class DiseaseModel(object):
                     # 4) check whether infector is isolated from household members
                     infector_isolated = self.measure_list.is_contained(
                         SocialDistancingForPositiveMeasureHousehold, t=t,
-                        j=infector, state_posi=self.state['posi'], state_resi=self.state['resi'], state_dead=self.state['dead'])             
+                        j=infector, 
+                        state_posi_started_at=self.state_started_at['posi'], 
+                        state_posi_ended_at=self.state_ended_at['posi'], 
+                        state_resi_started_at=self.state_started_at['resi'], 
+                        state_dead_started_at=self.state_started_at['dead'])             
 
                     # if none of 1), 2), 3), 4) are true, the event is valid
                     if  (not infector_recovered) and \
@@ -936,7 +940,11 @@ class DiseaseModel(object):
                 j=i, j_visit_id=visit_id) or 
             self.measure_list.is_contained(
                 SocialDistancingForPositiveMeasure, t=t,
-                j=i, j_visit_id=visit_id, state_posi=self.state['posi'], state_resi=self.state['resi'], state_dead=self.state['dead']) or 
+                j=i, j_visit_id=visit_id, 
+                state_posi_started_at=self.state_started_at['posi'],
+                state_posi_ended_at=self.state_ended_at['posi'],
+                state_resi_started_at=self.state_started_at['resi'],
+                state_dead_started_at=self.state_started_at['dead']) or
             self.measure_list.is_contained(
                 SocialDistancingByAgeMeasure, t=t,
                 age=self.people_age[i], j_visit_id=visit_id) or
