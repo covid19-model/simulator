@@ -5,6 +5,7 @@ import math
 
 from interlap import InterLap
 
+# from utils import enforce_init_run # use this for unit testing
 from lib.utils import enforce_init_run
 
 
@@ -215,7 +216,7 @@ class SocialDistancingForPositiveMeasure(SocialDistancingForAllMeasure):
     """
 
     @enforce_init_run
-    def is_contained(self, *, j, j_visit_id, t, state_posi, state_resi, state_dead):
+    def is_contained(self, *, j, j_visit_id, t, state_posi_started_at, state_posi_ended_at, state_resi_started_at, state_dead_started_at):
         """Indicate if individual `j` is positive and respects measure for
         visit `j_visit_id`
 
@@ -229,21 +230,25 @@ class SocialDistancingForPositiveMeasure(SocialDistancingForAllMeasure):
             Query time
         state_* : array
             Array of indicators, it should be the array of `state` `*` of the `DiseaseModel`
-
-        FIXME: We could remove the need to call `state_dict` by passing reference in `init_run`, but it would be the link obscure and might introduce bugs...
         """
+
         is_home_now = self.bernoulli_stay_home[j, j_visit_id]
+
         # only isolate at home while positive and not resistant or dead
-        is_posi = (state_posi[j] and (not state_resi[j])) and (not state_dead[j])
-        return is_home_now and is_posi and self._in_window(t)
+        is_posi_now = (
+            t >= state_posi_started_at[j] and t < state_posi_ended_at[j] and # positive
+            t < state_resi_started_at[j] and t < state_dead_started_at[j] # not resistant or dead
+        )
+
+        return is_home_now and is_posi_now and self._in_window(t)
     
     @enforce_init_run
     def is_contained_prob(self, *, j, t, state_posi_started_at, state_posi_ended_at, state_resi_started_at, state_dead_started_at):
         """Returns probability of containment for individual `j` at time `t`
         """
         if (self._in_window(t) and 
-            t >= state_posi_started_at[j] and t<=state_posi_ended_at[j] and 
-            t < state_resi_started_at[j] and t < state_dead_started_at[j]):
+            t >= state_posi_started_at[j] and t < state_posi_ended_at[j] and # positive
+            t < state_resi_started_at[j] and t < state_dead_started_at[j]): # not resistant or dead
             return self.p_stay_home
         return 0.0
 
@@ -274,20 +279,26 @@ class SocialDistancingForPositiveMeasureHousehold(Measure):
         self._is_init = True
         
     @enforce_init_run
-    def is_contained(self, *, j, t, state_posi, state_resi, state_dead):
+    def is_contained(self, *, j, t, state_posi_started_at, state_posi_ended_at, state_resi_started_at, state_dead_started_at):
         """Indicate if individual `j` respects measure 
         """
         is_isolated = np.random.binomial(1, self.p_isolate)
-        is_posi = (state_posi[j] and (not state_resi[j])) and (not state_dead[j])
-        return is_isolated and is_posi and self._in_window(t)
+
+        # only isolate at home while positive and not resistant or dead
+        is_posi_now = (
+            t >= state_posi_started_at[j] and t < state_posi_ended_at[j] and # positive
+            t < state_resi_started_at[j] and t < state_dead_started_at[j] # not resistant or dead
+        )
+
+        return is_isolated and is_posi_now and self._in_window(t)
 
     @enforce_init_run
     def is_contained_prob(self, *, j, t, state_posi_started_at, state_posi_ended_at, state_resi_started_at, state_dead_started_at):
         """Returns probability of containment for individual `j` at time `t`
         """
         if (self._in_window(t) and 
-            t >= state_posi_started_at[j] and t<=state_posi_ended_at[j] and 
-            t < state_resi_started_at[j] and t < state_dead_started_at[j]):
+            t >= state_posi_started_at[j] and t <= state_posi_ended_at[j] and # positive
+            t < state_resi_started_at[j] and t < state_dead_started_at[j]): # not resistant or dead
             return p_isolate
         return 0.0
             
@@ -723,16 +734,25 @@ if __name__ == "__main__":
    # Test SocialDistancingForPositiveMeasure
     m = SocialDistancingForPositiveMeasure(t_window=Interval(1.0, 2.0), p_stay_home=1.0)
     m.init_run(n_people=2, n_visits=10)
-    state_posi = np.ones((1, 2), dtype='bool') 
-    state_resi = np.zeros((1, 2), dtype='bool')
-    state_dead = np.zeros((1, 2), dtype='bool')
-    # state_dict = {'posi': np.ones((1, 2), dtype='bool')}  # all posi
-    assert m.is_contained(j=0, j_visit_id=0, t=0.9, state_posi=state_posi, state_resi=state_resi, state_dead=state_dead) == False
-    assert m.is_contained(j=0, j_visit_id=0, t=1.0, state_posi=state_posi, state_resi=state_resi, state_dead=state_dead) == True
-    # state_dict = {'posi': np.zeros((1, 2), dtype='bool')}  # none posi
-    state_posi = np.zeros((1, 2), dtype='bool') 
-    assert m.is_contained(j=0, j_visit_id=0, t=0.9, state_posi=state_posi, state_resi=state_resi, state_dead=state_dead) == False
-    assert m.is_contained(j=0, j_visit_id=0, t=1.0, state_posi=state_posi, state_resi=state_resi, state_dead=state_dead) == False
+    state_posi_started_at = np.array([0.95, np.inf])
+    state_posi_ended_at = np.inf * np.ones(2)
+    state_resi_started_at = np.inf * np.ones(2)
+    state_dead_started_at = np.inf * np.ones(2)
+
+    assert m.is_contained(j=0, j_visit_id=0, t=0.9, state_posi_started_at=state_posi_started_at,
+                          state_posi_ended_at=state_posi_ended_at, state_resi_started_at=state_resi_started_at, 
+                          state_dead_started_at=state_dead_started_at) == False
+    assert m.is_contained(j=0, j_visit_id=0, t=1.0, state_posi_started_at=state_posi_started_at,
+                          state_posi_ended_at=state_posi_ended_at, state_resi_started_at=state_resi_started_at,
+                          state_dead_started_at=state_dead_started_at) == True
+
+    state_posi_started_at = np.inf * np.ones(2)
+    assert m.is_contained(j=0, j_visit_id=0, t=0.9, state_posi_started_at=state_posi_started_at,
+                          state_posi_ended_at=state_posi_ended_at, state_resi_started_at=state_resi_started_at,
+                          state_dead_started_at=state_dead_started_at) == False
+    assert m.is_contained(j=0, j_visit_id=0, t=1.0, state_posi_started_at=state_posi_started_at,
+                          state_posi_ended_at=state_posi_ended_at, state_resi_started_at=state_resi_started_at, 
+                          state_dead_started_at=state_dead_started_at) == False
 
     # Text BetaMultiplierMeasure
     m = BetaMultiplierMeasureBySite(t_window=Interval(1.0, 2.0), beta_multiplier={0: 2.0, 1: 0.0})
