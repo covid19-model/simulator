@@ -22,7 +22,7 @@ calibration_simulation = {
 }
 
 # parameter bounds
-beta_upper_bound = 5.0
+beta_upper_bound = 3.0
 calibration_model_param_bounds = {
     'betas': {
         'education': [0.0, beta_upper_bound],
@@ -99,13 +99,13 @@ calibration_lockdown_dates = {
 calibration_mob_paths = {
     'GER': {
         'TU': ['lib/mobility/Tubingen_settings_10.pk', 'lib/mobility/Tubingen_settings_1.pk'],
-        'KL': ['lib/mobility/Kaiserslautern_settings_5.pk', 'lib/mobility/Kaiserslautern_settings_1.pk'],
+        'KL': ['lib/mobility/Kaiserslautern_settings_10.pk', 'lib/mobility/Kaiserslautern_settings_1.pk'],
         'RH': ['lib/mobility/Ruedesheim_settings_10.pk', 'lib/mobility/Ruedesheim_settings_1.pk'],
         'TR': ['lib/mobility/Tirschenreuth_settings_10.pk', 'lib/mobility/Tirschenreuth_settings_1.pk'],
     },
     'CH': {
         'VD': ['lib/mobility/Lausanne_settings_10.pk', 'lib/mobility/Lausanne_settings_1.pk'],
-        'BE': ['lib/mobility/Bern_settings_5.pk', 'lib/mobility/Bern_settings_1.pk'],
+        'BE': ['lib/mobility/Bern_settings_10.pk', 'lib/mobility/Bern_settings_1.pk'],
         'TI': ['lib/mobility/Locarno_settings_2.pk', 'lib/mobility/Locarno_settings_1.pk'],
         'JU': ['lib/mobility/Jura_settings_10.pk', 'lib/mobility/Jura_settings_1.pk'],
     }
