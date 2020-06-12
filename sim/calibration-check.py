@@ -117,7 +117,8 @@ if __name__ == '__main__':
                 # calibrated parameters
                 calibrated_params = get_calibrated_params(country, area)
 
-                print(country, area, f'{mob.downsample}x', ' Days: ', sim_days,'  Start: ', start_date, '  End: ', end_date, )
+                print(country, area, f'{mob.downsample}x', ' Days: ', sim_days,
+                      '  Start: ', start_date_calibration, '  End: ', end_date_calibration)
                 print('Start cases: Scaled : ', sim_cases[0].sum(), sim_cases[0], 'Unscaled : ' , unscaled_sim_cases[0].sum(), unscaled_sim_cases[0])
                 print('End cases:   Scaled : ',  sim_cases[-1].sum(), sim_cases[-1], 'Unscaled : ' , unscaled_sim_cases[-1].sum(), unscaled_sim_cases[-1])
                 print('Scaled seeds:  ', initial_seeds)
@@ -130,7 +131,7 @@ if __name__ == '__main__':
                 print(params_to_strg(calibrated_params))
 
                 # measures
-                days_until_lockdown = (pd.to_datetime(start_date_lockdown) - pd.to_datetime(start_date)).days
+                days_until_lockdown = (pd.to_datetime(start_date_lockdown) - pd.to_datetime(start_date_calibration)).days
 
                 measure_list =  MeasureList([
                     SocialDistancingForPositiveMeasure(
