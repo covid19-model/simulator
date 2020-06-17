@@ -332,6 +332,7 @@ class MobilitySimulator:
         seed = seed or 0
         rd.seed(seed)
         np.random.seed(seed)
+        self.additional_kwargs = kwargs
         
         synthetic = (num_people is not None and num_sites is not None and mob_rate_per_type is not None and
                     dur_mean is not None and num_age_groups is not None)
