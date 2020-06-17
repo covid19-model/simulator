@@ -271,7 +271,12 @@ class MobilitySimulator:
                 mob_rate_per_age_per_type=None, dur_mean_per_type=None, home_tile=None,
                 tile_site_dist=None, variety_per_type=None, people_household=None, downsample=None,
                 num_people=None, num_people_unscaled=None, num_sites=None, mob_rate_per_type=None,
-                dur_mean=None, num_age_groups=None, seed=None, verbose=False):
+                dur_mean=None, num_age_groups=None, seed=None, verbose=False,
+                # remaining keyword arguments not used by MobilitySimulator
+                # but passed from compilation file, contained to enable on-the-fly downsampling
+                **kwargs, 
+                ):
+
         """
         delta : float
             Time delta to extend contacts
@@ -324,9 +329,9 @@ class MobilitySimulator:
         """
 
         # Set random seed for reproducibility
-        seed = seed or rd.randint(0, 2**32 - 1)
+        seed = seed or 0
         rd.seed(seed)
-        np.random.seed(seed-1)
+        np.random.seed(seed)
         
         synthetic = (num_people is not None and num_sites is not None and mob_rate_per_type is not None and
                     dur_mean is not None and num_age_groups is not None)

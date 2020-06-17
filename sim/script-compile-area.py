@@ -111,7 +111,7 @@ def generate_downscaled_area(
             population_per_age_group=population_per_age_group, tile_level=16, seed=42, verbose=verbose)
 
     # Compute pairwise distances between all tile centers and all sites
-    tile_site_dist = compute_distances(site_loc, tile_loc)
+    tile_site_dist = compute_distances(site_loc, tile_loc, verbose=verbose)
 
     # Specify synthetic mobility patterns
     # Here we specify the patterns of mobility used for generating the synthetic traces based on the above home and site locations. Note that this is a general framework and can by arbitrarilty extended to any desired site numbers or types. See below for an example used in the first version of our paper.
@@ -170,7 +170,7 @@ def generate_downscaled_area(
 
 
     # Returns arguments for the class object instantiation to be able to initiate `MobilitySimulator`
-    # on the fly during calibration and for different downscaling
+    # on the fly during calibration and for different downscaled versions
 
     kwargs = dict(
         home_loc=home_loc,
@@ -312,8 +312,11 @@ if __name__ == '__main__':
 
 
 
-    test_mode = True
+    '''
+    Debugging mode
+    '''
 
+    test_mode = True
     if test_mode:
         '''
         Downscaling example
@@ -324,7 +327,8 @@ if __name__ == '__main__':
         # initialize mobility object to obtain information (no trace generation yet)
         with open(mob_settings, 'rb') as fp:
             loaded_kwargs = pickle.load(fp)
-        # mob = MobilitySimulator(**kwargs)
+        mob = MobilitySimulator(**loaded_kwargs) # check that MobilitySimulator usable
+        mob.simulate(max_time=1000.0, lazy_contacts=True)
 
         downsample = 10
         kwargs = generate_downscaled_area(
