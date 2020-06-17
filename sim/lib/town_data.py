@@ -5,6 +5,7 @@ import os
 import json
 import geopy.distance
 import requests
+from tqdm import tqdm
 
 TO_HOURS = 24.0
 
@@ -35,7 +36,7 @@ tile_level_dict = {
 }
 
 def generate_population(bbox, population_per_age_group, density_file=None, tile_level=16, seed=None,
-                        density_site_loc=None, household_info=None):
+                        density_site_loc=None, household_info=None, verbose=True):
     
     # raise error if tile level is invalid
     assert (type(tile_level)==int and tile_level>=0 and tile_level<=20), 'Invalid tile level'
@@ -49,7 +50,7 @@ def generate_population(bbox, population_per_age_group, density_file=None, tile_
 
     # total population
     population = sum(population_per_age_group)
-    
+        
     if density_file is not None:
 
         # read population density file
@@ -126,7 +127,10 @@ def generate_population(bbox, population_per_age_group, density_file=None, tile_
             for lon in lon_arr:
                 tiles = tiles.append(pd.DataFrame(data={'lat': [lat], 'lon': [lon], 'pop': [population_distribution[tile_ind]]}))
                 tile_ind += 1
-    
+
+    if verbose:
+        print('Processed population density.')
+
     # discard tiles with zero population
     tiles = tiles[tiles['pop']!=0]
 
@@ -154,6 +158,9 @@ def generate_population(bbox, population_per_age_group, density_file=None, tile_
         # age group assigned proportionally to the real statistics
         people_age+=list(np.random.multinomial(n=1, pvals=age_proportions, size=pop).argmax(axis=1))
         i_tile+=1
+    
+    if verbose:
+        print('Assigned homes and age groups.')
 
     if household_info is not None:
         # pick a societal role for each person depending on the age group
@@ -182,11 +189,13 @@ def generate_population(bbox, population_per_age_group, density_file=None, tile_
         for ind, perc in enumerate(household_info['size_dist'][2:]):
             # percentage of families with ind+1 children compared to total families with children
             relative_perc = perc/percent_with_children
-            family_children = ind+1
+
+            family_children = ind+1 # since we enumerate starting from 3-person households
+
             # number of families with ind+1 children
             num_of_households = int(relative_perc*households_with_children)
             
-            for _ in range(num_of_households):
+            for _ in tqdm(range(num_of_households), desc=f'Household assignments for {ind + 3} people', disable=not verbose):
                 # find candidate parents and children
                 candidate_parents = np.where(np.logical_and(people_household == -1, soc_role == 1))[0]
                 candidate_children = np.where(np.logical_and(people_household == -1, soc_role == 0))[0]
@@ -221,28 +230,28 @@ def generate_population(bbox, population_per_age_group, density_file=None, tile_
         # number of households with 1 or 2 people
         households_with_couples = int((household_info['size_dist'][1]/percent_without_children)*remaining/((household_info['size_dist'][0]+2*household_info['size_dist'][1])/percent_without_children))
 
-        for _ in range(households_with_couples):
-                # find candidate elderly people to form a couple
-                candidate_couple = np.where(np.logical_and(people_household == -1, soc_role == 2))[0]
-                # if elderly people are not enough form a couple using younger people
-                if len(candidate_couple)<2:
-                    candidate_couple = np.where(np.logical_and(people_household == -1, soc_role == 1))[0]
-                # check if a couple can be formed at all
-                if len(candidate_couple)<2:
-                    break
-                
-                # randomly pick 2 people to form a couple
-                couple_ids = np.random.choice(candidate_couple, 2, replace=False)
-                # store the common household number
-                people_household[couple_ids] = household_index
-                household_index += 1
-                
-                # pick one family member and set its home location as every member's home
-                home_owner = np.random.choice(couple_ids, 1)[0]
-                for i_person in couple_ids:
-                    home_loc[i_person] = home_loc[home_owner]
-                    home_tile[i_person] = home_tile[home_owner]
-                
+        for _ in tqdm(range(households_with_couples), desc='Household assignments for couples', disable=not verbose):
+            # find candidate elderly people to form a couple
+            candidate_couple = np.where(np.logical_and(people_household == -1, soc_role == 2))[0]
+            # if elderly people are not enough form a couple using younger people
+            if len(candidate_couple)<2:
+                candidate_couple = np.where(np.logical_and(people_household == -1, soc_role == 1))[0]
+            # check if a couple can be formed at all
+            if len(candidate_couple)<2:
+                break
+            
+            # randomly pick 2 people to form a couple
+            couple_ids = np.random.choice(candidate_couple, 2, replace=False)
+            # store the common household number
+            people_household[couple_ids] = household_index
+            household_index += 1
+            
+            # pick one family member and set its home location as every member's home
+            home_owner = np.random.choice(couple_ids, 1)[0]
+            for i_person in couple_ids:
+                home_loc[i_person] = home_loc[home_owner]
+                home_tile[i_person] = home_tile[home_owner]
+            
         # set all remaining people as independent 1-person families
         for i_person, family in enumerate(people_household):
             if family == -1:
@@ -252,6 +261,8 @@ def generate_population(bbox, population_per_age_group, density_file=None, tile_
     else:
         # set all people as independent 1-person families
         people_household = np.array([i for i in range(len(home_loc))])
+        if verbose:
+            print('Computed household assignments.')
 
     return home_loc, people_age, home_tile, tile_loc, people_household
 
@@ -288,9 +299,9 @@ def generate_sites(bbox, query_files, site_based_density_file=None):
             # generate and call overpass queries 
             response = requests.get(overpass_url, params={'data': overpass_query(bbox, contents)})
             if response.status_code == 200:
-                print('Query ' + str(q_ind+1) + ' OK.')
+                print(f'Query {qf} OK.')
             else:
-                print('Query ' + str(q_ind+1) + ' returned http code ' + str(response.status_code) + '. Try again.')
+                print(f'Query {qf} returned http status code {response.status_code}. Try again.')
                 return None, None, None, None
             data = response.json()
 
@@ -318,9 +329,9 @@ def generate_sites(bbox, query_files, site_based_density_file=None):
             # generate and call overpass queries 
             response = requests.get(overpass_url, params={'data': overpass_query(bbox, contents)})
             if response.status_code == 200:
-                print('Query ' + str(len(query_files)+1) + ' OK.')
+                print(f'Query site_based_density_file OK.')
             else:
-                print('Query ' + str(len(query_files)+1) + ' returned http code ' + str(response.status_code) + '. Try again.')
+                print(f'Query site_based_density_file returned http status code {response.status_code}. Try again.')
                 return None, None, None, None
             data = response.json()
             
@@ -335,12 +346,12 @@ def generate_sites(bbox, query_files, site_based_density_file=None):
 
     return site_loc, site_type, site_dict, density_site_loc
 
-def compute_distances(site_loc, tile_loc):
+def compute_distances(site_loc, tile_loc, verbose=False):
     
     # 2D array containing pairwise distances
     tile_site_dist=np.zeros((len(tile_loc), len(site_loc)))
     
-    for i_tile, tile in enumerate(tile_loc):
+    for i_tile, tile in enumerate(tqdm(tile_loc, desc='Computing distances', disable=not verbose)):
         for i_site, site in enumerate(site_loc):
             tile_site_dist[i_tile,i_site]=geopy.distance.distance(tile,site).km
 

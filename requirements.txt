@@ -16,3 +16,4 @@ sobol-seq==0.1.2
 gpytorch==1.1.1
 botorch==0.2.1
 tornado==6.0.4
+tqdm==4.46.1
