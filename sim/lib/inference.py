@@ -190,8 +190,8 @@ def extract_seeds_from_summary(summary, t, real_cases):
     # compute all states of best run at time t
     states = {}
     for state in calib_legal_states:
-        states[state] = (t <= summary.state_started_at[state][best]) \
-            & (t > summary.state_ended_at[state][best])
+        states[state] = (summary.state_started_at[state][best] <= t) \
+            & (t < summary.state_ended_at[state][best])
         
     # compute counts (resistant also contain dead)
     expo = states['expo'].sum()
