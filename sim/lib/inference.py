@@ -150,7 +150,7 @@ class CalibrationLogger:
 def extract_seeds_from_summary(summary, t, real_cases):
     '''
     Extracts initial simulation seeds from a summary file at time `t` 
-    based on lowest objective value of run.
+    based on lowest objective value of run, i.e. lowest squared error per age group over time
     '''
     calib_legal_states = ['susc', 'expo', 'ipre', 'isym',
                           'iasy', 'posi', 'nega', 'resi', 'dead', 'hosp']
@@ -171,9 +171,13 @@ def extract_seeds_from_summary(summary, t, real_cases):
     # compute all states of best run at time t
     states = {}
     for state in calib_legal_states:
-        states[state] = (t <= summary.state_started_at[state][best]) \
-            & (t > summary.state_ended_at[state][best])
-        
+        states[state] = (summary.state_started_at[state][best] <= t) \
+            & (t < summary.state_ended_at[state][best])
+
+    print('All states:')
+    for k, v in states.items():
+        print(k, v.sum())
+
     # compute counts (resistant also contain dead)
     expo = states['expo'].sum()
     iasy = states['iasy'].sum()

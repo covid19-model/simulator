@@ -7,7 +7,8 @@ import pandas as pd
 import numpy as np
 import botorch.utils.transforms as transforms
 from lib.inference import (
-    pdict_to_parr, parr_to_pdict, save_state, load_state, get_calibrated_params, gen_initial_seeds, get_test_capacity)
+    pdict_to_parr, parr_to_pdict, save_state, load_state, 
+    get_calibrated_params, gen_initial_seeds, get_test_capacity, downsample_cases)
 from lib.mobilitysim import MobilitySimulator
 from lib.parallel import launch_parallel_simulations
 from lib.distributions import CovidDistributions
@@ -35,7 +36,7 @@ def load_summary(filename):
 
 
 def run_experiment(country, area, mob_settings, start_date, end_date, random_repeats, measure_list, 
-                   test_update=None, seed_summary_path=None, return_mob=False):
+                   test_update=None, seed_summary_path=None, return_mob=False, set_calibrated_params_to=None):
 
     '''
     Runs experiment for `country` and `area` from a `start_date` until an `end_date`
@@ -53,26 +54,36 @@ def run_experiment(country, area, mob_settings, start_date, end_date, random_rep
     mob = MobilitySimulator(**obj)
     mob.simulate(max_time=max_time, lazy_contacts=True)
 
-    # Obtain COVID19 case date for country and area to estimate testing capacity and heuristic seeds in necessary
-    new_cases_ = collect_data_from_df(country=country, area=area, datatype='new',
-                                      start_date_string=start_date, end_date_string=end_date)
+    # Obtain COVID19 case date for country and area to estimate testing capacity and heuristic seeds if necessary
+    unscaled_area_cases = collect_data_from_df(country=country, area=area, datatype='new',
+                                               start_date_string=start_date, end_date_string=end_date)
+    assert(len(unscaled_area_cases.shape) == 2)
 
-    new_cases = np.ceil(
-        (new_cases_ * mob.num_people_unscaled) /
-        (mob.downsample * mob.region_population))
+    # Scale down cases based on number of people in town, region, and downsampling
+    sim_cases, unscaled_sim_cases = downsample_cases(unscaled_area_cases, mob)
 
     # Get initial seeds for simulation
     # (a) Define heuristically based on true cases and literature distribution estimates
     if seed_summary_path is None:
-        initial_seeds = gen_initial_seeds(new_cases)
+
+        # Generate initial seeds based on unscaled case numbers in town
+        initial_seeds = gen_initial_seeds(
+            unscaled_sim_cases,
+            downsampling=mob.downsample,
+            day=0)
+
+        if sum(initial_seeds.values()) == 0:
+            print('No states seeded at start time; cannot start simulation.\n'
+                'Consider setting a later start date for calibration using the "--start" flag.')
+            sys.exit(0)
 
     # (b) Define based state of previous batch of simulations,
     # using the random rollout that best matched the true cases in terms of squared error
     else:
         seed_summary_ = load_summary(seed_summary_path)
-        seed_day_ = seed_summary_.max_time # take seeds at the end of simulaiton
+        seed_day_ = seed_summary_.max_time # take seeds at the end of simulation
         initial_seeds = extract_seeds_from_summary(
-            seed_summary_, seed_day_, new_cases)
+            seed_summary_, seed_day_, sim_cases)
 
     # Instantiate correct state transition distributions (estimated from in literature)
     distributions = CovidDistributions(country=country)
@@ -88,11 +99,11 @@ def run_experiment(country, area, mob_settings, start_date, end_date, random_rep
     measure_list = MeasureList(measure_list)
 
     # Load calibrated model parameters for this area
-    calibrated_params = get_calibrated_params(country, area)
+    calibrated_params = set_calibrated_params_to or get_calibrated_params(country, area)
 
     # Set testing conditions
     scaled_test_capacity = get_test_capacity(country, area, mob, end_date_string=end_date)
-    testing_params = copy.deepcopy(settings_testing_params)
+    testing_params = copy.deepcopy(calibration_testing_params)
     testing_params['tests_per_batch'] = scaled_test_capacity
     testing_params['testing_t_window'] = [0.0, max_time]
     if test_update:

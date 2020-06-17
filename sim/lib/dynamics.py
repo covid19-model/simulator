@@ -376,7 +376,7 @@ class DiseaseModel(object):
             self.initial_seeds[k] = initial_people[ptr:ptr + v].tolist()
             ptr += v          
 
-        ### sample all iid events ahead of time in batch
+        # sample all iid events ahead of time in batch
         batch_size = (self.n_people, )
         self.delta_expo_to_ipre = self.d.sample_expo_ipre(size=batch_size)
         self.delta_ipre_to_isym = self.d.sample_ipre_isym(size=batch_size)
