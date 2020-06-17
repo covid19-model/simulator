@@ -253,7 +253,7 @@ def generate_population(bbox, population_per_age_group, density_file=None, tile_
                 home_tile[i_person] = home_tile[home_owner]
             
         # set all remaining people as independent 1-person families
-        for i_person, family in enumerate(people_household):
+        for i_person, family in enumerate(tqdm(people_household, desc='Household assignments singles', disable=not verbose)):
             if family == -1:
                 people_household[i_person] = household_index
                 household_index += 1

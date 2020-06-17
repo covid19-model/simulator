@@ -33,7 +33,7 @@ def generate_downscaled_area(
     area_name,
     country,
     population_path,
-    population_per_age_group,
+    area_population_per_age_group,
     region_population,
     num_people_unscaled,
     daily_tests_unscaled,
@@ -53,7 +53,7 @@ def generate_downscaled_area(
     if downsample > 1:
         # population
         population_per_age_group = np.round(
-            population_per_age_group * num_people_unscaled / (downsample * region_population)
+            area_population_per_age_group * num_people_unscaled / (downsample * region_population)
             ).astype('int').tolist()
 
         # sites
@@ -61,6 +61,14 @@ def generate_downscaled_area(
         idx = np.random.choice(len(site_loc), size=int(len(site_loc) / downsample),
                             replace=False, p=np.ones(len(site_loc)) / len(site_loc))
         site_loc, site_type = np.array(site_loc)[idx].tolist(), np.array(site_type)[idx].tolist()
+    
+    else:
+        # population (scale only to simulation size, not downscaling)
+        population_per_age_group = np.round(
+            area_population_per_age_group * num_people_unscaled / region_population
+            ).astype('int').tolist()
+
+        # nothing done for sites
 
     # Generate home location based on various options
     # * `home_loc`: list of home coordinates
@@ -185,11 +193,14 @@ def generate_downscaled_area(
         area_name=area_name,
         country=country,
         population_path=population_path,
-        population_per_age_group=population_per_age_group,
+        area_population_per_age_group=area_population_per_age_group,
         household_info=household_info,
     )
 
     return kwargs
+
+
+
 
 if __name__ == '__main__':
 
@@ -215,7 +226,7 @@ if __name__ == '__main__':
         population_path = area.population_path
         sites_path = area.sites_path
         bbox = area.bbox
-        population_per_age_group = area.population_per_age_group
+        area_population_per_age_group = area.population_per_age_group
         region_population = area.region_population
         num_people_unscaled = area.town_population
         daily_tests_unscaled = area.daily_tests_unscaled
@@ -232,7 +243,7 @@ if __name__ == '__main__':
     will be used from the full scale (i.e. compiled version)
     '''
 
-    compile = False
+    compile = True
 
     if compile:
 
@@ -280,7 +291,7 @@ if __name__ == '__main__':
             area_name=area_name,
             country=country,
             population_path=population_path,
-            population_per_age_group=population_per_age_group,
+            area_population_per_age_group=area_population_per_age_group,
             region_population=region_population,
             num_people_unscaled=num_people_unscaled,
             daily_tests_unscaled=daily_tests_unscaled,
@@ -294,57 +305,91 @@ if __name__ == '__main__':
             density_site_loc=density_site_loc,
         )
 
-        print('Done compiling.')
+        print('Done compiling.\n')
 
-        with open(f'lib/mobility/{area_name}_settings_compile_test.pk', 'wb') as fp:
+        with open(f'lib/mobility/{area_name}_settings_1_test.pk', 'wb') as fp:
             pickle.dump(kwargs, fp)
 
-    '''
-    Downscaling example
-    '''
 
-    mob_settings = f'lib/mobility/{area_name}_settings_compile_test.pk'
-    
-    # initialize mobility object to obtain information (no trace generation yet)
-    with open(mob_settings, 'rb') as fp:
-        loaded_kwargs = pickle.load(fp)
-    # mob = MobilitySimulator(**kwargs)
 
-    downsample = 10
-    kwargs = generate_downscaled_area(
+    test_mode = True
 
-        downsample=downsample,  # downscaling
-        verbose=False,
+    if test_mode:
+        '''
+        Downscaling example
+        '''
 
-        # All from compiled area settings
-        area_name=loaded_kwargs['area_name'],
-        country=loaded_kwargs['country'],
-        population_path=loaded_kwargs['population_path'],
-        population_per_age_group=loaded_kwargs['population_per_age_group'],
-        region_population=loaded_kwargs['region_population'],
-        num_people_unscaled=loaded_kwargs['num_people_unscaled'],
-        daily_tests_unscaled=loaded_kwargs['daily_tests_unscaled'],
-        household_info=loaded_kwargs['household_info'],
-        site_loc=loaded_kwargs['site_loc'],
-        site_type=loaded_kwargs['site_type'],
-        site_dict=loaded_kwargs['site_dict'],
-        density_site_loc=loaded_kwargs['density_site_loc'],
-    )
+        mob_settings = f'lib/mobility/{area_name}_settings_1_test.pk'
+        
+        # initialize mobility object to obtain information (no trace generation yet)
+        with open(mob_settings, 'rb') as fp:
+            loaded_kwargs = pickle.load(fp)
+        # mob = MobilitySimulator(**kwargs)
 
-    print('Done downscaling.')
+        downsample = 10
+        kwargs = generate_downscaled_area(
 
-    # '''
-    # Sanity check with existing files
-    # '''
+            downsample=downsample,  # downscaling
+            verbose=True,
 
-    # 1x
-    # with open(f'lib/mobility/{area_name}_settings_1.pk', 'rb') as fp:
-    #     current_1x = pickle.load(fp)
+            # All from compiled area settings
+            area_name=loaded_kwargs['area_name'],
+            country=loaded_kwargs['country'],
+            population_path=loaded_kwargs['population_path'],
+            area_population_per_age_group=loaded_kwargs['area_population_per_age_group'],
+            region_population=loaded_kwargs['region_population'],
+            num_people_unscaled=loaded_kwargs['num_people_unscaled'],
+            daily_tests_unscaled=loaded_kwargs['daily_tests_unscaled'],
+            household_info=loaded_kwargs['household_info'],
+            site_loc=loaded_kwargs['site_loc'],
+            site_type=loaded_kwargs['site_type'],
+            site_dict=loaded_kwargs['site_dict'],
+            density_site_loc=loaded_kwargs['density_site_loc'],
+        )
 
-    # with open(f'lib/mobility/{area_name}_settings_compile_test.pk', 'rb') as fp:
-    #     new_1x = pickle.load(fp)
+        with open(f'lib/mobility/{area_name}_settings_10_test.pk', 'wb') as fp:
+            pickle.dump(kwargs, fp)
 
-    # print('Sanity check.')
-    # for k, v in current_1x.items():
-    #     print(f'{k} : {v == new_1x[k]}')
+        print('Done downscaling.')
 
+
+
+
+        # '''
+        # Sanity check with existing files
+        # '''
+
+        # # 1x
+
+        with open(f'lib/mobility/{area_name}_settings_1.pk', 'rb') as fp:
+            current_1x = pickle.load(fp)
+
+        with open(f'lib/mobility/{area_name}_settings_1_test.pk', 'rb') as fp:
+            new_1x = pickle.load(fp)
+
+        print('======== Sanity check 1x.')
+        for k, v in current_1x.items():
+            print('== ', k)
+            print(v == new_1x[k])
+
+            if not isinstance(v, int) and not isinstance(v, np.int64) and not isinstance(v, float):
+                print(len(v), len(new_1x[k]))
+            else:
+                print(v, new_1x[k])
+                
+        # # 10x
+        with open(f'lib/mobility/{area_name}_settings_10.pk', 'rb') as fp:
+            current_10x = pickle.load(fp)
+
+        with open(f'lib/mobility/{area_name}_settings_10_test.pk', 'rb') as fp:
+            new_10x = pickle.load(fp)
+
+        print('======== Sanity check 10x.')
+        for k, v in current_10x.items():
+            print('== ', k)
+            print(v == new_10x[k])
+
+            if not isinstance(v, int) and not isinstance(v, np.int64) and not isinstance(v, float):
+                print(len(v), len(new_10x[k]))
+            else:
+                print(v, new_10x[k])
