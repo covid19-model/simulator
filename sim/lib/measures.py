@@ -32,7 +32,6 @@ class Measure(metaclass=abc.ABCMeta):
         self.t_window = t_window
         # Set init run attribute
         self._is_init = False
-        self._is_exit = False
 
     def init_run(self, **kwargs):
         """Init the measure for this run with whatever is needed"""
@@ -104,12 +103,11 @@ class SocialDistancingForAllMeasure(Measure):
             return self.p_stay_home
         return 0.0
 
-    @enforce_init_run
     def exit_run(self):
         """ Deletes bernoulli array. """
-        if not self._is_exit:
+        if self._is_init:
             del self.bernoulli_stay_home
-            self._is_exit = True
+            self._is_init = False
 
 
 class UpperBoundCasesSocialDistancing(SocialDistancingForAllMeasure):
@@ -378,12 +376,11 @@ class SocialDistancingByAgeMeasure(Measure):
             return self.p_stay_home[age]
         return 0.0
 
-    @enforce_init_run
     def exit_run(self):
         """ Deletes bernoulli array. """
-        if not self._is_exit:
+        if self._is_init:
             del self.bernoulli_stay_home
-            self._is_exit = True
+            self._is_init = False
 
 
 class SocialDistancingForSmartTracing(Measure):
@@ -455,12 +452,11 @@ class SocialDistancingForSmartTracing(Measure):
                     return self.p_stay_home
         return 0.0
 
-    @enforce_init_run
     def exit_run(self):
         """ Deletes bernoulli array. """
-        if not self._is_exit:
+        if self._is_init:
             del self.bernoulli_stay_home
-            self._is_exit = True
+            self._is_init = False
 
 
 class SocialDistancingForKGroups(Measure):
@@ -665,12 +661,11 @@ class ComplianceForAllMeasure(Measure):
             return self.p_compliance
         return 0.0
 
-    @enforce_init_run
     def exit_run(self):
         """ Deletes bernoulli array. """
-        if not self._is_exit:
+        if self._is_init:
             del self.bernoulli_compliant
-            self._is_exit = True
+            self._is_init = False
     
 
 """
