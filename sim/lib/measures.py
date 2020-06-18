@@ -103,6 +103,12 @@ class SocialDistancingForAllMeasure(Measure):
             return self.p_stay_home
         return 0.0
 
+    def exit_run(self):
+        """ Deletes bernoulli array. """
+        if self._is_init:
+            del self.bernoulli_stay_home
+            self._is_init = False
+
 
 class UpperBoundCasesSocialDistancing(SocialDistancingForAllMeasure):
 
@@ -370,6 +376,13 @@ class SocialDistancingByAgeMeasure(Measure):
             return self.p_stay_home[age]
         return 0.0
 
+    def exit_run(self):
+        """ Deletes bernoulli array. """
+        if self._is_init:
+            del self.bernoulli_stay_home
+            self._is_init = False
+
+
 class SocialDistancingForSmartTracing(Measure):
     """
     Social distancing measure. Only the population who intersected with positive cases 
@@ -438,6 +451,12 @@ class SocialDistancingForSmartTracing(Measure):
                 if interval[0] == j and t >= interval[1] and t <= interval[1] + self.test_smart_duration:
                     return self.p_stay_home
         return 0.0
+
+    def exit_run(self):
+        """ Deletes bernoulli array. """
+        if self._is_init:
+            del self.bernoulli_stay_home
+            self._is_init = False
 
 
 class SocialDistancingForKGroups(Measure):
@@ -641,7 +660,12 @@ class ComplianceForAllMeasure(Measure):
         if self._in_window(t):
             return self.p_compliance
         return 0.0
-    
+
+    def exit_run(self):
+        """ Deletes bernoulli array. """
+        if self._is_init:
+            del self.bernoulli_compliant
+            self._is_init = False
     
 
 """
@@ -681,6 +705,17 @@ class MeasureList:
         for _, _, m in self.measure_dict[measure_type]:
             m.init_run(**kwargs)
 
+    def exit_run(self):
+        """
+        Call exit_run for all measures that use bernoulli arrays to delete those in order to save memory.
+        """
+        for measure_type in self.measure_dict.keys():
+            for _, _, m in self.measure_dict[measure_type]:
+                try:
+                    m.exit_run()
+                except AttributeError:
+                    pass
+
     def find(self, measure_type, t):
         """Find, if any, the active measure of `type measure_type` at time `t`
         """
@@ -719,7 +754,7 @@ class MeasureList:
         if m is not None:
             return m.is_contained_prob(t=t, **kwargs)
         return False
-    
+
 if __name__ == "__main__":
 
     # Test SocialDistancingForAllMeasure with p_stay_home=1

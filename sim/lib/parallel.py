@@ -26,9 +26,6 @@ from lib.mobilitysim import MobilitySimulator
 
 TO_HOURS = 24.0
 
-# Comment this in if you want to do map plots
-STORE_MOB = False
-
 pp_legal_states = ['susc', 'expo', 'ipre', 'isym', 'iasy', 'posi', 'nega', 'resi', 'dead', 'hosp']
 
 
@@ -95,7 +92,7 @@ class ParallelSummary(object):
         self.children_count_isym = np.zeros((repeats, n_people), dtype='int')
 
 
-def create_ParallelSummary_from_DiseaseModel(sim):
+def create_ParallelSummary_from_DiseaseModel(sim, store_mob=False):
 
     summary = ParallelSummary(sim.max_time, 1, sim.n_people, sim.mob.num_sites, sim.mob.site_loc, sim.mob.home_loc,
                               sim.lazy_contacts)
@@ -106,7 +103,7 @@ def create_ParallelSummary_from_DiseaseModel(sim):
         summary.state_ended_at[code][0, :] = sim.state_ended_at[code]
 
     summary.measure_list.append(sim.measure_list)
-    if STORE_MOB:
+    if store_mob:
         summary.mob.append(sim.mob)
     
     summary.people_age[0, :] = sim.mob.people_age
@@ -117,7 +114,8 @@ def create_ParallelSummary_from_DiseaseModel(sim):
     return summary
 
 
-def pp_launch(r, kwargs, distributions, params, initial_counts, testing_params, measure_list, max_time, lazy_contacts):
+def pp_launch(r, kwargs, distributions, params, initial_counts, testing_params, measure_list, max_time, lazy_contacts,
+              store_mob=False):
 
     mob = MobilitySimulator(**kwargs)
     mob.simulate(max_time=max_time, lazy_contacts=lazy_contacts)
@@ -141,7 +139,7 @@ def pp_launch(r, kwargs, distributions, params, initial_counts, testing_params, 
         'children_count_ipre': sim.children_count_ipre,
         'children_count_isym': sim.children_count_isym,
     }
-    if STORE_MOB:
+    if store_mob:
         result['mob'] = sim.mob
 
     return result
@@ -149,8 +147,8 @@ def pp_launch(r, kwargs, distributions, params, initial_counts, testing_params, 
 
 def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu_count, params, 
     initial_seeds, testing_params, measure_list, max_time, num_people, num_sites, site_loc, home_loc,
-                                lazy_contacts=False, verbose=True, synthetic=False):
-    
+                                lazy_contacts=True, verbose=True, synthetic=False, summary_options=None,
+                                store_mob=False, store_measure_bernoullis=False):
 
     with open(mob_settings, 'rb') as fp:
         kwargs = pickle.load(fp)
@@ -188,10 +186,13 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
             summary.state[code][r, :] = result['state'][code]
             summary.state_started_at[code][r, :] = result['state_started_at'][code]
             summary.state_ended_at[code][r, :] = result['state_ended_at'][code]
-        
-        summary.measure_list.append(result['measure_list'])
 
-        if STORE_MOB:
+        ml = result['measure_list']
+        if not store_measure_bernoullis:
+            ml.exit_run()
+        summary.measure_list.append(ml)
+
+        if store_mob:
             summary.mob.append(result['mob']) 
 
         summary.people_age[r, :] = result['people_age']
