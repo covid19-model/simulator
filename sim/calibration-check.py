@@ -30,7 +30,7 @@ if __name__ == '__main__':
 
     full_scale = True
     dry_run = False
-    plot = False
+    plot = True
     random_repeats = 48 
 
     '''
@@ -139,10 +139,10 @@ if __name__ == '__main__':
                     SocialDistancingForPositiveMeasureHousehold(
                         t_window=Interval(0.0, max_time), p_isolate=1.0),
                     BetaMultiplierMeasureByType(
-                            t_window=Interval(days_until_lockdown * TO_HOURS, max_time * TO_HOURS), 
+                            t_window=Interval(days_until_lockdown * TO_HOURS, max_time), 
                             beta_multiplier=calibration_lockdown_beta_multipliers),
                     SocialDistancingForAllMeasure(
-                        t_window=Interval(days_until_lockdown * TO_HOURS, max_time * TO_HOURS), 
+                        t_window=Interval(days_until_lockdown * TO_HOURS, max_time), 
                         p_stay_home=calibrated_params['p_stay_home'])
                 ])
 
@@ -203,7 +203,9 @@ if __name__ == '__main__':
     if plot:
         for country in ['GER', 'CH']:
             for area in calibration_mob_paths[country].keys():
-                
+                if area != 'VD':
+                    continue
+
                 try:
                     print(country, area)
 
@@ -236,6 +238,11 @@ if __name__ == '__main__':
                     summary = load_summary(loadstr)
                     print(loadstr)
 
+                    # DEBUG
+                    print(summary.state['isym'].shape)
+                    print(np.sum(summary.state['isym'], axis=1))
+                    print(np.sum(summary.state['resi'], axis=1))
+
                     
                     # ymax depending on full scale vs downsampling
                     ym = ymax[country][area] / (mob.downsample) 
@@ -244,9 +251,9 @@ if __name__ == '__main__':
                     plotter.plot_positives_vs_target(
                         summary, sim_cases.sum(axis=1), 
                         title='Calibration period', 
-                        filename='calibration-{}-{}-{}-{}'.format('only-calib' if calibration_period_only else 'full',country, area, appdx),
+                        filename='calibration-{}-{}-{}'.format(country, area, appdx),
                         figsize=(6, 4),
-                        start_date=start_date,
+                        start_date=start_date_calibration,
                         errorevery=1, acc=1000, 
                         ymax=int(ym),
                     )
@@ -254,9 +261,9 @@ if __name__ == '__main__':
                     plotter.plot_age_group_positives_vs_target(
                         summary, sim_cases, 
                         ytitle=f'{country}-{area}',
-                        filename='calibration-{}-{}-{}-age-{}'.format('only-calib' if calibration_period_only else 'full', country, area, appdx),
+                        filename='calibration-{}-{}-{}-age'.format(country, area, appdx),
                         figsize=(16, 2.5),
-                        start_date=start_date,
+                        start_date=start_date_calibration,
                         errorevery=1, acc=1000, 
                         ymax=int(ym / 4),
                     )
