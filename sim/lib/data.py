@@ -17,7 +17,7 @@ import random
 
 TO_HOURS = 24.0
 
-from lib.calibration_settings import command_line_area_codes
+from lib.calibrationSettings import command_line_area_codes
 
 
 def get_preprocessed_data_germany(landkreis='LK Tübingen', start_date_string='2020-03-10', until=None, end_date_string=None):

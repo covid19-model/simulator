@@ -13,10 +13,10 @@ from lib.measures import (
     SocialDistancingForAllMeasure, 
     SocialDistancingForPositiveMeasure,
     SocialDistancingForPositiveMeasureHousehold)
-from lib.inference import gen_initial_seeds, downsample_cases
+from lib.calibrationFunctions import gen_initial_seeds, downsample_cases
 from lib.plot import Plotter
 from lib.experiment import run_experiment, save_summary, load_summary, get_calibrated_params
-from lib.calibration_settings import (
+from lib.calibrationSettings import (
     command_line_area_codes, 
     calibration_lockdown_dates,
     calibration_model_param_bounds,
@@ -31,6 +31,7 @@ if __name__ == '__main__':
     full_scale = True
     dry_run = False
     plot = True
+    multi_beta_calibration = False
     random_repeats = 48 
 
     '''
@@ -62,21 +63,28 @@ if __name__ == '__main__':
         return standard_testing_params
 
     def params_to_strg(d):
-        l = [
-            f"{d['betas']['education']:8.4f}",
-            f"{d['betas']['social']:8.4f}",
-            f"{d['betas']['bus_stop']:8.4f}",
-            f"{d['betas']['office']:8.4f}",
-            f"{d['betas']['supermarket']:8.4f}",
-            f"{d['beta_household']:8.4f}",
-            f"{d['p_stay_home']:8.4f}",
-        ]
+        if multi_beta_calibration:
+            l = [
+                f"{d['betas']['education']:8.4f}",
+                f"{d['betas']['social']:8.4f}",
+                f"{d['betas']['bus_stop']:8.4f}",
+                f"{d['betas']['office']:8.4f}",
+                f"{d['betas']['supermarket']:8.4f}",
+                f"{d['beta_household']:8.4f}",
+                f"{d['p_stay_home']:8.4f}",
+            ]
+        else:
+            l = [
+                f"{d['beta_site']:8.4f}",
+                f"{d['beta_household']:8.4f}",
+                f"{d['p_stay_home']:8.4f}",
+            ]
         return ','.join(l)
 
-    headerstr = ' educat | social | bus_st | office | superm | househ |  p_home'
+    headerstr = ' educat | social | bus_st | office | superm | househ |  p_home' if multi_beta_calibration else \
+                '   site | househ | p_home'
 
     # Simulate for each town
-
     for country in ['GER', 'CH']:
         for area in calibration_mob_paths[country].keys():
             try:
@@ -115,7 +123,8 @@ if __name__ == '__main__':
                     day=0)
 
                 # calibrated parameters
-                calibrated_params = get_calibrated_params(country, area)
+                calibrated_params = get_calibrated_params(
+                    country=country, area=area, multi_beta_calibration=multi_beta_calibration)
 
                 print(country, area, f'{mob.downsample}x', ' Days: ', sim_days,
                       '  Start: ', start_date_calibration, '  End: ', end_date_calibration)
@@ -187,7 +196,7 @@ if __name__ == '__main__':
 
     ymax = {
         'GER' : {
-            'TU' : 2000,
+            'TU' : 1200,
             'KL' : 800,
             'RH' : 1000,
             'TR' : 2000,
@@ -203,9 +212,7 @@ if __name__ == '__main__':
     if plot:
         for country in ['GER', 'CH']:
             for area in calibration_mob_paths[country].keys():
-                if area != 'VD':
-                    continue
-
+                
                 try:
                     print(country, area)
 
@@ -239,11 +246,10 @@ if __name__ == '__main__':
                     print(loadstr)
 
                     # DEBUG
-                    print(summary.state['isym'].shape)
-                    print(np.sum(summary.state['isym'], axis=1))
-                    print(np.sum(summary.state['resi'], axis=1))
+                    # print(summary.state['isym'].shape)
+                    # print(np.sum(summary.state['isym'], axis=1))
+                    # print(np.sum(summary.state['resi'], axis=1))
 
-                    
                     # ymax depending on full scale vs downsampling
                     ym = ymax[country][area] / (mob.downsample) 
 

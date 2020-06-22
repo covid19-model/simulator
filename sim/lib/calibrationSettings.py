@@ -23,7 +23,14 @@ calibration_simulation = {
 
 # parameter bounds
 beta_upper_bound = 2.0
-calibration_model_param_bounds = {
+
+calibration_model_param_bounds_single = {
+    'beta_site': [0.0, beta_upper_bound],
+    'beta_household': [0.0, beta_upper_bound],
+    'p_stay_home': [0.0, 1.0],
+}
+
+calibration_model_param_bounds_multi = {
     'betas': {
         'education': [0.0, beta_upper_bound],
         'social': [0.0, beta_upper_bound],

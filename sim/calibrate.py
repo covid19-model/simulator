@@ -20,8 +20,8 @@ import torch
 from botorch import fit_gpytorch_model
 from botorch.exceptions import BadInitialCandidatesWarning
 import botorch.utils.transforms as transforms
-from lib.inference import make_bayes_opt_functions, pdict_to_parr, parr_to_pdict, CalibrationLogger, save_state, load_state, gen_initial_seeds
-from lib.inference_kg import qKnowledgeGradient
+from lib.calibrationFunctions import make_bayes_opt_functions, pdict_to_parr, parr_to_pdict, CalibrationLogger, save_state, load_state, gen_initial_seeds
+from lib.kg import qKnowledgeGradient
 import time, pprint
 
 import warnings
@@ -37,7 +37,7 @@ from lib.distributions import CovidDistributions
 from lib.plot import Plotter
 
 from lib.mobilitysim import MobilitySimulator
-from lib.calibrate_parser import make_calibration_parser
+from lib.calibrationParser import make_calibration_parser
 
 if __name__ == '__main__':
 
@@ -49,16 +49,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     seed = args.seed or 0
     args.filename = args.filename or f'calibration_{seed}'
-    
-    # check required settings
-    if not (args.area and args.country):
-        print(
-            "The following keyword arguments are required, for example as follows:\n"
-            "python calibrate.py \n"
-            "   --country \"GER\" \n"
-            "   --area \"TU\" \n"
-        )
-        exit(0)
 
     '''
     Genereate essential functions for Bayesian optimization
@@ -75,6 +65,7 @@ if __name__ == '__main__':
     # logger
     logger = CalibrationLogger(
         filename=args.filename, 
+        multi_beta_calibration=args.multi_beta_calibration,
         verbose=not args.not_verbose)
 
     # generate initial training data (either load or simulate)
@@ -143,9 +134,9 @@ if __name__ == '__main__':
             args=args)
             
         # concatenate observations
-        train_theta = torch.cat([train_theta, new_theta], dim=0) 
-        train_G = torch.cat([train_G, new_G], dim=0) 
-        train_G_sem = torch.cat([train_G_sem, new_G_sem], dim=0) 
+        train_theta = torch.cat([train_theta, new_theta.unsqueeze(0)], dim=0) 
+        train_G = torch.cat([train_G, new_G.unsqueeze(0)], dim=0)
+        train_G_sem = torch.cat([train_G_sem, new_G_sem.unsqueeze(0)], dim=0)
         
         # update progress
         train_G_objectives = objective(train_G)
@@ -191,6 +182,6 @@ if __name__ == '__main__':
     # scale back to simulation parameters (from unit cube parameters in BO)
     normalized_calibrated_params = train_theta[best_observed_idx]
     calibrated_params = unnormalize_theta(normalized_calibrated_params)
-    pprint.pprint(parr_to_pdict(calibrated_params))
+    pprint.pprint(parr_to_pdict(parr=calibrated_params, multi_beta_calibration=args.multi_beta_calibration))
 
 

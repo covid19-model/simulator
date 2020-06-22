@@ -6,7 +6,7 @@ import pickle, multiprocessing, copy
 import pandas as pd
 import numpy as np
 import botorch.utils.transforms as transforms
-from lib.inference import (
+from lib.calibrationFunctions import (
     pdict_to_parr, parr_to_pdict, save_state, load_state, 
     get_calibrated_params, gen_initial_seeds, get_test_capacity, downsample_cases)
 from lib.mobilitysim import MobilitySimulator
@@ -14,7 +14,7 @@ from lib.parallel import launch_parallel_simulations
 from lib.distributions import CovidDistributions
 from lib.data import collect_data_from_df
 from lib.measures import *
-from lib.calibration_settings import (calibration_lockdown_dates, calibration_testing_params)
+from lib.calibrationSettings import (calibration_lockdown_dates, calibration_testing_params)
 
 TO_HOURS = 24.0
 
@@ -36,7 +36,8 @@ def load_summary(filename):
 
 
 def run_experiment(country, area, mob_settings, start_date, end_date, random_repeats, measure_list, 
-                   test_update=None, seed_summary_path=None, return_mob=False, set_calibrated_params_to=None):
+                   test_update=None, seed_summary_path=None, return_mob=False, set_calibrated_params_to=None,
+                   multi_beta_calibration=False):
 
     '''
     Runs experiment for `country` and `area` from a `start_date` until an `end_date`
@@ -99,7 +100,24 @@ def run_experiment(country, area, mob_settings, start_date, end_date, random_rep
     measure_list = MeasureList(measure_list)
 
     # Load calibrated model parameters for this area
-    calibrated_params = set_calibrated_params_to or get_calibrated_params(country, area)
+    calibrated_params = set_calibrated_params_to or get_calibrated_params(
+        country=country, area=area, multi_beta_calibration=multi_beta_calibration)
+
+    if multi_beta_calibration:
+        betas = calibrated_params['betas']
+    else:
+        betas = {
+            'education': calibrated_params['beta_site'],
+            'social': calibrated_params['beta_site'],
+            'bus_stop': calibrated_params['beta_site'],
+            'office': calibrated_params['beta_site'],
+            'supermarket': calibrated_params['beta_site'],
+        }
+
+    model_params = {
+        'betas' : betas,
+        'beta_household': calibrated_params['beta_household'],
+    }
 
     # Set testing conditions
     scaled_test_capacity = get_test_capacity(country, area, mob, end_date_string=end_date)
@@ -115,7 +133,7 @@ def run_experiment(country, area, mob_settings, start_date, end_date, random_rep
         distributions=distributions,
         random_repeats=random_repeats,
         cpu_count=multiprocessing.cpu_count(),
-        params=calibrated_params,
+        params=model_params,
         initial_seeds=initial_seeds,
         testing_params=testing_params,
         measure_list=measure_list,

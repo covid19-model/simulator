@@ -33,10 +33,11 @@ from botorch.acquisition.objective import GenericMCObjective, ConstrainedMCObjec
 from botorch.gen import get_best_candidates, gen_candidates_torch
 from botorch.optim import gen_batch_initial_conditions
 
-from lib.inference_kg import qKnowledgeGradient, gen_one_shot_kg_initial_conditions
+from lib.kg import qKnowledgeGradient, gen_one_shot_kg_initial_conditions
 from lib.distributions import CovidDistributions
-from lib.calibration_settings import (
-    calibration_model_param_bounds, 
+from lib.calibrationSettings import (
+    calibration_model_param_bounds_single, 
+    calibration_model_param_bounds_multi, 
     calibration_testing_params,
     calibration_lockdown_dates,
     calibration_states,
@@ -69,25 +70,40 @@ class CalibrationLogger:
     def __init__(
         self,
         filename,
+        multi_beta_calibration,
         verbose
     ):
 
         self.dir = 'logs/'
         self.filename = filename
-        self.headers = [
-            'iter',
-            '    best obj',
-            ' current obj',
-            ' diff',
-            'b/educat',
-            'b/social',
-            'b/bus_st',
-            'b/office',
-            'b/superm',
-            'b/househ',
-            '  p_home',
-            'walltime',
-        ]
+        self.multi_beta_calibration = multi_beta_calibration
+
+        if multi_beta_calibration:
+            self.headers = [
+                'iter',
+                '    best obj',
+                ' current obj',
+                ' diff',
+                'b/educat',
+                'b/social',
+                'b/bus_st',
+                'b/office',
+                'b/superm',
+                'b/househ',
+                '  p_home',
+                'walltime',
+            ]
+        else:
+            self.headers = [
+                'iter',
+                '    best obj',
+                ' current obj',
+                ' diff',
+                '  b/site',
+                'b/househ',
+                '  p_home',
+                'walltime',
+            ]
 
         self.verbose = verbose
 
@@ -119,17 +135,27 @@ class CalibrationLogger:
         '''
         Writes lst to a .csv file
         '''
-        d = parr_to_pdict(theta)
+        d = parr_to_pdict(parr=theta, multi_beta_calibration=self.multi_beta_calibration)
         fields = [
             f"{i:4.0f}",
             f"{best:12.4f}",
             f"{objective:12.4f}",
             f"{case_diff:5.0f}",
-            f"{d['betas']['education']:8.4f}",
-            f"{d['betas']['social']:8.4f}",
-            f"{d['betas']['bus_stop']:8.4f}",
-            f"{d['betas']['office']:8.4f}",
-            f"{d['betas']['supermarket']:8.4f}",
+        ]
+        if self.multi_beta_calibration:
+            fields += [
+                f"{d['betas']['education']:8.4f}",
+                f"{d['betas']['social']:8.4f}",
+                f"{d['betas']['bus_stop']:8.4f}",
+                f"{d['betas']['office']:8.4f}",
+                f"{d['betas']['supermarket']:8.4f}",
+            ]
+        else:
+            fields += [
+                f"{d['beta_site']:8.4f}",
+            ]
+
+        fields += [
             f"{d['beta_household']:8.4f}",
             f"{d['p_stay_home']:8.4f}",
             f"{time/60.0:8.4f}",
@@ -164,8 +190,8 @@ def extract_seeds_from_summary(summary, t, real_cases):
         real_cases.shape[0] * TO_HOURS)
 
     # objectives per random restart
-    # squared error
-    objectives = (cumulative - real_cases.unsqueeze(0)).pow(2).sum(dim=-1).sum(dim=-1)
+    # squared error (in aggregate, i.e. summed over age group before computing squared difference)
+    objectives = (cumulative.sum(dim=-1) - real_cases.unsqueeze(0).sum(dim=-1)).pow(2).sum(dim=-1)
     best = objectives.argmin()
 
     # compute all states of best run at time t
@@ -210,45 +236,63 @@ def load_state(filename):
         obj = torch.load(fp)
     return obj
 
-def pdict_to_parr(d):
+def pdict_to_parr(*, pdict, multi_beta_calibration):
     """Convert parameter dict to BO parameter tensor"""
-    arr = torch.stack([
-        torch.tensor(d['betas']['education']),
-        torch.tensor(d['betas']['social']),
-        torch.tensor(d['betas']['bus_stop']),
-        torch.tensor(d['betas']['office']),
-        torch.tensor(d['betas']['supermarket']),
-        torch.tensor(d['beta_household']),
-        torch.tensor(d['p_stay_home']),
-    ])
-    return arr
+    if multi_beta_calibration:
+        parr = torch.stack([
+            torch.tensor(pdict['betas']['education']),
+            torch.tensor(pdict['betas']['social']),
+            torch.tensor(pdict['betas']['bus_stop']),
+            torch.tensor(pdict['betas']['office']),
+            torch.tensor(pdict['betas']['supermarket']),
+            torch.tensor(pdict['beta_household']),
+            torch.tensor(pdict['p_stay_home']),
+        ])
+    else:
+        parr = torch.stack([
+            torch.tensor(pdict['beta_site']),
+            torch.tensor(pdict['beta_household']),
+            torch.tensor(pdict['p_stay_home']),
+        ])
+    return parr
 
 
-def parr_to_pdict(arr):
+def parr_to_pdict(*, parr, multi_beta_calibration):
     """Convert BO parameter tensor to parameter dict"""
-    d = {
-        'betas': {
-            'education': arr[0].tolist(),
-            'social': arr[1].tolist(),
-            'bus_stop': arr[2].tolist(),
-            'office': arr[3].tolist(),
-            'supermarket': arr[4].tolist(),
-        },
-        'beta_household': arr[5].tolist(),
-        'p_stay_home': arr[6].tolist(),
-    }
-    return d
+    if multi_beta_calibration:
+        pdict = {
+            'betas': {
+                'education': parr[0].tolist(),
+                'social': parr[1].tolist(),
+                'bus_stop': parr[2].tolist(),
+                'office': parr[3].tolist(),
+                'supermarket': parr[4].tolist(),
+            },
+            'beta_household': parr[5].tolist(),
+            'p_stay_home': parr[6].tolist(),
+        }
+    else:
+        pdict = {
+            'beta_site': parr[0].tolist(),
+            'beta_household': parr[1].tolist(),
+            'p_stay_home': parr[2].tolist(),
+        }
+    return pdict
 
-def get_calibrated_params(country, area):
+def get_calibrated_params(*, country, area, multi_beta_calibration):
     '''Returns calibrated parameters for a `country` and an `area`'''
     state = load_state(calibration_states[country][area])
     theta = state['train_theta']
     best_observed_idx = state['best_observed_idx']
     norm_params = theta[best_observed_idx]
+    param_bounds = (
+        calibration_model_param_bounds_multi
+        if multi_beta_calibration else 
+        calibration_model_param_bounds_single)
     sim_bounds = pdict_to_parr(
-        calibration_model_param_bounds).T
+        pdict=param_bounds, multi_beta_calibration=multi_beta_calibration).T
     params = transforms.unnormalize(norm_params, sim_bounds)
-    param_dict = parr_to_pdict(params)
+    param_dict = parr_to_pdict(parr=params, multi_beta_calibration=multi_beta_calibration)
     return param_dict
 
 
@@ -373,9 +417,13 @@ def make_bayes_opt_functions(args):
     '''
     header = []
 
-    # set parameter bounds
-    param_bounds = calibration_model_param_bounds
-
+    # set parameter bounds based on calibration mode (single beta vs multiple beta)
+    multi_beta_calibration = args.multi_beta_calibration
+    if multi_beta_calibration:
+        param_bounds = calibration_model_param_bounds_multi
+    else:
+        param_bounds = calibration_model_param_bounds_single
+        
     # remember line executed
     header.append('=' * 100)
     header.append(datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
@@ -396,7 +444,7 @@ def make_bayes_opt_functions(args):
     use_households = not args.no_households
     data_start_date = args.start or calibration_start_dates[data_country][data_area]
     data_end_date = args.end or calibration_lockdown_dates[args.country]['end']
-    debug_simulation_days = args.endsimat
+    per_age_group_objective = args.per_age_group_objective
 
     # simulation settings
     n_init_samples = args.ninit
@@ -441,11 +489,11 @@ def make_bayes_opt_functions(args):
         exit(0)
 
     num_age_groups = sim_cases.shape[1]
-    header.append('Downsampling : ' + str(mob.downsample))
-    header.append('Town population: ' + str(mob.num_people))
-    header.append('Town population (unscaled): ' + str(mob.num_people_unscaled))
-    header.append('Region population : ' + str(mob.region_population))
-    header.append('Initial seed counts : ' + str(initial_seeds))
+    header.append('Downsampling :                    {}'.format(mob.downsample))
+    header.append('Simulation population:            {}'.format(mob.num_people))
+    header.append('Simulation population (unscaled): {}'.format(mob.num_people_unscaled))
+    header.append('Area population :                 {}'.format(mob.region_population))
+    header.append('Initial seed counts :             {}'.format(initial_seeds))
 
     # Set test capacity per day as (a) command line; or (b) maximum daily positive case increase over observed period
     if args.testingcap:
@@ -457,10 +505,6 @@ def make_bayes_opt_functions(args):
     test_lag_days = int(testing_params['test_reporting_lag'] / TO_HOURS)
     assert(int(testing_params['test_reporting_lag']) % 24 == 0)
 
-    # in debug mode, shorten time of simulation, shorten time
-    if debug_simulation_days:
-        sim_cases = sim_cases[:debug_simulation_days]
-
     # Maximum time fixed by real data, init mobility simulator simulation
     # maximum time to simulate, in hours
     max_time = int(sim_cases.shape[0] * TO_HOURS)
@@ -469,11 +513,11 @@ def make_bayes_opt_functions(args):
     mob.simulate(max_time=max_time, lazy_contacts=True)
 
     header.append(
-        'Target cases per age group at t=0:   ' + str(list(sim_cases[0].tolist())))
+        'Target cases per age group at t=0:   {} {}'.format(sim_cases[0].sum().item(), list(sim_cases[0].tolist())))
     header.append(
-        'Target cases per age group at t=T:   ' + str(list(sim_cases[-1].tolist())))
+        'Target cases per age group at t=T:   {} {}'.format(sim_cases[-1].sum().item(), list(sim_cases[-1].tolist())))
     header.append(
-        'Daily test capacity in sim.: ' + str(testing_params['tests_per_batch']))
+        'Daily test capacity in sim.:         {}'.format(testing_params['tests_per_batch']))
 
     # instantiate correct distributions
     distributions = CovidDistributions(country=args.country)
@@ -482,12 +526,15 @@ def make_bayes_opt_functions(args):
     n_days, n_age = sim_cases.shape
     G_obs = torch.tensor(sim_cases).reshape(n_days * n_age)  # flattened
 
-    sim_bounds = pdict_to_parr(param_bounds).T
+    sim_bounds = pdict_to_parr(
+        pdict=param_bounds, 
+        multi_beta_calibration=multi_beta_calibration
+    ).T
 
     n_params = sim_bounds.shape[1]
 
     header.append(f'Parameters : {n_params}')
-    header.append('Parameter bounds: ' + str(parr_to_pdict(sim_bounds.T)))
+    header.append('Parameter bounds: {}'.format(parr_to_pdict(parr=sim_bounds.T, multi_beta_calibration=multi_beta_calibration)))
 
     # extract lockdown period
     sim_start_date = pd.to_datetime(data_start_date)
@@ -506,7 +553,7 @@ def make_bayes_opt_functions(args):
     header.append(f'Lockdown   starts at : {lockdown_start_date}')
     header.append(f'             ends at : {lockdown_end_date}')
     header.append(f'Cases compared until : {pd.to_datetime(data_end_date)}')
-    header.append(f'            for days : {str(sim_cases.shape[0])}')
+    header.append(f'            for days : {sim_cases.shape[0]}')
     
     # create settings dictionary for simulations
     launch_kwargs = dict(
@@ -530,22 +577,32 @@ def make_bayes_opt_functions(args):
     '''
 
     G_obs = torch.tensor(sim_cases).reshape(1, n_days * n_age)
-    
-    def composite_squared_loss(G):
-        '''
-        Objective function
-        Note: in BO, objectives are maximized
-        '''
-        return - (G - G_obs).pow(2).sum(dim=-1)
+    G_obs_aggregate = torch.tensor(sim_cases).sum(dim=-1)
 
-    # select objective
+    '''
+    Objective function
+    Note: in BO and botorch, objectives are maximized
+    '''
+    if per_age_group_objective:
+        def composite_squared_loss(G):
+            return - (G - G_obs).pow(2).sum(dim=-1)
+
+    else:
+        def composite_squared_loss(G):
+            return - (G - G_obs_aggregate).pow(2).sum(dim=-1)
+
+
+    # select objective function
     objective = GenericMCObjective(composite_squared_loss)
 
     def case_diff(preds):
         '''
-        Computes case difference of predictions and ground truth at t=T
+        Computes aggregate case difference of predictions and ground truth at t=T
         '''
-        return preds.reshape(n_days, n_age)[-1].sum() - torch.tensor(sim_cases)[-1].sum()
+        if per_age_group_objective:
+            return preds[-1].sum(dim=-1) - G_obs_aggregate[-1]
+        else:
+            return preds[-1] - G_obs_aggregate[-1]
 
     def unnormalize_theta(theta):
         '''
@@ -563,12 +620,23 @@ def make_bayes_opt_functions(args):
         # un-normalize normalized params to obtain simulation parameters
         params = transforms.unnormalize(norm_params, sim_bounds)
 
-        # finalize settings based on parameters 
+        # finalize model parameters based on given parameters and calibration mode
         kwargs = copy.deepcopy(launch_kwargs)        
-        all_params = parr_to_pdict(params)
+        all_params = parr_to_pdict(parr=params, multi_beta_calibration=multi_beta_calibration)
+
+        if multi_beta_calibration:
+            betas = all_params['betas']
+        else:
+            betas = {
+                'education': all_params['beta_site'],
+                'social': all_params['beta_site'],
+                'bus_stop': all_params['beta_site'],
+                'office': all_params['beta_site'],
+                'supermarket': all_params['beta_site'],
+            }
 
         model_params = {
-            'betas' : all_params['betas'],
+            'betas' : betas,
             'beta_household' : all_params['beta_household'],
         }
 
@@ -605,11 +673,17 @@ def make_bayes_opt_functions(args):
 
         # (random_repeats, n_days)
         age_groups = torch.tensor(summary.people_age)
+
+        # (random_repeats, n_days, n_age_groups)
         posi_cumulative = convert_timings_to_cumulative_daily(
             timings=posi_started, age_groups=age_groups, time_horizon=n_days * TO_HOURS)
 
         if posi_cumulative.shape[0] <= 1:
             raise ValueError('Must run at least 2 random restarts per setting to get estimate of noise in observation.')
+        
+        # compute aggregate if not using objective per age-group
+        if not per_age_group_objective:
+            posi_cumulative = posi_cumulative.sum(dim=-1)
 
         # compute mean and standard error of means        
         G = torch.mean(posi_cumulative, dim=0)
@@ -619,8 +693,9 @@ def make_bayes_opt_functions(args):
         G_sem = torch.max(G_sem, MIN_NOISE)
 
         # flatten
-        G = G.reshape(1, n_days * n_age)
-        G_sem = G_sem.reshape(1, n_days * n_age)
+        if per_age_group_objective:
+            G = G.reshape(n_days * n_age)
+            G_sem = G_sem.reshape(n_days * n_age)
 
         return G, G_sem
 
@@ -641,11 +716,17 @@ def make_bayes_opt_functions(args):
         new_thetas = torch.tensor(
             sobol_seq.i4_sobol_generate(n_params, n), dtype=torch.float)
 
-        # simulator observations
-        # new_G, new_G_sem: [n, n_days * n_age] (flattened outputs)
-        new_G = torch.zeros((n, n_days * n_age), dtype=torch.float)
-        new_G_sem = torch.zeros((n, n_days * n_age), dtype=torch.float)
-
+        # instantiate simulator observation results
+        if per_age_group_objective:
+            # new_G, new_G_sem: [n, n_days * n_age] (flattened outputs)
+            new_G = torch.zeros((n, n_days * n_age), dtype=torch.float)
+            new_G_sem = torch.zeros((n, n_days * n_age), dtype=torch.float)
+        else:
+            # new_G, new_G_sem: [n, n_days]
+            new_G = torch.zeros((n, n_days), dtype=torch.float)
+            new_G_sem = torch.zeros((n, n_days), dtype=torch.float)
+        
+        # generate `n` initial random explorations
         for i in range(n):
 
             t0 = time.time()
@@ -660,10 +741,12 @@ def make_bayes_opt_functions(args):
             best_idx = G_objectives.argmax()
             best = G_objectives[best_idx].item()
             current = objective(G).item()
-            case_diff = (
-                G.reshape(n_days, n_age)[-1].sum()
-                - G_obs.reshape(n_days, n_age)[-1].sum())
 
+            if per_age_group_objective:
+                case_diff = G.reshape(n_days, n_age)[-1].sum() - G_obs_aggregate[-1]
+            else:
+                case_diff = G[-1] - G_obs_aggregate[-1]
+                
             t1 = time.time()
             logger.log(
                 i=i - n,
@@ -699,7 +782,8 @@ def make_bayes_opt_functions(args):
         train_ynoise = train_y_sem.pow(2.0) # noise is in variance units
         
         # standardize outputs to zero mean, unit variance to have good hyperparameter tuning
-        model = FixedNoiseGP(train_x, train_y, train_ynoise, outcome_transform=Standardize(m=n_days * n_age))
+        outcome_transform = Standardize(m=n_days * n_age if per_age_group_objective else n_days)
+        model = FixedNoiseGP(train_x, train_y, train_ynoise, outcome_transform=outcome_transform)
 
         # "Loss" for GPs - the marginal log likelihood
         mll = ExactMarginalLogLikelihood(model.likelihood, model)
@@ -739,10 +823,10 @@ def make_bayes_opt_functions(args):
         )
 
         # proposed evaluation
-        new_theta = candidates.detach()
+        new_theta = candidates.detach().squeeze()
 
         # observe new noisy function evaluation
-        new_G, new_G_sem = composite_simulation(new_theta.squeeze())
+        new_G, new_G_sem = composite_simulation(new_theta)
 
         return new_theta, new_G, new_G_sem
 

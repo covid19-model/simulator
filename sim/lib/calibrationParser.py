@@ -3,7 +3,7 @@ if '..' not in sys.path:
     sys.path.append('..')
 
 import argparse
-from lib.calibration_settings import *
+from lib.calibrationSettings import *
 
 
 def make_calibration_parser():
@@ -24,13 +24,17 @@ def make_calibration_parser():
         help="update default number of cpus used for parallel simulation rollouts")
     parser.add_argument("--load", 
         help="specify path to a BO state to be loaded as initial observations, e.g. 'logs/calibration_0_state.pk'")
+    parser.add_argument("--multi-beta-calibration", action="store_true",
+                        help="flag to calibrate an individual beta parameter for each site category/type")
+    parser.add_argument("--per-age-group-objective", action="store_true",
+                        help="flag to calibrate based on per age-group objective")
 
     # data
     parser.add_argument("--mob", 
         help="update path to mobility settings for trace generation")
-    parser.add_argument("--country", 
+    parser.add_argument("--country", required=True,
         help="specify country indicator for data import")
-    parser.add_argument("--area", 
+    parser.add_argument("--area",  required=True,
         help="specify area indicator for data import")
     parser.add_argument("--start",
         help="update starting date for which case data is retrieved "
@@ -44,8 +48,6 @@ def make_calibration_parser():
                         help="no households should be used for simulation")
     parser.add_argument("--no_lazy_contacts", action="store_true",
                         help="no lazy online computation of mobility traces (default is lazy)")
-    parser.add_argument("--endsimat", type=int,
-                        help="for debugging: specify number of days after which simulation should be cut off")
     parser.add_argument("--testingcap", type=int,
                         help="overwrite default unscaled testing capacity as provided by MobilitySimulator")
 
