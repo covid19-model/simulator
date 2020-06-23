@@ -825,7 +825,7 @@ class DiseaseModel(object):
 
             # sample event with maximum possible rate (in hours)
             lambda_max = max(self.betas.values()) * base_rate * Z
-            assert(lambda_max > 0.0) # this lamdba_max should never happen 
+            lambda_max = max(lambda_max, 1e-8) # lambda_max = 0 is invalid
             tau += TO_HOURS * np.random.exponential(scale=1.0 / lambda_max)
 
             # thinning step: compute current lambda(tau) and do rejection sampling

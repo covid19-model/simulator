@@ -19,7 +19,6 @@ from lib.experiment import run_experiment, save_summary, load_summary, get_calib
 from lib.calibrationSettings import (
     command_line_area_codes, 
     calibration_lockdown_dates,
-    calibration_model_param_bounds,
     calibration_mob_paths,
     calibration_start_dates,
     calibration_states,
@@ -28,7 +27,7 @@ from lib.calibrationSettings import (
 
 if __name__ == '__main__':
 
-    full_scale = True
+    full_scale = False
     dry_run = False
     plot = True
     multi_beta_calibration = False
@@ -162,12 +161,24 @@ if __name__ == '__main__':
                 print()
 
                 if not dry_run:
-                    # run simulations
-                    model_params = {
-                        'betas' : calibrated_params['betas'],
-                        'beta_household' : calibrated_params['beta_household'],
-                    }
+                    # Pick calibrated model parameters based on calibration mode
+                    if multi_beta_calibration:
+                        betas = calibrated_params['betas']
+                    else:
+                        betas = {
+                            'education': calibrated_params['beta_site'],
+                            'social': calibrated_params['beta_site'],
+                            'bus_stop': calibrated_params['beta_site'],
+                            'office': calibrated_params['beta_site'],
+                            'supermarket': calibrated_params['beta_site'],
+                        }
 
+                    model_params = {
+                        'betas' : betas,
+                        'beta_household': calibrated_params['beta_household'],
+                    }
+                    
+                    # run simulations
                     summary = launch_parallel_simulations(
                         mob_settings=mob_settings, 
                         distributions=distributions, 
