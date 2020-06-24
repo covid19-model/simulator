@@ -35,6 +35,8 @@ from bayes_opt import BayesianOptimization
 from lib.parallel import *
 from lib.distributions import CovidDistributions
 from lib.plot import Plotter
+from botorch.sampling.samplers import SobolQMCNormalSampler, IIDNormalSampler
+
 
 from lib.mobilitysim import MobilitySimulator
 from lib.calibrationParser import make_calibration_parser
@@ -126,6 +128,11 @@ if __name__ == '__main__':
             model=model,
             objective=objective,
             num_fantasies=args.acqf_opt_num_fantasies,
+            inner_sampler=SobolQMCNormalSampler(
+                num_samples=512, resample=False, collapse_batch_dims=True 
+                # default internally was num_samples=128, increased for higher
+                # accuracy in objective evaluation
+            )
         )
         
         # optimize acquisition and get new observation via simulation at selected parameters

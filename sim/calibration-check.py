@@ -110,16 +110,14 @@ if __name__ == '__main__':
                 unscaled_area_cases = collect_data_from_df(country=country, area=area, datatype='new',
                     start_date_string=start_date_calibration, end_date_string=end_date_calibration)
 
-                sim_cases, unscaled_sim_cases = downsample_cases(unscaled_area_cases, mob)
+                sim_cases = downsample_cases(unscaled_area_cases, mob)
 
                 # distributions
                 distributions = CovidDistributions(country=country)
 
                 # seeds
                 initial_seeds = gen_initial_seeds(
-                    unscaled_sim_cases, 
-                    downsampling=mob.downsample,
-                    day=0)
+                    sim_cases, day=0)
 
                 # calibrated parameters
                 calibrated_params = get_calibrated_params(
@@ -127,13 +125,9 @@ if __name__ == '__main__':
 
                 print(country, area, f'{mob.downsample}x', ' Days: ', sim_days,
                       '  Start: ', start_date_calibration, '  End: ', end_date_calibration)
-                print('Start cases: Scaled : ', sim_cases[0].sum(), sim_cases[0], 'Unscaled : ' , unscaled_sim_cases[0].sum(), unscaled_sim_cases[0])
-                print('End cases:   Scaled : ',  sim_cases[-1].sum(), sim_cases[-1], 'Unscaled : ' , unscaled_sim_cases[-1].sum(), unscaled_sim_cases[-1])
-                print('Scaled seeds:  ', initial_seeds)
-                print('Unscaled seeds:',  gen_initial_seeds(
-                    unscaled_sim_cases, 
-                    downsampling=1,
-                    day=0))
+                print('Start cases: ', sim_cases[0].sum(), sim_cases[0])
+                print('End cases  : ',  sim_cases[-1].sum(), sim_cases[-1])
+                print('Seeds:  ', initial_seeds)
 
                 print(headerstr)
                 print(params_to_strg(calibrated_params))
@@ -156,8 +150,7 @@ if __name__ == '__main__':
 
                 # testing
                 testing_params = standard_testing(max_time, sim_cases)
-                print('Test capacity: Scaled: ', testing_params['tests_per_batch'], 
-                    ' Unscaled: ', standard_testing(max_time, unscaled_sim_cases)['tests_per_batch'])
+                print('Test capacity: ', testing_params['tests_per_batch'])
                 print()
 
                 if not dry_run:
@@ -249,7 +242,7 @@ if __name__ == '__main__':
                     unscaled_area_cases = collect_data_from_df(country=country, area=area, datatype='new',
                         start_date_string=start_date_calibration, end_date_string=end_date_calibration)
 
-                    sim_cases, unscaled_sim_cases = downsample_cases(unscaled_area_cases, mob)
+                    sim_cases = downsample_cases(unscaled_area_cases, mob)
 
                     appdx = 'full' if full_scale else 'downscaled'
                     loadstr = 'summary-calib--{}-{}--{}.pk'.format(country, area, appdx)

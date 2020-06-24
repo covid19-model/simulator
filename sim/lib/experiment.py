@@ -61,7 +61,7 @@ def run_experiment(country, area, mob_settings, start_date, end_date, random_rep
     assert(len(unscaled_area_cases.shape) == 2)
 
     # Scale down cases based on number of people in town, region, and downsampling
-    sim_cases, unscaled_sim_cases = downsample_cases(unscaled_area_cases, mob)
+    sim_cases = downsample_cases(unscaled_area_cases, mob)
 
     # Get initial seeds for simulation
     # (a) Define heuristically based on true cases and literature distribution estimates
@@ -69,9 +69,7 @@ def run_experiment(country, area, mob_settings, start_date, end_date, random_rep
 
         # Generate initial seeds based on unscaled case numbers in town
         initial_seeds = gen_initial_seeds(
-            unscaled_sim_cases,
-            downsampling=mob.downsample,
-            day=0)
+            sim_cases, day=0)
 
         if sum(initial_seeds.values()) == 0:
             print('No states seeded at start time; cannot start simulation.\n'

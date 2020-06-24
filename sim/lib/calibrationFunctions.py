@@ -298,25 +298,20 @@ def get_calibrated_params(*, country, area, multi_beta_calibration):
 
 def downsample_cases(unscaled_area_cases, mob):
     """
-    Generates downsampled case counts based on town, area, and downsampling 
-    factor provided by `mob` for a given 2d `cases` array.
-    
+    Generates downsampled case counts based on town and area for a given 2d `cases` array.
     Scaled case count in age group a at time t is
 
-    scaled[t, a] = cases-area[t, a] * (town population / (downsampling factor * area population))
+    scaled[t, a] = cases-area[t, a] * (town population / area population)
 
     """
 
     unscaled_sim_cases = np.round(unscaled_area_cases * \
         (mob.num_people_unscaled / mob.region_population))
-
-    # use the rounded version here, to be consistent accross scaling within a town 
-    sim_cases = unscaled_sim_cases / mob.downsample
     
-    return sim_cases, unscaled_sim_cases
+    return unscaled_sim_cases
 
 
-def gen_initial_seeds(unscaled_new_cases, downsampling, day=0):
+def gen_initial_seeds(unscaled_new_cases, day=0):
     """
     Generates initial seed counts based on unscaled case counts `unscaled_new_cases`.
     The 2d np.array `unscaled_new_cases` has to have shape (num_days, num_age_groups). 
@@ -327,8 +322,6 @@ def gen_initial_seeds(unscaled_new_cases, downsampling, day=0):
     - Following literature on R0, set `expo` = R0 * (`isym` + `iasy`)
     - Recovered cases are also considered
     - All other seeds are omitted
-
-    Scaled according to `downsampling` afterwards.
     """
 
     num_days, num_age_groups = unscaled_new_cases.shape
@@ -341,9 +334,9 @@ def gen_initial_seeds(unscaled_new_cases, downsampling, day=0):
     expo = dists.R0 * (isym + iasy)
 
     seed_counts = {
-        'expo': int(np.round(expo / downsampling).item()),
-        'isym_posi': int(np.round(isym / downsampling).item()),
-        'iasy': int(np.round(iasy / downsampling).item()),
+        'expo': int(np.round(expo).item()),
+        'isym_posi': int(np.round(isym).item()),
+        'iasy': int(np.round(iasy).item()),
     }
     return seed_counts
 
@@ -359,7 +352,7 @@ def get_test_capacity(country, area, mob, end_date_string='2021-01-01'):
         country=country, area=area, datatype='new',
         start_date_string='2020-01-01', end_date_string=end_date_string)
 
-    sim_cases, _ = downsample_cases(unscaled_area_cases, mob)
+    sim_cases = downsample_cases(unscaled_area_cases, mob)
 
     daily_increase = sim_cases.sum(axis=1)[1:] - sim_cases.sum(axis=1)[:-1]
     test_capacity = int(np.round(daily_increase.max()))
@@ -474,14 +467,12 @@ def make_bayes_opt_functions(args):
                                                start_date_string=data_start_date, end_date_string=data_end_date)
     assert(len(unscaled_area_cases.shape) == 2)
 
-    # Scale down cases based on number of people in town, region, and downsampling
-    sim_cases, unscaled_sim_cases = downsample_cases(unscaled_area_cases, mob)
+    # Scale down cases based on number of people in town and region
+    sim_cases = downsample_cases(unscaled_area_cases, mob)
 
     # Generate initial seeds based on unscaled case numbers in town
     initial_seeds = gen_initial_seeds(
-        unscaled_sim_cases,
-        downsampling=mob.downsample,
-        day=0)
+        sim_cases, day=0)
 
     if sum(initial_seeds.values()) == 0:
         print('No states seeded at start time; cannot start simulation.\n'
@@ -524,8 +515,7 @@ def make_bayes_opt_functions(args):
 
     # set Bayesian optimization target as positive cases
     n_days, n_age = sim_cases.shape
-    G_obs = torch.tensor(sim_cases).reshape(n_days * n_age)  # flattened
-
+    
     sim_bounds = pdict_to_parr(
         pdict=param_bounds, 
         multi_beta_calibration=multi_beta_calibration
