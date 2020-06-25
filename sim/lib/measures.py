@@ -403,21 +403,21 @@ class SocialDistancingForSmartTracing(Measure):
         # Sample the outcome of the measure for each visit of each individual
         self.bernoulli_stay_home = np.random.binomial(
             1, self.p_stay_home, size=(n_people, n_visits))
-        self.time_stay_home = -np.inf * np.ones((n_people), dtype='float')
-        self.intervals_stay_home = list()
+        self.intervals_stay_home = [InterLap() for _ in range(n_people)]
         self._is_init = True
         
     @enforce_init_run
     def is_contained(self, *, j, j_visit_id, t):
         """Indicate if individual `j` respects measure for visit `j_visit_id`
         """
-        is_home_now = self.bernoulli_stay_home[j, j_visit_id] and (t < self.time_stay_home[j])
-        return is_home_now and self._in_window(t)
-    
+        if self._in_window(t) and self.bernoulli_stay_home[j, j_visit_id]:
+            for interval in self.intervals_stay_home[j].find((t, t)):
+                return True
+        return False
+
     @enforce_init_run
     def start_containment(self, *, j, t):
-        self.time_stay_home[j] = t + self.test_smart_duration
-        self.intervals_stay_home.append((j, t))
+        self.intervals_stay_home[j].update([(t, t + self.test_smart_duration)])
         return
     
     @enforce_init_run
@@ -425,9 +425,8 @@ class SocialDistancingForSmartTracing(Measure):
         """Returns probability of containment for individual `j` at time `t`
         """
         if self._in_window(t):
-            for interval in self.intervals_stay_home:
-                if interval[0] == j and t >= interval[1] and t <= interval[1] + self.test_smart_duration:
-                    return self.p_stay_home
+            for interval in self.intervals_stay_home[j].find((t, t)):
+                return self.p_stay_home
         return 0.0
 
 
@@ -687,7 +686,7 @@ class MeasureList:
         # not necessarily related to containment
         if m is not None:  
             return m.is_compliant(t=t, **kwargs)
-        return False  # No active compliance measure
+        return True  # No active compliance measure
     
     def start_containment(self, measure_type, t, **kwargs):
         m = self.find(measure_type, t)
