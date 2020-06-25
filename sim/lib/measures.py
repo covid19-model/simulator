@@ -209,13 +209,14 @@ class SocialDistancingPerStateMeasure(SocialDistancingForAllMeasure):
         """
         is_home_now = self.bernoulli_stay_home[j, j_visit_id]
         # only isolate at home while at state `state`
-        return is_home_now and state_dict[state_label][j] and self._in_window(t)
+        return is_home_now and state_dict[self.state_label][j] and self._in_window(t)
     
     @enforce_init_run
     def is_contained_prob(self, *, j, t, state_started_at_dict, state_ended_at_dict):
         """Returns probability of containment for individual `j` at time `t`
         """
-        if (self._in_window(t) and t >= state_started_at_dict[state_label][j] and t<=state_ended_at_dict[state_label][j]):
+        if self._in_window(t) and state_started_at_dict[self.state_label][j] <= t <= \
+                state_ended_at_dict[self.state_label][j]:
             return self.p_stay_home
         return 0.0
 
@@ -313,7 +314,7 @@ class SocialDistancingForPositiveMeasureHousehold(Measure):
         if (self._in_window(t) and 
             t >= state_posi_started_at[j] and t <= state_posi_ended_at[j] and # positive
             t < state_resi_started_at[j] and t < state_dead_started_at[j]): # not resistant or dead
-            return p_isolate
+            return self.p_isolate
         return 0.0
             
             
