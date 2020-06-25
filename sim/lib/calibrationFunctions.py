@@ -575,11 +575,11 @@ def make_bayes_opt_functions(args):
     '''
     if per_age_group_objective:
         def composite_squared_loss(G):
-            return - (G - G_obs).pow(2).sum(dim=-1)
+            return - (G - G_obs).pow(2).sum(dim=-1) / n_days
 
     else:
         def composite_squared_loss(G):
-            return - (G - G_obs_aggregate).pow(2).sum(dim=-1)
+            return - (G - G_obs_aggregate).pow(2).sum(dim=-1) / n_days
 
 
     # select objective function
