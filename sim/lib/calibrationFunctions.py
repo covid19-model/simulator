@@ -296,7 +296,7 @@ def get_calibrated_params(*, country, area, multi_beta_calibration):
     return param_dict
 
 
-def downsample_cases(unscaled_area_cases, mob):
+def downsample_cases(unscaled_area_cases, mob_settings):
     """
     Generates downsampled case counts based on town and area for a given 2d `cases` array.
     Scaled case count in age group a at time t is
@@ -306,7 +306,7 @@ def downsample_cases(unscaled_area_cases, mob):
     """
 
     unscaled_sim_cases = np.round(unscaled_area_cases * \
-        (mob.num_people_unscaled / mob.region_population))
+        (mob_settings['num_people_unscaled'] / mob_settings['region_population']))
     
     return unscaled_sim_cases
 
@@ -341,7 +341,7 @@ def gen_initial_seeds(unscaled_new_cases, day=0):
     return seed_counts
 
 
-def get_test_capacity(country, area, mob, end_date_string='2021-01-01'):
+def get_test_capacity(country, area, mob_settings, end_date_string='2021-01-01'):
     '''
     Computes heuristic test capacity in `country` and `area` based
     on true case data by determining the maximum daily increase
@@ -352,7 +352,7 @@ def get_test_capacity(country, area, mob, end_date_string='2021-01-01'):
         country=country, area=area, datatype='new',
         start_date_string='2020-01-01', end_date_string=end_date_string)
 
-    sim_cases = downsample_cases(unscaled_area_cases, mob)
+    sim_cases = downsample_cases(unscaled_area_cases, mob_settings)
 
     daily_increase = sim_cases.sum(axis=1)[1:] - sim_cases.sum(axis=1)[:-1]
     test_capacity = int(np.round(daily_increase.max()))
@@ -429,8 +429,8 @@ def make_bayes_opt_functions(args):
 
     # initialize mobility object to obtain information (no trace generation yet)
     with open(mob_settings, 'rb') as fp:
-        kwargs = pickle.load(fp)
-    mob = MobilitySimulator(**kwargs)
+        mob_kwargs = pickle.load(fp)
+    mob = MobilitySimulator(**mob_kwargs)
     
     # data settings
     verbose = not args.not_verbose
@@ -468,7 +468,7 @@ def make_bayes_opt_functions(args):
     assert(len(unscaled_area_cases.shape) == 2)
 
     # Scale down cases based on number of people in town and region
-    sim_cases = downsample_cases(unscaled_area_cases, mob)
+    sim_cases = downsample_cases(unscaled_area_cases, mob_kwargs)
 
     # Generate initial seeds based on unscaled case numbers in town
     initial_seeds = gen_initial_seeds(
@@ -486,12 +486,11 @@ def make_bayes_opt_functions(args):
     header.append('Area population :                 {}'.format(mob.region_population))
     header.append('Initial seed counts :             {}'.format(initial_seeds))
 
-    # Set test capacity per day as (a) command line; or (b) maximum daily positive case increase over observed period
-    if args.testingcap:
-        testing_params['tests_per_batch'] = (args.testingcap / mob.num_people_unscaled)
-    else:
-        scaled_test_capacity = get_test_capacity(country=data_country, area=data_area, mob=mob, end_date_string=data_end_date)
-        testing_params['tests_per_batch'] = scaled_test_capacity
+    scaled_test_capacity = get_test_capacity(
+        country=data_country, area=data_area, 
+        mob_settings=mob_kwargs, end_date_string=data_end_date)
+
+    testing_params['tests_per_batch'] = scaled_test_capacity
 
     test_lag_days = int(testing_params['test_reporting_lag'] / TO_HOURS)
     assert(int(testing_params['test_reporting_lag']) % 24 == 0)

@@ -15,8 +15,8 @@ calibration_data = {
 
 calibration_simulation = {
     'n_init_samples': 20,  # initial random evaluations
-    'n_iterations': 500,  # iterations of BO
-    'simulation_roll_outs': 40, # roll-outs done in parallel per parameter setting
+    'n_iterations': 80,  # iterations of BO
+    'simulation_roll_outs': 96, # roll-outs done in parallel per parameter setting
     'cpu_count':  multiprocessing.cpu_count(), # cpus used for parallel computation
     'lazy_contacts' : True,
 }
