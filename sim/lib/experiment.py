@@ -176,7 +176,7 @@ class Experiment(object):
         country,
         area,        
         measure_list,
-        full_scale,
+        full_scale=True,
         test_update=None,
         seed_summary_path=None,
         set_calibrated_params_to=None,

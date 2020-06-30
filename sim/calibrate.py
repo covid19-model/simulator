@@ -69,55 +69,35 @@ if __name__ == '__main__':
         filename=args.filename, 
         multi_beta_calibration=args.multi_beta_calibration,
         verbose=not args.not_verbose)
+    logger.log_initial_lines(header)
 
-    # generate initial training data (either load or simulate)
+    # if specified, load initial training data
     if args.load:
 
         # load initial observations 
         state = load_state(args.load)
-        train_theta = state['train_theta']
-        train_G = state['train_G']
-        train_G_sem = state['train_G_sem']
-        best_observed_obj = state['best_observed_obj']
-        best_observed_idx = state['best_observed_idx']
+        loaded_theta = state['train_theta']
+        loaded_G = state['train_G']
+        loaded_G_sem = state['train_G_sem']
+        n_loaded = state['train_theta'].shape[0]
 
-        header.append('')
-        header.append('Loaded initial observations from: ' + args.load)
-        header.append(f'Observations: {train_theta.shape[0]}, Best objective: {best_observed_obj}')
-        
-        # write header and best prior observations
-        logger.log_initial_lines(header)
-        for i in range(train_theta.shape[0]):
-            loaded_train_G_objectives = objective(train_G[:i+1])
-            loaded_best_observed_obj = loaded_train_G_objectives[
-                loaded_train_G_objectives.argmax()].item()
-            logger.log(
-                i=i - train_theta.shape[0],
-                time=0.0,
-                best=loaded_best_observed_obj,
-                case_diff=case_diff(train_G[i]),
-                objective=objective(train_G[i]).item(),
-                theta=unnormalize_theta(train_theta[i].squeeze())
-            )
-
-    else:
-        
-        # write header
-        logger.log_initial_lines(header)
-
-        # generate initial training data
+        # if any initialization remains to be done, evaluate remaining initial points
         train_theta, train_G, train_G_sem, best_observed_obj, best_observed_idx = generate_initial_observations(
-            n=args.ninit, logger=logger)
+            n=args.ninit, logger=logger, loaded_init_theta=loaded_theta, loaded_init_G=loaded_G, loaded_init_G_sem=loaded_G_sem)
+        n_bo_iters_loaded = max(n_loaded - args.ninit, 0)
+
+    # else, if not specified, generate initial training data
+    else:
+        train_theta, train_G, train_G_sem, best_observed_obj, best_observed_idx = generate_initial_observations(
+            n=args.ninit, logger=logger, loaded_init_theta=None, loaded_init_G=None, loaded_init_G_sem=None)
+        n_bo_iters_loaded = 0
 
     # init model based on initial observations
     mll, model = initialize_model(train_theta, train_G, train_G_sem)
 
-    best_observed = []
-    best_observed.append(best_observed_obj)
-
     # run n_iterations rounds of Bayesian optimization after the initial random batch
-    for tt in range(args.niters):
-        
+    for tt in range(n_bo_iters_loaded, args.niters):
+
         t0 = time.time()
 
         # fit the GP model
@@ -149,7 +129,6 @@ if __name__ == '__main__':
         train_G_objectives = objective(train_G)
         best_observed_idx = train_G_objectives.argmax()
         best_observed_obj = train_G_objectives[best_observed_idx].item()
-        best_observed.append(best_observed_obj)
         
         # re-initialize the models so they are ready for fitting on next iteration
         mll, model = initialize_model(
@@ -158,12 +137,12 @@ if __name__ == '__main__':
             train_G_sem,
         )
 
-        t1 = time.time()
+        walltime = time.time() - t0
         
         # log
         logger.log(
             i=tt,
-            time=t1 - t0,
+            time=walltime,
             best=best_observed_obj,
             case_diff=case_diff(new_G),
             objective=objective(new_G).item(),

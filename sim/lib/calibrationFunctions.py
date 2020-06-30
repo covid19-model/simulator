@@ -688,42 +688,79 @@ def make_bayes_opt_functions(args):
 
         return G, G_sem
 
-
-    def generate_initial_observations(n, logger):
+    def generate_initial_observations(n, logger, loaded_init_theta=None, loaded_init_G=None, loaded_init_G_sem=None):
         """
         Takes an integer `n` and generates `n` initial observations
         from the black box function using Sobol random parameter settings
-        in the unit cube. Returns parameter setting and black box function outputs
+        in the unit cube. Returns parameter setting and black box function outputs.
+        If `loaded_init_theta/G/G_sem` are specified, initialization is loaded (possibly partially, in which
+        case the initialization using the Sobol random sequence is continued where left off).
         """
 
         if n <= 0:
             raise ValueError(
                 'qKnowledgeGradient and GP needs at least one observation to be defined properly.')
 
-        # sobol sequence
+        # sobol sequence proposal points
         # new_thetas: [n, n_params]
         new_thetas = torch.tensor(
             sobol_seq.i4_sobol_generate(n_params, n), dtype=torch.float)
 
-        # instantiate simulator observation results
-        if per_age_group_objective:
-            # new_G, new_G_sem: [n, n_days * n_age] (flattened outputs)
-            new_G = torch.zeros((n, n_days * n_age), dtype=torch.float)
-            new_G_sem = torch.zeros((n, n_days * n_age), dtype=torch.float)
+        # check whether initial observations are loaded
+        loaded = (loaded_init_theta is not None
+              and loaded_init_G is not None 
+              and loaded_init_G_sem is not None)
+        if loaded:
+            n_loaded = loaded_init_theta.shape[0] # loaded no. of observations total
+            n_loaded_init = min(n_loaded, n)      # loaded no. of quasi-random initialization observations
+            n_init = max(n_loaded, n)             # final no. of observations returned, at least quasi-random initializations
+
+            # check whether loaded proposal points are same as without loading observations
+            try:
+                assert(np.allclose(loaded_init_theta[:n_loaded_init], new_thetas[:n_loaded_init]))
+            except AssertionError:
+                print(
+                    '\n\n\n===> Warning: parameters of loaded inital observations '
+                    'do not coincide with initialization that would have been done. '
+                    'Double check simulation, ninit, and parameter bounds, which could change '
+                    'the initial random Sobol sequence. \nThe loaded parameter settings are used. \n\n\n'
+                )
+            
+            if n_init > n:
+                new_thetas = loaded_init_theta # size of tensor increased to `n_init`, as more than Sobol init points loaded
+
         else:
-            # new_G, new_G_sem: [n, n_days]
-            new_G = torch.zeros((n, n_days), dtype=torch.float)
-            new_G_sem = torch.zeros((n, n_days), dtype=torch.float)
-        
-        # generate `n` initial random explorations
-        for i in range(n):
+            n_loaded = 0       # loaded no. of observations total
+            n_loaded_init = 0  # loaded no. of quasi-random initialization observations
+            n_init = n         # final no. of observations returned, at least quasi-random initializations
 
-            t0 = time.time()
+        # instantiate simulator observation tensors
+        if per_age_group_objective:
+            # new_G, new_G_sem: [n_init, n_days * n_age] (flattened outputs)
+            new_G = torch.zeros((n_init, n_days * n_age), dtype=torch.float)
+            new_G_sem = torch.zeros((n_init, n_days * n_age), dtype=torch.float)
+        else:
+            # new_G, new_G_sem: [n_init, n_days]
+            new_G = torch.zeros((n_init, n_days), dtype=torch.float)
+            new_G_sem = torch.zeros((n_init, n_days), dtype=torch.float)
 
-            # get mean and standard error of mean (sem) of every simulation output
-            G, G_sem = composite_simulation(new_thetas[i, :])
-            new_G[i, :] = G
-            new_G_sem[i, :] = G_sem
+        # generate `n` initial evaluations at quasi random settings; if applicable, skip and load expensive evaluation result
+        for i in range(n_init):
+            
+            # if loaded, use initial observation for this parameter settings
+            if loaded and i <= n_loaded - 1:
+                new_thetas[i] = loaded_init_theta[i]
+                G, G_sem = loaded_init_G[i], loaded_init_G_sem[i]
+                walltime = 0.0
+
+            # if not loaded, evaluate as usual
+            else:
+                t0 = time.time()
+                G, G_sem = composite_simulation(new_thetas[i])
+                walltime = time.time() - t0
+
+            new_G[i] = G
+            new_G_sem[i] = G_sem
 
             # log
             G_objectives = objective(new_G[:i+1])
@@ -735,11 +772,10 @@ def make_bayes_opt_functions(args):
                 case_diff = G.reshape(n_days, n_age)[-1].sum() - G_obs_aggregate[-1]
             else:
                 case_diff = G[-1] - G_obs_aggregate[-1]
-                
-            t1 = time.time()
+            
             logger.log(
                 i=i - n,
-                time=t1 - t0,
+                time=walltime,
                 best=best,
                 objective=current,
                 case_diff=case_diff,
