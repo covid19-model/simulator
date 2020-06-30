@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 from collections import namedtuple, defaultdict
 import botorch.utils.transforms as transforms
+import argparse
 from lib.calibrationFunctions import (
     pdict_to_parr, parr_to_pdict, save_state, load_state, 
     get_calibrated_params, gen_initial_seeds, get_test_capacity, downsample_cases)
@@ -16,6 +17,8 @@ from lib.distributions import CovidDistributions
 from lib.data import collect_data_from_df
 from lib.measures import *
 from lib.calibrationSettings import (
+    calibration_lockdown_dates, 
+    calibration_states,
     calibration_lockdown_dates, 
     calibration_testing_params, 
     calibration_lockdown_beta_multipliers,
@@ -102,6 +105,30 @@ def load_summary_list(paths):
 def options_to_str(**options):
         return '-'.join(['{}={}'.format(k, v) for k, v in options.items()])
 
+def process_command_line():
+    '''Returns command line parser for experiment configuration'''
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--country", required=True,
+                        help="specify country indicator for experiment")
+    parser.add_argument("--area",  required=True,
+                        help="specify area indicator for experiment")
+
+    args = parser.parse_args()
+    country = args.country
+    area = args.area
+
+    # check calibration state
+    try:
+        calibration_state_strg = calibration_states[country][area]
+        if not os.path.isfile(calibration_states[country][area]):
+            raise FileNotFoundError
+    except KeyError or FileNotFoundError:
+        print(f'{country}-{area} calibration not found.')
+        exit(1)
+
+    return args
+
 
 """Experiment class for structured experimentation with simulations"""
 
@@ -168,7 +195,7 @@ class Experiment(object):
         days_until_lockdown_start = (lockdown_start_date - pd.to_datetime(self.start_date)).days
         days_until_lockdown_end = (lockdown_end_date - pd.to_datetime(self.start_date)).days
 
-        # Load mob settings
+        # Load mob settings        
         mob_settings_file = calibration_mob_paths[country][area][1 if full_scale else 0]
         with open(mob_settings_file, 'rb') as fp:
             mob_settings = pickle.load(fp)
@@ -291,7 +318,7 @@ class Experiment(object):
         ))
 
         if self.verbose:
-            print(f'Added {self.get_sim_path(self.sims[-1])}')
+            print(f'[Added Sim] {self.get_sim_path(self.sims[-1])}')
 
 
     def run_all(self):
@@ -330,9 +357,8 @@ class Experiment(object):
                 verbose=False)
 
             self.save_run(sim, summary)
-                 
-            if self.verbose:
-                print('Finished ' + self.get_sim_path(sim))
 
-            
+            if self.verbose:
+                print(f'[Finished Sim] {self.get_sim_path(sim)}')
+
             
