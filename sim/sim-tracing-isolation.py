@@ -19,11 +19,18 @@ if __name__ == '__main__':
 
     name = 'tracing-isolation'
     end_date = '2020-07-31'
-    random_repeats = 6
-    full_scale = False
-    seed_summary_path = None
+    random_repeats = 96
+    full_scale = True
     dry_run = False
     verbose = True
+    seed_summary_path = None
+    set_initial_seeds_to = None
+
+    # debug mode
+    full_scale = False
+    end_date = '2020-06-30'
+    random_repeats = 8
+    set_initial_seeds_to = {'expo' : 5}
 
     # seed
     c = 0
@@ -31,9 +38,13 @@ if __name__ == '__main__':
     rd.seed(0)
 
     # experiment parameters
-    isolated_days = [7, 14] # how many days selected people have to stay in isolation
-    contacts_isolated = [10, 25] # how many contacts are isolated in the `test_smart_delta` window
-    policies = ['basic', 'advanced'] # contact tracing policies
+    # isolated_days = [7, 14] # how many days selected people have to stay in isolation
+    # contacts_isolated = [10, 25] # how many contacts are isolated in the `test_smart_delta` window
+    # policies = ['basic', 'advanced'] # contact tracing policies
+
+    isolated_days = [14]
+    contacts_isolated = [25]
+    policies = ['basic'] 
     
     # configure the experiment for each country
     for country, areas in calibration_mob_paths.items():
@@ -47,29 +58,25 @@ if __name__ == '__main__':
             # start simulation when lockdown ends
             start_date = calibration_lockdown_dates[country]['end']
 
-            # load social distancing parameter
-            p_stay_home = get_calibrated_params(country=country, area=area,
-                                                multi_beta_calibration=False)['p_stay_home']
-
             # create experiment object
-            exp_name = f'{name}-{country}-{area}'
-    
+            experiment_info = f'{name}-{country}-{area}'
             experiment = Experiment(
-                name=exp_name,
+                experiment_info=experiment_info,
                 start_date=start_date,
                 end_date=end_date,
                 random_repeats=random_repeats,
                 full_scale=full_scale,
                 verbose=verbose,
             )
-            
+
             # baseline
             experiment.add(
-                description='baseline',
+                simulation_info='baseline',
                 country=country,
                 area=area,
                 measure_list=[],
                 seed_summary_path=seed_summary_path,
+                set_initial_seeds_to=set_initial_seeds_to,
                 full_scale=full_scale)
         
             # contact tracing experiment for various options
@@ -80,13 +87,18 @@ if __name__ == '__main__':
                         # measures
                         max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
                         
-                        m = [SocialDistancingForSmartTracing(
+                        m = [
+                            SocialDistancingForSmartTracing(
                                 t_window=Interval(0.0, TO_HOURS * max_days), 
                                 p_stay_home=1.0, 
-                            test_smart_duration=TO_HOURS * isolate_days)
+                                test_smart_duration=TO_HOURS * isolate_days),
+                            SocialDistancingForSmartTracingHousehold(
+                                t_window=Interval(0.0, TO_HOURS * max_days),
+                                p_isolate=1.0,
+                                test_smart_duration=TO_HOURS * isolate_days),
                         ]
 
-                        # update testing params
+                        # set testing params via update function of standard testing parameters
                         def test_update(d):
                             d['test_smart_delta'] =  3 * TO_HOURS # 3 day time window considered for inspecting contacts
                             d['test_smart_action'] = 'isolate' # isolate traced individuals
@@ -95,22 +107,23 @@ if __name__ == '__main__':
                             d['test_smart_num_contacts'] = contacts
                             return d
 
-                        sim_descr = options_to_str(
+                        simulation_info = options_to_str(
                             isolate_days=isolate_days, 
                             contacts=contacts, 
                             policy=policy)
                             
                         experiment.add(
-                            description=sim_descr,
+                            simulation_info=simulation_info,
                             country=country,
                             area=area,
                             measure_list=m,
                             test_update=test_update,
                             seed_summary_path=seed_summary_path,
+                            set_initial_seeds_to=set_initial_seeds_to,
                             full_scale=full_scale)
             
             # execute all simulations
-            print(f'{exp_name} configuration done.')
+            print(f'{experiment_info} configuration done.')
 
             if not dry_run:
                 experiment.run_all()

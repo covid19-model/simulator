@@ -459,6 +459,67 @@ class SocialDistancingForSmartTracing(Measure):
             self._is_init = False
 
 
+class SocialDistancingForSmartTracingHousehold(Measure):
+    """
+    Social distancing measure. Isolate traced individuals cases from household members. 
+    Only the population who intersected with positive cases for ``test_smart_duration``. 
+    Each visit of each individual respects the measure with some probability.
+    """
+
+    def __init__(self, t_window, p_isolate, test_smart_duration):
+        """
+        Parameters
+        ----------
+        t_window : Interval
+            Time window during which the measure is active
+        p_isolate : float
+            Probability of respecting the measure, should be in [0,1]
+        """
+
+        # Init time window
+        super().__init__(t_window)
+
+        # Init probability of respecting measure
+        if (not isinstance(p_isolate, float)) or (p_isolate < 0):
+            raise ValueError("`p_isolate` should be a non-negative float")
+        self.p_isolate = p_isolate
+        self.test_smart_duration = test_smart_duration
+
+    def init_run(self, n_people):
+        """Init the measure for this run. Sampling of Bernoulli of respecting the measure done online."""
+        self.intervals_isolated = [InterLap() for _ in range(n_people)]
+        self._is_init = True
+
+    @enforce_init_run
+    def is_contained(self, *, j, t):
+        """Indicate if individual `j` respects measure at time `t`
+        """
+        is_isolated = np.random.binomial(1, self.p_isolate)
+        if self._in_window(t) and is_isolated:
+            for interval in self.intervals_isolated[j].find((t, t)):
+                return True
+        return False
+
+    @enforce_init_run
+    def start_containment(self, *, j, t):
+        self.intervals_isolated[j].update([(t, t + self.test_smart_duration)])
+        return
+
+    @enforce_init_run
+    def is_contained_prob(self, *, j, t):
+        """Returns probability of containment for individual `j` at time `t`
+        """
+        if self._in_window(t):
+            for interval in self.intervals_isolated[j].find((t, t)):
+                return self.p_isolate
+        return 0.0
+
+    def exit_run(self):
+        """ Deletes bernoulli array. """
+        if self._is_init:
+            self._is_init = False
+
+
 class SocialDistancingForKGroups(Measure):
     """
     Social distancing measure where the population is based on K groups, here their IDs.

@@ -12,13 +12,7 @@ import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 
 from lib.priorityqueue import PriorityQueue
-from lib.measures import (MeasureList, BetaMultiplierMeasureBySite,
-    UpperBoundCasesBetaMultiplier, UpperBoundCasesSocialDistancing,
-    SocialDistancingForAllMeasure, BetaMultiplierMeasureByType,
-    SocialDistancingPerStateMeasure, SocialDistancingForPositiveMeasure,
-    SocialDistancingForPositiveMeasureHousehold,
-    SocialDistancingByAgeMeasure, SocialDistancingForSmartTracing,
-    ComplianceForAllMeasure, SocialDistancingForKGroups)
+from lib.measures import * 
 
 TO_HOURS = 24.0
 
@@ -362,6 +356,9 @@ class DiseaseModel(object):
                                    n_people=self.n_people,
                                    n_visits=max(self.mob.visit_counts))    
 
+        self.measure_list.init_run(SocialDistancingForSmartTracingHousehold,
+                                   n_people=self.n_people)
+
         self.measure_list.init_run(SocialDistancingForKGroups)
 
         # init state variables with seeds
@@ -476,25 +473,47 @@ class DiseaseModel(object):
 
                     away_from_home = (infector_away_from_home or i_away_from_home)
                     
-                    # 4) check whether infector is isolated from household members
-                    infector_isolated = self.measure_list.is_contained(
-                        SocialDistancingForPositiveMeasureHousehold, t=t,
-                        j=infector, 
-                        state_posi_started_at=self.state_started_at['posi'], 
-                        state_posi_ended_at=self.state_ended_at['posi'], 
-                        state_resi_started_at=self.state_started_at['resi'], 
-                        state_dead_started_at=self.state_started_at['dead'])             
+                    # 4) check whether infector or i were isolated from household members
+                    infector_isolated_at_home = (
+                        self.measure_list.is_contained(
+                            SocialDistancingForPositiveMeasureHousehold, t=t,
+                            j=infector, 
+                            state_posi_started_at=self.state_started_at['posi'], 
+                            state_posi_ended_at=self.state_ended_at['posi'], 
+                            state_resi_started_at=self.state_started_at['resi'], 
+                            state_dead_started_at=self.state_started_at['dead']) or
+                        self.measure_list.is_contained(
+                            SocialDistancingForSmartTracingHousehold, t=t,
+                            j=infector)
+                    )
 
+                    i_isolated_at_home = (
+                        self.measure_list.is_contained(
+                            SocialDistancingForPositiveMeasureHousehold, t=t,
+                            j=i,
+                            state_posi_started_at=self.state_started_at['posi'],
+                            state_posi_ended_at=self.state_ended_at['posi'],
+                            state_resi_started_at=self.state_started_at['resi'],
+                            state_dead_started_at=self.state_started_at['dead']) or
+                        self.measure_list.is_contained(
+                            SocialDistancingForSmartTracingHousehold, t=t,
+                            j=i)
+                    )
+
+                    somebody_isolated = (infector_isolated_at_home or i_isolated_at_home)
+
+                    # "thinning"
                     # if none of 1), 2), 3), 4) are true, the event is valid
                     if  (not infector_recovered) and \
                         (not infector_hospitalized) and \
                         (not away_from_home) and \
-                        (not infector_isolated):
+                        (not somebody_isolated):
 
                         self.__process_exposure_event(t, i, infector)
 
-                    # if 2) or 3) were true, a household infection could happen at a later point, hence sample a new event
-                    if (infector_hospitalized or away_from_home):
+                    # if 2), 3), or 4) were true, i.e. infector not recovered,
+                    # a household infection could happen at a later point, hence sample a new event
+                    if (infector_hospitalized or away_from_home or somebody_isolated):
 
                         mu_infector = self.mu if self.state['iasy'][infector] else 1.0
                         self.__push_household_exposure_infector_to_j(
@@ -527,6 +546,7 @@ class DiseaseModel(object):
                     rejection_prob = self.reject_exposure_due_to_measure(t=t, k=k)
                     site_avoided_infection =  (np.random.uniform() < rejection_prob)
 
+                    # "thinning"
                     # if none of 1), 2), 3), 4) are true, the event is valid
                     if  (not infector_recovered) and \
                         (not infector_contained) and \
@@ -535,8 +555,8 @@ class DiseaseModel(object):
 
                         self.__process_exposure_event(t, i, infector)
 
-                    # if any of 2), 3), 4) were true, an infection could happen 
-                    # at a later point, hence sample a new event 
+                    # if any of 2), 3), 4) were true, i.e. infector not recovered,
+                    # an infection could happen at a later point, hence sample a new event 
                     if (infector_contained or i_contained or site_avoided_infection):
 
                         mu_infector = self.mu if self.state['iasy'][infector] else 1.0
@@ -880,25 +900,19 @@ class DiseaseModel(object):
         Pushes the next exposure event that person `infector` causes for person `j`,
         who lives in the same household, using `base_rate` as basic infectivity of 
         person `i` (equivalent to `\mu` in model definition)
-        """
-        tau = t
-        sampled_event = False
 
-        # FIXME: we ignore the kernel for households infections since households members
-        # will overlap for long period of times at home
-        # Z = self.__kernel_term(- self.delta, 0.0, 0.0)
+        We ignore the kernel for households infections since households members
+        will overlap for long periods of time at home
+        """
 
         lambda_household = self.beta_household * base_rate
+        tau = t + TO_HOURS * np.random.exponential(scale=1.0 / lambda_household)
 
-        while tau < self.max_time and not sampled_event:
-            tau += TO_HOURS * np.random.exponential(scale=1.0 / lambda_household)
+        # site = -1 means it is a household infection
+        # thinning is done at exposure time if needed
+        self.queue.push(
+            (tau, 'expo', j, infector, -1), priority=tau)
 
-            # site = -1 means it is a household infection
-            # at the expo time, it will be thinned if needed
-            self.queue.push(
-                (tau, 'expo', j, infector, -1), priority=tau)
-
-            sampled_event = True
 
     def reject_exposure_due_to_measure(self, t, k):
         '''
@@ -1105,6 +1119,7 @@ class DiseaseModel(object):
             contact = contacts.pop()
             if self.test_smart_action == 'isolate':
                 self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=contact)
+                self.measure_list.start_containment(SocialDistancingForSmartTracingHousehold, t=t, j=contact)
             if self.test_smart_action == 'test':
                 self.__apply_for_testing(t, contact)
     
