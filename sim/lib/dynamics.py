@@ -330,12 +330,16 @@ class DiseaseModel(object):
             raise ValueError("`measure_list` must be a `MeasureList` object")
         self.measure_list = measure_list
 
-        # Sample bernoulli outcome for all SocialDistancingForAllMeasure
+        # Sample bernoulli outcome for all SocialDistancingForAllMeasure and conditional measures
         self.measure_list.init_run(SocialDistancingForAllMeasure,
                                    n_people=self.n_people,
                                    n_visits=max(self.mob.visit_counts))
 
         self.measure_list.init_run(UpperBoundCasesSocialDistancing,
+                                   n_people=self.n_people,
+                                   n_visits=max(self.mob.visit_counts))
+
+        self.measure_list.init_run(UpperBoundCasesBetaMultiplier,
                                    n_people=self.n_people,
                                    n_visits=max(self.mob.visit_counts))
 
