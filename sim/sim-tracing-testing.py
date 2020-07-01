@@ -18,7 +18,7 @@ TO_HOURS = 24.0
 
 if __name__ == '__main__':
 
-    name = 'tracing-isolation'
+    name = 'tracing-testing'
     end_date = '2020-07-31'
     random_repeats = 96
     full_scale = True
@@ -28,8 +28,8 @@ if __name__ == '__main__':
     set_initial_seeds_to = None
 
     # experiment parameters
-    isolate_days_list = [7, 14] # how many days selected people have to stay in isolation
-    contacts_isolated = [20, 50] # how many contacts are isolated in the `test_smart_delta` window
+    contacts_tested = [20, 50] # how many contacts in the `test_smart_delta` window are tested 
+    capacity_factors = [1, 2] # multiplier for test capacity
     policies = ['basic', 'advanced'] # contact tracing policies
 
     # seed
@@ -57,35 +57,25 @@ if __name__ == '__main__':
     )
 
     # contact tracing experiment for various options
-    for isolate_days in isolate_days_list:
-        for contacts in contacts_isolated:
+    for capacity_factor in capacity_factors:
+        for contacts in contacts_tested:
             for policy in policies:
 
-                # measures
-                max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
-                
-                m = [
-                    SocialDistancingForSmartTracing(
-                        t_window=Interval(0.0, TO_HOURS * max_days), 
-                        p_stay_home=1.0, 
-                        test_smart_duration=TO_HOURS * isolate_days),
-                    SocialDistancingForSmartTracingHousehold(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_isolate=1.0,
-                        test_smart_duration=TO_HOURS * isolate_days),
-                ]
+                # no additional measures            
+                m = []
 
                 # set testing params via update function of standard testing parameters
                 def test_update(d):
                     d['test_smart_delta'] =  3 * TO_HOURS # 3 day time window considered for inspecting contacts
-                    d['test_smart_action'] = 'isolate' # isolate traced individuals
+                    d['test_smart_action'] = 'test' # test traced individuals
                     d['test_targets'] = 'isym' 
                     d['smart_tracing'] = policy
                     d['test_smart_num_contacts'] = contacts
+                    d['tests_per_batch'] = capacity_factor * d['tests_per_batch'] # test capacity is artificially increased
                     return d
 
                 simulation_info = options_to_str(
-                    isolate_days=isolate_days, 
+                    capacity_factor=capacity_factor,
                     contacts=contacts, 
                     policy=policy)
                     
