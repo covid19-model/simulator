@@ -62,8 +62,8 @@ class DiseaseModel(object):
         self.site_dict = mob.site_dict
         self.num_site_types = mob.num_site_types
         
-        self.people_household = mob.people_household
-        self.households = mob.households
+        self.people_household = mob.people_household  # j-th entry is household index of individual j
+        self.households = mob.households              # {household index: [individuals in household]}
             
         assert(self.num_age_groups == self.fatality_rates_by_age.shape[0])
         assert(self.num_age_groups == self.p_hospital_by_age.shape[0])
@@ -200,7 +200,9 @@ class DiseaseModel(object):
                     self.state_started_at['expo'][i] = -1.0
 
                     self.bernoulli_is_iasy[i] = 0
-                    self.__process_presymptomatic_event(0.0, i)
+
+                    # no exposures added due to heuristic `expo` seeds using reproductive rate
+                    self.__process_presymptomatic_event(0.0, i, add_exposures=False) 
 
 
                 # initial asymptomatic
@@ -213,6 +215,8 @@ class DiseaseModel(object):
                     self.state_started_at['expo'][i] = -1.0
 
                     self.bernoulli_is_iasy[i] = 1
+
+                    # no exposures added due to heuristic `expo` seeds using reproductive rate
                     self.__process_asymptomatic_event(0.0, i, add_exposures=False)
 
                 # initial symptomatic
@@ -287,7 +291,7 @@ class DiseaseModel(object):
         Run the epidemic, starting from initial event list.
         Events are treated in order in a priority queue. An event in the queue is a tuple
         the form
-            `(time, event_type, node, infector_node, location)`
+            `(time, event_type, node, infector_node, location, metadata)`
 
         """
         self.verbose = verbose
@@ -398,20 +402,20 @@ class DiseaseModel(object):
                 if not self.was_initial_seed[i]:
                     # sample non-contact exposure events
                     self.queue.push(
-                        (delta_susc_to_expo[i], 'expo', i, None, None),
+                        (delta_susc_to_expo[i], 'expo', i, None, None, None),
                         priority=delta_susc_to_expo[i])
 
         # initialize test processing events: add 'update_test' event to queue for `testing_frequency` hour
         for h in range(1, math.floor(self.max_time / self.testing_frequency)):
             ht = h * self.testing_frequency
-            self.queue.push((ht, 'execute_tests', None, None, None), priority=ht)
+            self.queue.push((ht, 'execute_tests', None, None, None, None), priority=ht)
 
         # MAIN EVENT LOOP
         t = 0.0
         while self.queue:
 
             # get next event to process
-            t, event, i, infector, k = self.queue.pop()
+            t, event, i, infector, k, metadata = self.queue.pop()
 
             # check if testing processing
             if event == 'execute_tests':
@@ -576,7 +580,7 @@ class DiseaseModel(object):
                 self.__process_resistant_event(t, i)
 
             elif event == 'test':
-                self.__process_testing_event(t, i)
+                self.__process_testing_event(t, i, metadata)
 
             elif event == 'dead':
                 self.__process_fatal_event(t, i)
@@ -626,14 +630,14 @@ class DiseaseModel(object):
         # decide whether asymptomatic or (pre-)symptomatic
         if self.bernoulli_is_iasy[i]:
             self.queue.push(
-                (t + self.delta_expo_to_iasy[i], 'iasy', i, None, None),
+                (t + self.delta_expo_to_iasy[i], 'iasy', i, None, None, None),
                 priority=t + self.delta_expo_to_iasy[i])
         else:
             self.queue.push(
-                (t + self.delta_expo_to_ipre[i], 'ipre', i, None, None),
+                (t + self.delta_expo_to_ipre[i], 'ipre', i, None, None, None),
                 priority=t + self.delta_expo_to_ipre[i])
 
-    def __process_presymptomatic_event(self, t, i):
+    def __process_presymptomatic_event(self, t, i, add_exposures=True):
         """
         Mark person `i` as presymptomatic at time `t`
         Push symptomatic queue event
@@ -648,15 +652,16 @@ class DiseaseModel(object):
 
         # resistant event
         self.queue.push(
-            (t + self.delta_ipre_to_isym[i], 'isym', i, None, None),
+            (t + self.delta_ipre_to_isym[i], 'isym', i, None, None, None),
             priority=t + self.delta_ipre_to_isym[i])
 
-        # contact exposure of others
-        self.__push_contact_exposure_events(t, i, 1.0)
-        
-        # household exposures
-        if self.households is not None and self.beta_household > 0:
-            self.__push_household_exposure_events(t, i, 1.0)
+        if add_exposures:
+            # contact exposure of others
+            self.__push_contact_exposure_events(t, i, 1.0)
+            
+            # household exposures
+            if self.households is not None and self.beta_household > 0:
+                self.__push_household_exposure_events(t, i, 1.0)
 
     def __process_symptomatic_event(self, t, i, apply_for_test=True):
         """
@@ -678,17 +683,17 @@ class DiseaseModel(object):
         # hospitalized?
         if self.bernoulli_is_hospi[i]:
             self.queue.push(
-                (t + self.delta_isym_to_hosp[i], 'hosp', i, None, None),
+                (t + self.delta_isym_to_hosp[i], 'hosp', i, None, None, None),
                 priority=t + self.delta_isym_to_hosp[i])
 
         # resistant event vs fatality event
         if self.bernoulli_is_fatal[i]:
             self.queue.push(
-                (t + self.delta_isym_to_dead[i], 'dead', i, None, None),
+                (t + self.delta_isym_to_dead[i], 'dead', i, None, None, None),
                 priority=t + self.delta_isym_to_dead[i])
         else:
             self.queue.push(
-                (t + self.delta_isym_to_resi[i], 'resi', i, None, None),
+                (t + self.delta_isym_to_resi[i], 'resi', i, None, None, None),
                 priority=t + self.delta_isym_to_resi[i])
 
     def __process_asymptomatic_event(self, t, i, add_exposures=True):
@@ -706,7 +711,7 @@ class DiseaseModel(object):
 
         # resistant event
         self.queue.push(
-            (t + self.delta_iasy_to_resi[i], 'resi', i, None, None),
+            (t + self.delta_iasy_to_resi[i], 'resi', i, None, None, None),
             priority=t + self.delta_iasy_to_resi[i])
 
         if add_exposures:
@@ -874,7 +879,7 @@ class DiseaseModel(object):
             u = np.random.uniform()
             if u <= p:
                 self.queue.push(
-                    (tau, 'expo', j, infector, site), priority=tau)
+                    (tau, 'expo', j, infector, site, None), priority=tau)
                 sampled_event = True
 
     def __push_household_exposure_events(self, t, infector, base_rate):
@@ -911,7 +916,7 @@ class DiseaseModel(object):
         # site = -1 means it is a household infection
         # thinning is done at exposure time if needed
         self.queue.push(
-            (tau, 'expo', j, infector, -1), priority=tau)
+            (tau, 'expo', j, infector, -1, None), priority=tau)
 
 
     def reject_exposure_due_to_measure(self, t, k):
@@ -991,41 +996,49 @@ class DiseaseModel(object):
     def __update_testing_queue(self, t):
         """
         Processes testing queue by popping the first `self.tests_per_batch` tests
-        and adds `test` event to event queue for person i with time lag `self.test_reporting_lag`
+        and adds `test` event (i.e. result) to event queue for person i with time lag `self.test_reporting_lag`
         """
 
         ctr = 0
         while (ctr < self.tests_per_batch) and (len(self.testing_queue) > 0):
+
+            # get next individual to be tested
             ctr += 1
             i = self.testing_queue.pop()
-            self.queue.push((t + self.test_reporting_lag, 'test',
-                                i, None, None), priority=t + self.test_reporting_lag)
-            
-            # update test result preemptively, to account for the state at the time of testing
+
+            # determine test result preemptively, to account for the individual's state at the time of testing
             if self.state['expo'][i] or self.state['ipre'][i] or self.state['isym'][i] or self.state['iasy'][i]:
                 is_fn = np.random.binomial(1, self.test_fnr)
                 if is_fn:
-                    self.outcome_of_test[i] = False
+                    is_positive_test = False
                 else:
-                    self.outcome_of_test[i] = True
+                    is_positive_test = True
             else:
                 is_fp = np.random.binomial(1, self.test_fpr)
                 if is_fp:
-                    self.outcome_of_test[i] = True
+                    is_positive_test = True
                 else:
-                    self.outcome_of_test[i] = False
+                    is_positive_test = False
 
-            if self.outcome_of_test[i]:
-                self.t_pos_tests.append(t)
+            # push test result with delay to the event queue
+            self.queue.push(
+                (t + self.test_reporting_lag, 'test', i, None, None, is_positive_test), 
+                priority=t + self.test_reporting_lag)
+            
+            
 
-    def __process_testing_event(self, t, i):
+    def __process_testing_event(self, t, i, metadata):
         """
-        Test person `i` at time `t`
+        Processes return of test result of person `i` at time `t` with `metadata` from the event queue, which
+        is a boolean indicator of a positive test result, which was collected at testing time, similar to the 
+        blood sample of the person tested.
         """
-        
-        # collect test result based on "blood sample" taken before via `outcome_of_test`
+
+        is_positive_test = metadata
+
+        # collect test result based on "blood sample" taken before via `is_positive_test`
         # ... if positive
-        if self.outcome_of_test[i]: 
+        if is_positive_test:
 
             # record timing only if tested positive for the first time
             if not self.state['posi'][i]:
@@ -1054,15 +1067,16 @@ class DiseaseModel(object):
                 self.state['posi'][i] = False
                 self.state_ended_at['posi'][i] = t
 
-        # smart tracing
+        # add timing of positive test for `UpperBoundCases` measures
+        if is_positive_test:
+            self.t_pos_tests.append(t)
+
+        # smart tracing compliance of the individual
         is_i_compliant = self.measure_list.is_compliant(
             ComplianceForAllMeasure, t=t-self.test_smart_delta, j=i)
 
-        # if i is not compliant, skip
-        if not is_i_compliant:
-            return
-        
-        if self.state['posi'][i] and (self.smart_tracing != None):
+        # if the individual is tested positive and compliant, process contact tracing when active
+        if is_i_compliant and self.state['posi'][i] and (self.smart_tracing != None):
             self.__update_smart_tracing(t, i)
     
     def __update_smart_tracing(self, t, i):
@@ -1094,7 +1108,8 @@ class DiseaseModel(object):
         contacts = PriorityQueue()
         
         for j in valid_contacts:
-            # check compliance
+
+            # check compliance of overlapping contact
             is_j_compliant = self.measure_list.is_compliant(
                 ComplianceForAllMeasure, t=t-self.test_smart_delta, j=j)
             
@@ -1113,16 +1128,35 @@ class DiseaseModel(object):
                 else:
                     raise ValueError('Invalid smart tracing policy.')
         
-        # quarantine nodes for a 'self.test_smart_duration'
+        # start contact tracing action for *contacts selected by policy* 
         max_contacts = len(contacts)
         for j in range(min(self.test_smart_num_contacts, max_contacts)):
             contact = contacts.pop()
+
+            # contact tracing action
             if self.test_smart_action == 'isolate':
                 self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=contact)
                 self.measure_list.start_containment(SocialDistancingForSmartTracingHousehold, t=t, j=contact)
             if self.test_smart_action == 'test':
                 self.__apply_for_testing(t, contact)
-    
+
+        # start contact tracing action for compliant *household members*, ignoring individual i
+        for contact in self.households[self.people_household[i]]:
+            
+            # check that contact satisfies conditions
+            is_contact_compliant = self.measure_list.is_compliant(
+                ComplianceForAllMeasure, t=t-self.test_smart_delta, j=contact)
+            if self.state['dead'][contact] or contact == i or (not is_contact_compliant):
+                continue
+            
+            # contact tracing action
+            if self.test_smart_action == 'isolate':
+                self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=contact)
+                self.measure_list.start_containment(SocialDistancingForSmartTracingHousehold, t=t, j=contact)
+            if self.test_smart_action == 'test':
+                self.__apply_for_testing(t, contact)
+
+
     # compute empirical survival probability of individual j due to node i at time t
     def __compute_empirical_survival_probability(self, t, i, j):
         s = 0

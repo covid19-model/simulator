@@ -678,7 +678,7 @@ def make_bayes_opt_functions(args):
         G = torch.mean(posi_cumulative, dim=0)
         G_sem = torch.std(posi_cumulative, dim=0) / math.sqrt(posi_cumulative.shape[0])
 
-        # make sure noise is not zero for non-degerateness
+        # make sure noise is not zero for non-degenerateness
         G_sem = torch.max(G_sem, MIN_NOISE)
 
         # flatten

@@ -27,25 +27,26 @@ if __name__ == '__main__':
     seed_summary_path = None
     set_initial_seeds_to = None
 
-    # debug mode
-    full_scale = False
-    end_date = '2020-06-30'
-    random_repeats = 8
-    set_initial_seeds_to = {'expo' : 5}
+    # experiment parameters
+    isolated_days = [7, 14] # how many days selected people have to stay in isolation
+    contacts_isolated = [10, 25] # how many contacts are isolated in the `test_smart_delta` window
+    policies = ['basic', 'advanced'] # contact tracing policies
 
     # seed
     c = 0
     np.random.seed(0)
     rd.seed(0)
 
-    # experiment parameters
-    # isolated_days = [7, 14] # how many days selected people have to stay in isolation
-    # contacts_isolated = [10, 25] # how many contacts are isolated in the `test_smart_delta` window
-    # policies = ['basic', 'advanced'] # contact tracing policies
+    # == DEBUG mode
+    full_scale = False
+    end_date = '2020-06-30'
+    random_repeats = 8
+    set_initial_seeds_to = {'expo' : 5}
 
     isolated_days = [14]
     contacts_isolated = [25]
     policies = ['basic'] 
+    # == 
 
     # command line parsing
     args = process_command_line()
@@ -67,14 +68,14 @@ if __name__ == '__main__':
     )
 
     # baseline
-    experiment.add(
-        simulation_info='baseline',
-        country=country,
-        area=area,
-        measure_list=[],
-        seed_summary_path=seed_summary_path,
-        set_initial_seeds_to=set_initial_seeds_to,
-        full_scale=full_scale)
+    # experiment.add(
+    #     simulation_info='baseline',
+    #     country=country,
+    #     area=area,
+    #     measure_list=[],
+    #     seed_summary_path=seed_summary_path,
+    #     set_initial_seeds_to=set_initial_seeds_to,
+    #     full_scale=full_scale)
 
     # contact tracing experiment for various options
     for isolate_days in isolated_days:
