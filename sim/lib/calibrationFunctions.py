@@ -199,11 +199,7 @@ def extract_seeds_from_summary(summary, t, real_cases):
     for state in calib_legal_states:
         states[state] = (summary.state_started_at[state][best] <= t) \
             & (t < summary.state_ended_at[state][best])
-
-    print('All states:')
-    for k, v in states.items():
-        print(k, v.sum())
-
+        
     # compute counts (resistant also contain dead)
     expo = states['expo'].sum()
     iasy = states['iasy'].sum()
