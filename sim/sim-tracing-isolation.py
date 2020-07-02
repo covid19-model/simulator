@@ -28,8 +28,8 @@ if __name__ == '__main__':
 
     # experiment parameters
     isolate_days_list = [7, 14] # how many days selected people have to stay in isolation 
-    contacts_isolated = [30, 1000] # how many contacts are isolated in the `test_smart_delta` window at most
-    policies = ['basic', 'advanced'] # contact tracing policies
+    contacts = 1000 # how many contacts are isolated in the `test_smart_delta` window at most
+    policy = 'basic' # since all traced individuals are isolated, 'basic' == 'advanced'
 
     # seed
     c = 0
@@ -57,46 +57,45 @@ if __name__ == '__main__':
 
     # contact tracing experiment for various options
     for isolate_days in isolate_days_list:
-        for contacts in contacts_isolated:
-            for policy in policies:
 
-                # measures
-                max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
-                
-                m = [
-                    SocialDistancingForSmartTracing(
-                        t_window=Interval(0.0, TO_HOURS * max_days), 
-                        p_stay_home=1.0, 
-                        test_smart_duration=TO_HOURS * isolate_days),
-                    SocialDistancingForSmartTracingHousehold(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_isolate=1.0,
-                        test_smart_duration=TO_HOURS * isolate_days),
-                ]
+        # measures
+        max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+        
+        m = [
+            SocialDistancingForSmartTracing(
+                t_window=Interval(0.0, TO_HOURS * max_days), 
+                p_stay_home=1.0, 
+                test_smart_duration=TO_HOURS * isolate_days),
+            SocialDistancingForSmartTracingHousehold(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_isolate=1.0,
+                test_smart_duration=TO_HOURS * isolate_days),
+        ]
 
-                # set testing params via update function of standard testing parameters
-                def test_update(d):
-                    d['test_smart_delta'] =  3 * TO_HOURS # 3 day time window considered for inspecting contacts
-                    d['test_smart_action'] = 'isolate' # isolate traced individuals
-                    d['test_targets'] = 'isym' 
-                    d['smart_tracing'] = policy
-                    d['test_smart_num_contacts'] = contacts
-                    return d
+        # set testing params via update function of standard testing parameters
+        def test_update(d):
+            d['test_smart_delta'] =  3 * TO_HOURS # 3 day time window considered for inspecting contacts
+            d['test_smart_action'] = 'isolate' # isolate traced individuals
+            d['test_targets'] = 'isym' 
+            d['smart_tracing'] = policy
+            d['test_smart_num_contacts'] = contacts
+            return d
 
-                simulation_info = options_to_str(
-                    isolate_days=isolate_days, 
-                    contacts=contacts, 
-                    policy=policy)
-                    
-                experiment.add(
-                    simulation_info=simulation_info,
-                    country=country,
-                    area=area,
-                    measure_list=m,
-                    test_update=test_update,
-                    seed_summary_path=seed_summary_path,
-                    set_initial_seeds_to=set_initial_seeds_to,
-                    full_scale=full_scale)
+        simulation_info = options_to_str(
+            isolate_days=isolate_days, 
+            contacts=contacts, 
+            policy=policy)
+            
+        experiment.add(
+            simulation_info=simulation_info,
+            country=country,
+            area=area,
+            measure_list=m,
+            test_update=test_update,
+            seed_summary_path=seed_summary_path,
+            set_initial_seeds_to=set_initial_seeds_to,
+            full_scale=full_scale)
+            
     print(f'{experiment_info} configuration done.')
 
     # execute all simulations

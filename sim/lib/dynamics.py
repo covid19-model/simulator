@@ -682,7 +682,7 @@ class DiseaseModel(object):
 
         # testing
         if self.test_targets == 'isym' and apply_for_test:
-            self.__apply_for_testing(t, i)
+            self.__apply_for_testing(t=t, i=i, priority= -self.max_time + t)
 
         # hospitalized?
         if self.bernoulli_is_hospi[i]:
@@ -984,16 +984,24 @@ class DiseaseModel(object):
         return is_home
 
 
-    def __apply_for_testing(self, t, i, s=0.0):
+    def __apply_for_testing(self, *, t, i, priority=0.0):
         """
         Checks whether person i of should be tested and if so adds test to the testing queue
         """
         if t < self.testing_t_window[0] or t > self.testing_t_window[1]:
             return
 
-        # fifo: priority = current time
+        # fifo: first in, first out
         if self.test_queue_policy == 'fifo':
             self.testing_queue.push(i, priority=t)
+
+        # exposure-risk: has the following order of priority in queue:
+        # 1) symptomatic tests, with `fifo` ordering (`priority = - max_time + t`)
+        # 2) contact tracing tests: household members (`priority = 0.0`)
+        # 3) contact tracing tests: contacts at sites (`priority` = lower empirical survival probability prioritized) 
+        elif self.test_queue_policy == 'exposure-risk':
+            self.testing_queue.push(i, priority=priority)
+
         else:
             raise ValueError('Unknown queue policy')
 
@@ -1146,8 +1154,15 @@ class DiseaseModel(object):
             if self.test_smart_action == 'isolate':
                 self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=contact)
                 self.measure_list.start_containment(SocialDistancingForSmartTracingHousehold, t=t, j=contact)
+
             if self.test_smart_action == 'test':
-                self.__apply_for_testing(t, contact)
+                # only pass empirical survival probability information when using the `advanced` policy
+                if self.smart_tracing == 'basic':
+                    self.__apply_for_testing(t=t, i=contact, priority=1.0)
+                elif self.smart_tracing == 'advanced':
+                    self.__apply_for_testing(t=t, i=contact, priority=self.empirical_survival_probability[contact])
+                else:
+                    raise ValueError('Invalid smart tracing policy.')
 
         # start contact tracing action for compliant *household members*, ignoring individual i
         for contact in self.households[self.people_household[i]]:
@@ -1163,10 +1178,11 @@ class DiseaseModel(object):
                 self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=contact)
                 self.measure_list.start_containment(SocialDistancingForSmartTracingHousehold, t=t, j=contact)
             if self.test_smart_action == 'test':
-                 # if j is positive and `test_smart_action == test`, 
-                 # then skip (don't test positive people twice)
+                # if j is positive and `test_smart_action == test`, 
+                # then skip (don't test positive people twice)
                 if not self.state['posi'][contact]:
-                    self.__apply_for_testing(t, contact)
+                    # household members always treated as `empirical survival prob. = 0` for `exposure-risk` policy
+                    self.__apply_for_testing(t=t, i=contact, priority=0.0)
 
     # compute empirical survival probability of individual j due to node i at time t
     def __compute_empirical_survival_probability(self, t, i, j):
