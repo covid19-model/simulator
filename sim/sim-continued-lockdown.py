@@ -22,7 +22,6 @@ if __name__ == '__main__':
     end_date = '2020-07-31'
     random_repeats = 96
     full_scale = True
-    dry_run = False
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = None
@@ -33,18 +32,14 @@ if __name__ == '__main__':
     area = args.area
 
     # experiment parameters
-    # isolated_days = [7, 14] # how many days selected people have to stay in isolation
-    # contacts_isolated = [10, 25] # how many contacts are isolated in the `test_smart_delta` window
-    # policies = ['basic', 'advanced'] # contact tracing policies
-
     extended_lockdown_weeks = [2, 4, 8]
     calibrated_params = get_calibrated_params(country=country, area=area, multi_beta_calibration=False)
     p_stay_home = calibrated_params['p_stay_home']
 
     # seed
     c = 0
-    np.random.seed(0)
-    rd.seed(0)
+    np.random.seed(c)
+    rd.seed(c)
 
     # start simulation when lockdown ends
     start_date = calibration_lockdown_dates[country]['end']

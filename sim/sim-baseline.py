@@ -22,15 +22,17 @@ if __name__ == '__main__':
     end_date = '2020-07-31'
     random_repeats = 96
     full_scale = True
-    dry_run = False
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = None
 
+    # set `True` for narrow-casting plot; should only be done with 1 random restart:
+    store_mob = False 
+
     # seed
     c = 0
-    np.random.seed(0)
-    rd.seed(0)
+    np.random.seed(c)
+    rd.seed(c)
 
     # command line parsing
     args = process_command_line()
@@ -59,7 +61,8 @@ if __name__ == '__main__':
         measure_list=[],
         seed_summary_path=seed_summary_path,
         set_initial_seeds_to=set_initial_seeds_to,
-        full_scale=full_scale)
+        full_scale=full_scale,
+        store_mob=store_mob)
 
     print(f'{experiment_info} configuration done.')
 

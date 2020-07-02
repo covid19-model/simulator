@@ -1087,8 +1087,8 @@ class DiseaseModel(object):
         '''
         Updates smart tracing policy for individual `i` at time `t`.
         Iterates over possible contacts `j`
-
         '''
+
         if not self.lazy_contacts:
             def valid_j():
                 '''Generate individuals j where `i` was present
@@ -1111,6 +1111,7 @@ class DiseaseModel(object):
 
         contacts = PriorityQueue()
         
+        # determine valid contacts at sites for individual i
         for j in valid_contacts:
 
             # check compliance of overlapping contact
@@ -1119,6 +1120,10 @@ class DiseaseModel(object):
             
             # if j is not compliant, skip
             if not is_j_compliant:
+                continue
+
+            # if j is positive and `test_smart_action == test`, skip (don't test positive people twice)
+            if self.state['posi'][j] and self.test_smart_action == 'test':
                 continue
 
             valid_contact, s = self.__compute_empirical_survival_probability(t, i, j)
@@ -1158,8 +1163,10 @@ class DiseaseModel(object):
                 self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=contact)
                 self.measure_list.start_containment(SocialDistancingForSmartTracingHousehold, t=t, j=contact)
             if self.test_smart_action == 'test':
-                self.__apply_for_testing(t, contact)
-
+                 # if j is positive and `test_smart_action == test`, 
+                 # then skip (don't test positive people twice)
+                if not self.state['posi'][contact]:
+                    self.__apply_for_testing(t, contact)
 
     # compute empirical survival probability of individual j due to node i at time t
     def __compute_empirical_survival_probability(self, t, i, j):
@@ -1196,14 +1203,12 @@ class DiseaseModel(object):
             beta_fact *= beta_mult_measure.beta_factor(k=site, t=start_next_contact) if beta_mult_measure else 1.0
             
             beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureByType, t=start_next_contact)
-            beta_fact *= beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[site]], t=start_next_contact) \
-                if beta_mult_measure else 1.0
+            beta_fact *= (beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[site]], t=start_next_contact) 
+                if beta_mult_measure else 1.0)
 
             beta_mult_measure = self.measure_list.find(UpperBoundCasesBetaMultiplier, t=t)
-            beta_fact *= beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[site]],
-                                                       t=t,
-                                                       t_pos_tests=self.t_pos_tests) \
-                if beta_mult_measure else 1.0
+            beta_fact *= (beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[site]],
+                t=t, t_pos_tests=self.t_pos_tests) if beta_mult_measure else 1.0)
 
             # decide if i and j really had overlap
             if (not is_j_contained) and (not is_i_contained):

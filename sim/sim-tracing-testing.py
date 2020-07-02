@@ -22,20 +22,19 @@ if __name__ == '__main__':
     end_date = '2020-07-31'
     random_repeats = 96
     full_scale = True
-    dry_run = False
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = None
 
     # experiment parameters
-    contacts_tested = [20, 50] # how many contacts in the `test_smart_delta` window are tested 
+    contacts_tested = [30, 1000] # how many contacts in the `test_smart_delta` window are tested at most
     capacity_factors = [1, 2] # multiplier for test capacity
     policies = ['basic', 'advanced'] # contact tracing policies
 
     # seed
     c = 0
-    np.random.seed(0)
-    rd.seed(0)
+    np.random.seed(c)
+    rd.seed(c)
 
     # command line parsing
     args = process_command_line()

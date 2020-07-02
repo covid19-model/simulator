@@ -46,6 +46,7 @@ Simulation = namedtuple('Simulation', (
     'full_scale',        # Whether or not simulation is done at full scale
     'measure_list',      # Measure list
     'testing_params',    # Testing params
+    'store_mob',         # Indicator of whether to return and store MobilitySimulator object
 
     # Model
     'model_params',      # Model parameters (from calibration)
@@ -180,7 +181,8 @@ class Experiment(object):
         test_update=None,
         seed_summary_path=None,
         set_calibrated_params_to=None,
-        set_initial_seeds_to=None):
+        set_initial_seeds_to=None,
+        store_mob=False):
 
         # Set time window based on experiment start and end date
         sim_days = (pd.to_datetime(self.end_date) - pd.to_datetime(self.start_date)).days
@@ -235,11 +237,9 @@ class Experiment(object):
         initial_seeds = set_initial_seeds_to or initial_seeds
 
         # Load calibrated model parameters for this area
-        raw_calibrated_params = get_calibrated_params(
+        calibrated_params = set_calibrated_params_to or get_calibrated_params(
             country=country, area=area, multi_beta_calibration=self.multi_beta_calibration)
-        calibrated_params = set_calibrated_params_to or raw_calibrated_params
-
-        p_stay_home_calibrated = raw_calibrated_params['p_stay_home']
+        p_stay_home_calibrated = calibrated_params['p_stay_home']
 
         if self.multi_beta_calibration:
             betas = calibrated_params['betas']
@@ -310,6 +310,7 @@ class Experiment(object):
             full_scale=full_scale,
             measure_list=measure_list,
             testing_params=testing_params,
+            store_mob=store_mob,
 
             # Model
             model_params=model_params,
@@ -353,6 +354,7 @@ class Experiment(object):
                 num_people=len(mob_settings['home_loc']),
                 site_loc=mob_settings['site_loc'],
                 num_sites=len(mob_settings['site_loc']),
+                store_mob=sim.store_mob,
                 lazy_contacts=True,
                 verbose=False)
 

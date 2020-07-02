@@ -22,20 +22,19 @@ if __name__ == '__main__':
     end_date = '2020-07-31'
     random_repeats = 96
     full_scale = True
-    dry_run = False
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = None
 
     # experiment parameters
-    isolate_days_list = [7, 14] # how many days selected people have to stay in isolation
-    contacts_isolated = [20, 50] # how many contacts are isolated in the `test_smart_delta` window
+    isolate_days_list = [7, 14] # how many days selected people have to stay in isolation 
+    contacts_isolated = [30, 1000] # how many contacts are isolated in the `test_smart_delta` window at most
     policies = ['basic', 'advanced'] # contact tracing policies
 
     # seed
     c = 0
-    np.random.seed(0)
-    rd.seed(0)
+    np.random.seed(c)
+    rd.seed(c)
 
     # command line parsing
     args = process_command_line()

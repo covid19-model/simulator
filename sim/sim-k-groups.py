@@ -22,7 +22,6 @@ if __name__ == '__main__':
     end_date = '2020-07-31'
     random_repeats = 96
     full_scale = True
-    dry_run = False
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = None
@@ -41,8 +40,8 @@ if __name__ == '__main__':
 
     # seed
     c = 0
-    np.random.seed(0)
-    rd.seed(0)
+    np.random.seed(c)
+    rd.seed(c)
 
     # start simulation when lockdown ends
     start_date = calibration_lockdown_dates[country]['end']
