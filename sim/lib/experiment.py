@@ -106,7 +106,8 @@ def load_summary_list(paths):
 def options_to_str(**options):
         return '-'.join(['{}={}'.format(k, v) for k, v in options.items()])
 
-def process_command_line():
+
+def process_command_line(return_parser=False):
     '''Returns command line parser for experiment configuration'''
 
     parser = argparse.ArgumentParser()
@@ -114,6 +115,9 @@ def process_command_line():
                         help="specify country indicator for experiment")
     parser.add_argument("--area",  required=True,
                         help="specify area indicator for experiment")
+
+    if return_parser:
+        return parser
 
     args = parser.parse_args()
     country = args.country
