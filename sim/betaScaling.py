@@ -138,7 +138,7 @@ def compute_mob_statistics(loc_tup, days, max_people, verbose=False):
 if __name__ == '__main__':
 
     days = 7.0
-    max_people = 2000
+    max_people = 5000
     parallel = False
     cpu_count = 2
 
