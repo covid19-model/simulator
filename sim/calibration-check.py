@@ -20,7 +20,7 @@ if __name__ == '__main__':
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = None
-    debugmode = True
+    debugmode = False
 
     # command line parsing
     parser = process_command_line(return_parser=True)
