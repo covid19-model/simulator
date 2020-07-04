@@ -4,12 +4,13 @@ if '..' not in sys.path:
 
 import random as rd
 import pandas as pd
+import pickle
 from lib.measures import *
 from lib.data import collect_data_from_df
 from lib.experiment import Experiment, options_to_str, process_command_line, load_summary
-from lib.calibrationSettings import calibration_lockdown_dates, calibration_start_dates
-from lib.calibrationFunctions import get_calibrated_params
-from beta_scaling_factors import ave_total_contact_time
+from lib.calibrationSettings import calibration_lockdown_dates, calibration_start_dates, calibration_mob_paths
+from lib.calibrationFunctions import get_calibrated_params, downsample_cases
+from beta_scaling_factors import *
 
 
 if __name__ == '__main__':
@@ -33,7 +34,13 @@ if __name__ == '__main__':
     # Simulations
     exps = {'downscaled': {'full_scale': False, 'beta_scaling': 1.0},
             'full': {'full_scale': True, 'beta_scaling': 1.0},
-            'full-scaled-beta': {'full_scale': True, 'beta_scaling': ave_total_contact_time[country][area]}
+            'full-ave_total_contact_time-scaled-beta': {'full_scale': True,
+                                                        'beta_scaling': ave_total_contact_time[country][area]},
+            'full-ave_ave_contact_time-scaled-beta': {'full_scale': True,
+                                                      'beta_scaling': ave_ave_contact_time[country][area]},
+            'full-ave_ave_contact_time_unique-scaled-beta': {'full_scale': True,
+                                                             'beta_scaling': ave_ave_contact_time_unique[country][area]}
+
             }
 
     '''
@@ -69,8 +76,10 @@ if __name__ == '__main__':
         calibrated_params = get_calibrated_params(country=country, area=area, multi_beta_calibration=False)
         calibrated_params['beta_site'] = expparams['beta_scaling'] * calibrated_params['beta_site']
 
-        simulation_info = options_to_str(full_scale=expparams['full_scale'],
-                                         beta_scaling=expparams['beta_scaling'])
+        simulation_info = options_to_str(exp=exp, beta_scaling=expparams['beta_scaling'])
+        # FIXME: If run again, use the following, don't change now!
+        # scaling = expparams['beta_scaling']
+        #  simulation_info = options_to_str(exp=exp+f'={scaling}')
 
         summary_path = experiment_info + '/' + experiment_info + '-' + simulation_info
         summary_paths.append(summary_path)
@@ -121,11 +130,17 @@ if __name__ == '__main__':
                 resulttuple = load_summary(summary_path+'.pk')
                 summary = resulttuple[1]
 
-                sim_cases = collect_data_from_df(country=country,
+                mob_settings_paths = calibration_mob_paths[country][area][1 if exp['full_scale'] else 0]
+                with open(mob_settings_paths, 'rb') as fp:
+                    mob_settings = pickle.load(fp)
+
+                area_cases = collect_data_from_df(country=country,
                                                  area=area,
                                                  datatype='new',
                                                  start_date_string=start_date,
                                                  end_date_string=end_date)
+
+                sim_cases = downsample_cases(area_cases, mob_settings)      # only downscaling due LK data for cities
 
                 plotter = Plotter()
                 plotter.plot_positives_vs_target(
