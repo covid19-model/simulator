@@ -26,10 +26,12 @@ if __name__ == '__main__':
     # command line parsing
     parser = process_command_line(return_parser=True)
     parser.add_argument("--plot_only", default=False)
+    parser.add_argument("--no_agegroups", default=False)
     args = parser.parse_args()
     country = args.country
     area = args.area
     plot_only = args.plot_only
+    no_agegroups = args.no_agegroups
 
     # Simulations
     exps = {'downscaled': {'full_scale': False, 'beta_scaling': 1.0},
@@ -123,10 +125,8 @@ if __name__ == '__main__':
 
         for summary_path, exp in zip(summary_paths, exps.values()):
             try:
-                _, file = os.path.split(summary_path)
-                print('Plotting: ' + file)
-                appdx = '-full_scale' if exp['full_scale'] else '-downscaled'
-                appdx += '-beta_scaling={}'.format(exp['beta_scaling']) if exp['beta_scaling'] != 1.0 else ''
+                _, filename = os.path.split(summary_path)
+                print('Plotting: ' + filename)
                 resulttuple = load_summary(summary_path+'.pk')
                 summary = resulttuple[1]
 
@@ -146,21 +146,22 @@ if __name__ == '__main__':
                 plotter.plot_positives_vs_target(
                     summary, sim_cases.sum(axis=1),
                     title='Calibration period',
-                    filename='calibration-{}-{}-{}'.format(country, area, appdx),
+                    filename=filename,
                     figsize=(6, 4),
                     start_date=start_date,
                     errorevery=1, acc=1000,
                     ymax=int(ymax[country][area])
                 )
 
-                plotter.plot_age_group_positives_vs_target(
-                    summary, sim_cases,
-                    ytitle=f'{country}-{area}',
-                    filename='calibration-{}-{}-{}-age'.format(country, area, appdx),
-                    figsize=(16, 2.5),
-                    start_date=start_date,
-                    errorevery=1, acc=1000,
-                    ymax=int(ymax[country][area] / 4))
+                if not no_agegroups:
+                    plotter.plot_age_group_positives_vs_target(
+                        summary, sim_cases,
+                        ytitle=f'{country}-{area}',
+                        filename=filename + '-age',
+                        figsize=(16, 2.5),
+                        start_date=start_date,
+                        errorevery=1, acc=1000,
+                        ymax=int(ymax[country][area] / 4))
             except FileNotFoundError:
                 print(f'{experiment_info}-{simulation_info}. File not found.')
     else:
