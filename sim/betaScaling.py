@@ -1,4 +1,4 @@
-
+import matplotlib.pyplot as plt
 from lib.calibrationFunctions import get_calibrated_params
 from lib.calibrationSettings import calibration_lockdown_dates, calibration_mob_paths, calibration_states
 from lib.experiment import Experiment, options_to_str, process_command_line
@@ -42,6 +42,7 @@ def get_stats(mob, max_people, verbose=False):
     iter = (tqdm(np.random.choice(mob.num_people, size=n_people), desc='n_contacts')
             if verbose else np.random.choice(mob.num_people, size=n_people))
 
+    empty = 0
     for j in iter:
         contacts_j = mob.find_contacts_of_indiv(indiv=j, tmin=0)
         
@@ -57,20 +58,26 @@ def get_stats(mob, max_people, verbose=False):
             total_contact_time.append(t)
             ave_contact_time.append(t / len(contacts_j))
             ave_contact_time_unique.append(t / len(unique))
+
         else:
-            counts.append(0)
-            counts_unique.append(0)
-            total_contact_time.append(0.0)
-            ave_contact_time.append(0.0)
-            ave_contact_time_unique.append(0.0)
+            empty += 1
+
+    print('empty = ', empty)
 
     return dict(
-        ave_contact_counts=np.mean(counts),
-        ave_contact_counts_unique=np.mean(counts_unique),
-        ave_total_contact_time=np.mean(total_contact_time),
-        ave_ave_contact_time=np.mean(ave_contact_time),
-        ave_ave_contact_time_unique=np.mean(ave_contact_time_unique),
+        counts=counts,
+        counts_unique=counts_unique,
+        total_contact_time=total_contact_time,
+        ave_contact_time=ave_contact_time,
+        ave_contact_time_unique=ave_contact_time_unique,
     )
+
+def comp_stats(arr0, arr1):
+    return {
+        'mean': np.mean(arr0) / np.mean(arr1),
+        'median': np.median(arr0) / np.median(arr1),
+        'max': np.max(arr0) / np.max(arr1),
+    }
 
 
 def compute_mob_statistics(loc_tup, days, max_people, verbose=False):
@@ -105,29 +112,31 @@ def compute_mob_statistics(loc_tup, days, max_people, verbose=False):
     contact_info_full = get_stats(mob_full, max_people, verbose=verbose)
     del mob_full
 
-    statistics['ratio-' + 'ave_contact_counts'] = (
-        contact_info_downsampled['ave_contact_counts']
-        / contact_info_full['ave_contact_counts']
-    )
-    statistics['ratio-' + 'ave_contact_counts_unique'] = (
-        contact_info_downsampled['ave_contact_counts_unique']
-        / contact_info_full['ave_contact_counts_unique']
-    )
+    # summarize
+    for s in contact_info_downsampled.keys():
 
-    statistics['ratio-' + 'ave_total_contact_time'] = (
-        contact_info_downsampled['ave_total_contact_time']
-        / contact_info_full['ave_total_contact_time']
-    )
+        fig = plt.figure(figsize=(4, 7))
+        ax0 = fig.add_subplot(211)
+        ax0.hist(contact_info_downsampled[s])
+        ax0.set_title('downsampled')
+        xlim0 = ax0.get_xlim()
+        ax1 = fig.add_subplot(212)
+        ax1.hist(contact_info_full[s])
+        ax1.set_title('full')
+        xlim1 = ax1.get_xlim()
 
-    statistics['ratio-' + 'ave_ave_contact_time'] = (
-        contact_info_downsampled['ave_ave_contact_time']
-        / contact_info_full['ave_ave_contact_time']
-    )
+        ax0.set_xlim((min(xlim0[0], xlim1[0]), max(xlim0[1], xlim1[1])))
+        ax1.set_xlim((min(xlim0[0], xlim1[0]), max(xlim0[1], xlim1[1])))
+        fig.suptitle(s)
+        plt.savefig('plots/betaScaling-' + loc_tup[0] + '-' + loc_tup[1] + '-' + s + '.png', format='png', facecolor=None,
+                    dpi=200, bbox_inches='tight')
+        plt.close('all')
 
-    statistics['ratio-' + 'ave_ave_contact_time_unique'] = (
-        contact_info_downsampled['ave_ave_contact_time_unique']
-        / contact_info_full['ave_ave_contact_time_unique']
-    )
+        d = comp_stats(
+            contact_info_downsampled[s],
+            contact_info_full[s])
+        for k, v in d.items():
+            statistics['ratio-' + k + '-' + s] = v
 
     # print always
     print(country, area)
@@ -162,16 +171,12 @@ if __name__ == '__main__':
 
     # print all statistics
     all_statistics_unordered = dict(zip(locs, res))
-    all_statistics = dict()
-    stats = [
-        'ratio-' + 'ave_contact_counts',
-        'ratio-' + 'ave_contact_counts_unique',
-        'ratio-' + 'ave_total_contact_time',
-        'ratio-' + 'ave_ave_contact_time',
-        'ratio-' + 'ave_ave_contact_time_unique',
-    ]
 
-    for s in stats:
+    pprint(all_statistics_unordered)
+
+    all_statistics = dict()
+    
+    for s in res[0].keys():
         all_statistics[s] = dict()
         for loc_tup in locs:
             all_statistics[s][loc_tup] = all_statistics_unordered[loc_tup][s]

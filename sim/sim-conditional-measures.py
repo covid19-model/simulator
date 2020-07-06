@@ -25,6 +25,7 @@ if __name__ == '__main__':
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = None
+    expected_daily_base_expo_per100k = 0 # only set this to 1 in future/outlook experiment, as it models imported infections
 
     # command line parsing
     args = process_command_line()
@@ -95,7 +96,9 @@ if __name__ == '__main__':
         test_update=None,
         seed_summary_path=seed_summary_path,
         set_initial_seeds_to=set_initial_seeds_to,
-        full_scale=full_scale)
+        full_scale=full_scale,
+        expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
+
     print(f'{experiment_info} configuration done.')
 
     # execute all simulations

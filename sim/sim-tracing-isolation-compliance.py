@@ -25,6 +25,7 @@ if __name__ == '__main__':
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = None
+    expected_daily_base_expo_per100k = 1
 
     # experiment parameters
     isolate_days = 14 # how many days selected people have to stay in isolation
@@ -98,7 +99,8 @@ if __name__ == '__main__':
                 test_update=test_update,
                 seed_summary_path=seed_summary_path,
                 set_initial_seeds_to=set_initial_seeds_to,
-                full_scale=full_scale)
+                full_scale=full_scale,
+                expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
                 
     print(f'{experiment_info} configuration done.')
 

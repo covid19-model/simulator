@@ -186,6 +186,7 @@ class Experiment(object):
         seed_summary_path=None,
         set_calibrated_params_to=None,
         set_initial_seeds_to=None,
+        expected_daily_base_expo_per100k=0,
         store_mob=False):
 
         # Set time window based on experiment start and end date
@@ -216,6 +217,20 @@ class Experiment(object):
 
         # Instantiate correct state transition distributions (estimated from literature)
         distributions = CovidDistributions(country=country)
+
+        # Expected base rate infections
+        if expected_daily_base_expo_per100k > 0.0:
+
+            # Scale expectation to simulation size
+            num_people = len(mob_settings['home_loc'])
+            expected_daily_base_expo = np.round(expected_daily_base_expo_per100k * (num_people / 100000))
+
+            # Convert expectation to aggregate rate over population
+            lambda_base_expo_population = 1 / expected_daily_base_expo
+
+            # Convert to individual base rate by dividing by population size; priority queue handles superposition
+            lambda_base_expo_indiv = lambda_base_expo_population / num_people
+            distributions.lambda_0 = lambda_base_expo_indiv
 
         # Get initial seeds for simulation
         # (a) Define heuristically based on true cases and literature distribution estimates
