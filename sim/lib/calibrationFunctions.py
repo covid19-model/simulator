@@ -275,8 +275,18 @@ def parr_to_pdict(*, parr, multi_beta_calibration):
         }
     return pdict
 
-def get_calibrated_params(*, country, area, multi_beta_calibration):
-    '''Returns calibrated parameters for a `country` and an `area`'''
+
+def get_calibrated_params(*, country, area, multi_beta_calibration, maxiters=None):
+    """
+    Returns calibrated parameters for a `country` and an `area`
+    """
+
+    if maxiters:
+        param_dict = get_calibrated_params_limited_iters(country, area,
+                                                         multi_beta_calibration=multi_beta_calibration,
+                                                         maxiters=maxiters,)
+        return param_dict
+
     state = load_state(calibration_states[country][area])
     theta = state['train_theta']
     best_observed_idx = state['best_observed_idx']
@@ -290,6 +300,57 @@ def get_calibrated_params(*, country, area, multi_beta_calibration):
     params = transforms.unnormalize(norm_params, sim_bounds)
     param_dict = parr_to_pdict(parr=params, multi_beta_calibration=multi_beta_calibration)
     return param_dict
+
+
+def get_calibrated_params_limited_iters(country, area, multi_beta_calibration,  maxiters):
+    """
+    Returns calibrated parameters using only the first `maxiters` iterations of BO.
+    """
+
+    state = load_state(calibration_states[country][area])
+    train_G = state['train_G']
+    train_G = train_G[:min(maxiters, len(train_G))]
+    train_theta = state['train_theta']
+
+    mob_settings = calibration_mob_paths[country][area][0]
+    with open(mob_settings, 'rb') as fp:
+        mob_kwargs = pickle.load(fp)
+    mob = MobilitySimulator(**mob_kwargs)
+
+    data_start_date = calibration_start_dates[country][area]
+    data_end_date = calibration_lockdown_dates[country]['end']
+
+    unscaled_area_cases = collect_data_from_df(country=country, area=area, datatype='new',
+                                               start_date_string=data_start_date, end_date_string=data_end_date)
+    assert (len(unscaled_area_cases.shape) == 2)
+
+    # Scale down cases based on number of people in town and region
+    sim_cases = downsample_cases(unscaled_area_cases, mob_kwargs)
+    n_days, n_age = sim_cases.shape
+
+    G_obs = torch.tensor(sim_cases).reshape(1, n_days * n_age)
+    G_obs_aggregate = torch.tensor(sim_cases).sum(dim=-1)
+
+    def objective(G):
+        return - (G - G_obs_aggregate).pow(2).sum(dim=-1) / n_days
+
+    train_G_objectives = objective(train_G)
+    best_observed_idx = train_G_objectives.argmax()
+    best_observed_obj = train_G_objectives[best_observed_idx].item()
+
+    param_bounds = (
+        calibration_model_param_bounds_multi
+        if multi_beta_calibration else
+        calibration_model_param_bounds_single)
+    sim_bounds = pdict_to_parr(
+        pdict=param_bounds,
+        multi_beta_calibration=multi_beta_calibration
+    ).T
+
+    normalized_calibrated_params = train_theta[best_observed_idx]
+    calibrated_params = transforms.unnormalize(normalized_calibrated_params, sim_bounds)
+    calibrated_params = parr_to_pdict(parr=calibrated_params, multi_beta_calibration=multi_beta_calibration)
+    return calibrated_params
 
 
 def downsample_cases(unscaled_area_cases, mob_settings):
