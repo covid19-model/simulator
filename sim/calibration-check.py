@@ -22,6 +22,7 @@ if __name__ == '__main__':
     seed_summary_path = None
     set_initial_seeds_to = None
     debugmode = False
+    maxBOiters = None
 
     # command line parsing
     parser = process_command_line(return_parser=True)
@@ -75,13 +76,12 @@ if __name__ == '__main__':
 
     summary_paths = []
     for exp, expparams in exps.items():
-        calibrated_params = get_calibrated_params(country=country, area=area, multi_beta_calibration=False)
+        calibrated_params = get_calibrated_params(country=country, area=area,
+                                                  multi_beta_calibration=False,
+                                                  maxiters=maxBOiters)
         calibrated_params['beta_site'] = expparams['beta_scaling'] * calibrated_params['beta_site']
 
         simulation_info = options_to_str(exp=exp, beta_scaling=expparams['beta_scaling'])
-        # FIXME: If run again, use the following, don't change now!
-        # scaling = expparams['beta_scaling']
-        #  simulation_info = options_to_str(exp=exp+f'={scaling}')
 
         summary_path = experiment_info + '/' + experiment_info + '-' + simulation_info
         summary_paths.append(summary_path)
