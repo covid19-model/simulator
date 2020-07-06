@@ -282,7 +282,6 @@ def get_calibrated_params(*, country, area, multi_beta_calibration, maxiters=Non
     """
 
     if maxiters:
-        print("hallo")
         param_dict = get_calibrated_params_limited_iters(country, area,
                                                          multi_beta_calibration=multi_beta_calibration,
                                                          maxiters=maxiters,)
