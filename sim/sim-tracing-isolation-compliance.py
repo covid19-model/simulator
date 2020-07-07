@@ -31,7 +31,7 @@ if __name__ == '__main__':
     # experiment parameters
     isolate_days = 14 # how many days selected people have to stay in isolation
     contacts = 5000  # how many contacts are isolated in the `test_smart_delta` window at most
-    policies = ['basic', 'advanced'] # contact tracing policies
+    policies = ['basic'] # contact tracing policies
     ps_compliance = [0.1, 0.25, 0.5, 0.75, 1.0]
 
     # seed
