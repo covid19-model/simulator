@@ -628,7 +628,7 @@ class DiseaseModel(object):
             elif self.state['isym'][parent]:
                 self.children_count_isym[parent] += 1
             else:
-                assert(False, 'only infectous parents can expose person i')
+                assert False, 'only infectous parents can expose person i'
 
 
         # decide whether asymptomatic or (pre-)symptomatic
