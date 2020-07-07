@@ -1,17 +1,13 @@
 
-import sys, os
+import sys
 if '..' not in sys.path:
     sys.path.append('..')
 
-import numpy as np
 import random as rd
 import pandas as pd
-import pickle
-import multiprocessing
-import argparse
 from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
-from lib.calibrationSettings import calibration_lockdown_dates, calibration_mob_paths, calibration_states, calibration_lockdown_beta_multipliers
+from lib.calibrationSettings import calibration_lockdown_dates, calibration_start_dates, calibration_lockdown_beta_multipliers
 from lib.calibrationFunctions import get_calibrated_params
 
 TO_HOURS = 24.0
@@ -19,7 +15,6 @@ TO_HOURS = 24.0
 if __name__ == '__main__':
 
     name = 'continued-lockdown'
-    end_date = '2020-07-31'
     random_repeats = 96
     full_scale = True
     verbose = True
@@ -32,7 +27,8 @@ if __name__ == '__main__':
     area = args.area
 
     # experiment parameters
-    extended_lockdown_weeks = [2, 4, 8]
+    # Continue lockdown for 'lockdown_weeks' number of weeks
+    lockdown_weeks = [2, 4, 8]
     calibrated_params = get_calibrated_params(country=country, area=area, multi_beta_calibration=False)
     p_stay_home = calibrated_params['p_stay_home']
 
@@ -41,8 +37,19 @@ if __name__ == '__main__':
     np.random.seed(c)
     rd.seed(c)
 
-    # start simulation when lockdown ends
-    start_date = calibration_lockdown_dates[country]['end']
+    # set simulation and intervention dates
+    start_date = calibration_start_dates[country][area]
+    end_date = calibration_lockdown_dates[country]['end']
+    measure_start_date = calibration_lockdown_dates[country]['start']
+    measure_window_in_hours = dict()
+    measure_window_in_hours['start'] = (pd.to_datetime(measure_start_date) - pd.to_datetime(start_date)).days * TO_HOURS
+    measure_window_in_hours['end'] = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days * TO_HOURS
+
+    # Load calibrated parameters up to `maxBOiters` iterations of BO
+    maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
+    calibrated_params = get_calibrated_params(country=country, area=area,
+                                              multi_beta_calibration=False,
+                                              maxiters=maxBOiters)
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -56,21 +63,21 @@ if __name__ == '__main__':
     )
 
     # Continue lockdown for different time periods
-    for extended_lockdown_time in extended_lockdown_weeks:
+    for weeks in lockdown_weeks:
         # measures
         max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
         m = [
             SocialDistancingForAllMeasure(
-                t_window=Interval(0.0, TO_HOURS * 7 * extended_lockdown_time),
+                t_window=Interval(measure_window_in_hours['start'], TO_HOURS * 7 * weeks),
                 p_stay_home=p_stay_home),
 
             BetaMultiplierMeasureByType(
-                t_window=Interval(0.0, TO_HOURS * 7 * extended_lockdown_time),
+                t_window=Interval(measure_window_in_hours['start'], TO_HOURS * 7 * weeks),
                 beta_multiplier=calibration_lockdown_beta_multipliers)
             ]
 
-        simulation_info = options_to_str(extended_lockdown_weeks=extended_lockdown_time,
+        simulation_info = options_to_str(extended_lockdown_weeks=weeks,
                                          p_stay_home=p_stay_home)
 
         experiment.add(
@@ -78,8 +85,10 @@ if __name__ == '__main__':
             country=country,
             area=area,
             measure_list=m,
+            lockdown_measures_active=False,
             test_update=None,
             seed_summary_path=seed_summary_path,
+            set_calibrated_params_to=calibrated_params,
             set_initial_seeds_to=set_initial_seeds_to,
             full_scale=full_scale)
     print(f'{experiment_info} configuration done.')
