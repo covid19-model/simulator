@@ -1,17 +1,13 @@
 
-import sys, os
+import sys
 if '..' not in sys.path:
     sys.path.append('..')
 
-import numpy as np
 import random as rd
 import pandas as pd
-import pickle
-import multiprocessing
-import argparse
 from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
-from lib.calibrationSettings import calibration_lockdown_dates, calibration_mob_paths, calibration_states
+from lib.calibrationSettings import calibration_lockdown_dates, calibration_start_dates
 from lib.calibrationFunctions import get_calibrated_params
 
 TO_HOURS = 24.0
@@ -19,7 +15,6 @@ TO_HOURS = 24.0
 if __name__ == '__main__':
 
     name = 'conditional-measures'
-    end_date = '2020-07-31'
     random_repeats = 96
     full_scale = True
     verbose = True
@@ -51,8 +46,19 @@ if __name__ == '__main__':
     np.random.seed(c)
     rd.seed(c)
 
-    # start simulation when lockdown ends
-    start_date = calibration_lockdown_dates[country]['end']
+    # set simulation and intervention dates
+    start_date = calibration_start_dates[country][area]
+    end_date = calibration_lockdown_dates[country]['end']
+    measure_start_date = calibration_lockdown_dates[country]['start']
+    measure_window_in_hours = dict()
+    measure_window_in_hours['start'] = (pd.to_datetime(measure_start_date) - pd.to_datetime(start_date)).days * TO_HOURS
+    measure_window_in_hours['end'] = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days * TO_HOURS
+
+    # Load calibrated parameters up to `maxBOiters` iterations of BO
+    maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
+    calibrated_params = get_calibrated_params(country=country, area=area,
+                                              multi_beta_calibration=False,
+                                              maxiters=maxBOiters)
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -66,16 +72,14 @@ if __name__ == '__main__':
     )
 
     # conditional measures experiment
-    max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
-
     m = [
-        UpperBoundCasesBetaMultiplier(t_window=Interval(0.0, TO_HOURS * max_days),
+        UpperBoundCasesBetaMultiplier(t_window=Interval(measure_window_in_hours['start'], measure_window_in_hours['end']),
                                       beta_multiplier=beta_multiplier,
                                       max_pos_tests_per_week_per_100k=max_pos_tests_per_week_per_100k,
                                       intervention_times=intervention_times,
                                       init_active=is_measure_active_initially),
 
-        UpperBoundCasesSocialDistancing(t_window=Interval(0, max_days * TO_HOURS),
+        UpperBoundCasesSocialDistancing(t_window=Interval(measure_window_in_hours['start'], measure_window_in_hours['end']),
                                         p_stay_home=p_stay_home,
                                         max_pos_tests_per_week_per_100k=max_pos_tests_per_week_per_100k,
                                         intervention_times=intervention_times,
@@ -84,7 +88,7 @@ if __name__ == '__main__':
 
     simulation_info = options_to_str(
         max_pos_tests_per_week_per_100k=50,
-        initially_active=True,
+        initially_active=is_measure_active_initially,
         p_stay_home=p_stay_home
     )
 
@@ -93,8 +97,10 @@ if __name__ == '__main__':
         country=country,
         area=area,
         measure_list=m,
+        lockdown_measures_active=False,
         test_update=None,
         seed_summary_path=seed_summary_path,
+        set_calibrated_params_to=calibrated_params,
         set_initial_seeds_to=set_initial_seeds_to,
         full_scale=full_scale,
         expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
