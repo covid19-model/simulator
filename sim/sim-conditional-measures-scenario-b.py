@@ -7,20 +7,22 @@ import random as rd
 import pandas as pd
 from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
-from lib.calibrationSettings import calibration_lockdown_dates, calibration_start_dates, calibration_lockdown_beta_multipliers
+from lib.calibrationSettings import calibration_lockdown_dates, calibration_start_dates
 from lib.calibrationFunctions import get_calibrated_params
 
 TO_HOURS = 24.0
 
 if __name__ == '__main__':
 
-    name = 'conditional-measures'
+    name = 'conditional-measures-scenario-b'
+    start_date = '2021-01-01'
+    end_date = '2021-05-01'
     random_repeats = 96
     full_scale = True
     verbose = True
     seed_summary_path = None
-    set_initial_seeds_to = None
-    expected_daily_base_expo_per100k = 0 # only set this to 1 in future/outlook experiment, as it models imported infections
+    set_initial_seeds_to = {}
+    expected_daily_base_expo_per100k = 1 
 
     # command line parsing
     args = process_command_line()
@@ -45,7 +47,7 @@ if __name__ == '__main__':
     intervention_times = None
     p_stay_home = calibrated_params['p_stay_home']
     beta_multiplier = calibration_lockdown_beta_multipliers
-    
+
     # seed
     c = 0
     np.random.seed(c)

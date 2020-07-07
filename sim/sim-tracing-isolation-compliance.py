@@ -19,17 +19,18 @@ TO_HOURS = 24.0
 if __name__ == '__main__':
 
     name = 'tracing-isolation-compliance'
-    end_date = '2020-07-31'
+    start_date = '2021-01-01'
+    end_date = '2021-05-01'
     random_repeats = 96
     full_scale = True
     verbose = True
     seed_summary_path = None
-    set_initial_seeds_to = None
+    set_initial_seeds_to = {}
     expected_daily_base_expo_per100k = 1
 
     # experiment parameters
     isolate_days = 14 # how many days selected people have to stay in isolation
-    contacts = 1000  # how many contacts are isolated in the `test_smart_delta` window at most
+    contacts = 5000  # how many contacts are isolated in the `test_smart_delta` window at most
     policies = ['basic', 'advanced'] # contact tracing policies
     ps_compliance = [0.1, 0.25, 0.5, 0.75, 1.0]
 
@@ -43,8 +44,11 @@ if __name__ == '__main__':
     country = args.country
     area = args.area
 
-    # start simulation when lockdown ends
-    start_date = calibration_lockdown_dates[country]['end']
+    # Load calibrated parameters up to `maxBOiters` iterations of BO
+    maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
+    calibrated_params = get_calibrated_params(country=country, area=area,
+                                              multi_beta_calibration=False,
+                                              maxiters=maxBOiters)
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -99,6 +103,7 @@ if __name__ == '__main__':
                 test_update=test_update,
                 seed_summary_path=seed_summary_path,
                 set_initial_seeds_to=set_initial_seeds_to,
+                set_calibrated_params_to=calibrated_params,
                 full_scale=full_scale,
                 expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
                 
