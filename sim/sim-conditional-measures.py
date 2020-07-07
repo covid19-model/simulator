@@ -27,6 +27,12 @@ if __name__ == '__main__':
     country = args.country
     area = args.area
 
+    # Load calibrated parameters up to `maxBOiters` iterations of BO
+    maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
+    calibrated_params = get_calibrated_params(country=country, area=area,
+                                              multi_beta_calibration=False,
+                                              maxiters=maxBOiters)
+
     # experiment parameters
     # Measures become active only if positive tests per week per 100k people exceed `max_pos_tests_per_week_per_100k`.
     # `intervention_times` can be set in order to allow changes in the policy only at discrete times,
@@ -37,7 +43,6 @@ if __name__ == '__main__':
     max_pos_tests_per_week_per_100k = 50
     is_measure_active_initially = False
     intervention_times = None
-    calibrated_params = get_calibrated_params(country=country, area=area, multi_beta_calibration=False)
     p_stay_home = calibrated_params['p_stay_home']
     beta_multiplier = {'education': 0.0, 'social': 0.0, 'bus_stop': 1.0, 'office': 1.0, 'supermarket': 1.0}
 
@@ -53,12 +58,6 @@ if __name__ == '__main__':
     measure_window_in_hours = dict()
     measure_window_in_hours['start'] = (pd.to_datetime(measure_start_date) - pd.to_datetime(start_date)).days * TO_HOURS
     measure_window_in_hours['end'] = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days * TO_HOURS
-
-    # Load calibrated parameters up to `maxBOiters` iterations of BO
-    maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
-    calibrated_params = get_calibrated_params(country=country, area=area,
-                                              multi_beta_calibration=False,
-                                              maxiters=maxBOiters)
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'

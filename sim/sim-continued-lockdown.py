@@ -26,10 +26,15 @@ if __name__ == '__main__':
     country = args.country
     area = args.area
 
+    # Load calibrated parameters up to `maxBOiters` iterations of BO
+    maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
+    calibrated_params = get_calibrated_params(country=country, area=area,
+                                              multi_beta_calibration=False,
+                                              maxiters=maxBOiters)
+
     # experiment parameters
     # Continue lockdown for 'lockdown_weeks' number of weeks
     lockdown_weeks = [2, 4, 8]
-    calibrated_params = get_calibrated_params(country=country, area=area, multi_beta_calibration=False)
     p_stay_home = calibrated_params['p_stay_home']
 
     # seed
@@ -44,12 +49,6 @@ if __name__ == '__main__':
     measure_window_in_hours = dict()
     measure_window_in_hours['start'] = (pd.to_datetime(measure_start_date) - pd.to_datetime(start_date)).days * TO_HOURS
     measure_window_in_hours['end'] = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days * TO_HOURS
-
-    # Load calibrated parameters up to `maxBOiters` iterations of BO
-    maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
-    calibrated_params = get_calibrated_params(country=country, area=area,
-                                              multi_beta_calibration=False,
-                                              maxiters=maxBOiters)
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
