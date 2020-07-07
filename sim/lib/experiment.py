@@ -181,6 +181,7 @@ class Experiment(object):
         country,
         area,        
         measure_list,
+        lockdown_measures_active=True,
         full_scale=True,
         test_update=None,
         seed_summary_path=None,
@@ -286,20 +287,22 @@ class Experiment(object):
         ]
 
         # Add standard measures if simulation is happening during lockdown
-        measure_list += [
+        # Set lockdown_measures_active to False to explore counterfactual scenarios
+        if lockdown_measures_active:
+            measure_list += [
 
-            # social distancing factor during lockdown: calibrated
-            SocialDistancingForAllMeasure(
-                t_window=Interval(TO_HOURS * days_until_lockdown_start,
-                                TO_HOURS * days_until_lockdown_end),
-                p_stay_home=p_stay_home_calibrated),
+                # social distancing factor during lockdown: calibrated
+                SocialDistancingForAllMeasure(
+                    t_window=Interval(TO_HOURS * days_until_lockdown_start,
+                                    TO_HOURS * days_until_lockdown_end),
+                    p_stay_home=p_stay_home_calibrated),
 
-            # site specific measures: fixed in advance, outside of calibration
-            BetaMultiplierMeasureByType(
-                t_window=Interval(TO_HOURS * days_until_lockdown_start,
-                                TO_HOURS * days_until_lockdown_end),
-                beta_multiplier=calibration_lockdown_beta_multipliers)
-        ]
+                # site specific measures: fixed in advance, outside of calibration
+                BetaMultiplierMeasureByType(
+                    t_window=Interval(TO_HOURS * days_until_lockdown_start,
+                                    TO_HOURS * days_until_lockdown_end),
+                    beta_multiplier=calibration_lockdown_beta_multipliers)
+            ]
 
         measure_list = MeasureList(measure_list)
 
