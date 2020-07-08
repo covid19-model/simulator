@@ -69,13 +69,12 @@ if __name__ == '__main__':
 
         m = [
             SocialDistancingForKGroups(
-                t_window=Interval(measure_window_in_hours['start'], TO_HOURS * 7 * K_groups_weeks),
+                t_window=Interval(measure_window_in_hours['start'], measure_window_in_hours['end']),
                 K=groups)
             ]
 
         simulation_info = options_to_str(
-            K_groups=groups,
-            K_groups_weeks=K_groups_weeks)
+            K_groups=groups)
 
         experiment.add(
             simulation_info=simulation_info,
