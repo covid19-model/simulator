@@ -20,19 +20,19 @@ if __name__ == '__main__':
 
     name = 'tracing-isolation-compliance'
     start_date = '2021-01-01'
-    end_date = '2021-05-01'
+    end_date = '2021-03-02'
     random_repeats = 48
     full_scale = True
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = {}
-    expected_daily_base_expo_per100k = 10 / 7
+    expected_daily_base_expo_per100k = 1
 
     # experiment parameters
     isolate_days = 14 # how many days selected people have to stay in isolation
     contacts = 5000  # how many contacts are isolated in the `test_smart_delta` window at most
     policies = ['basic'] # contact tracing policies
-    ps_compliance = [0.1, 0.25, 0.5, 0.75, 1.0]
+    ps_compliance = [0.75, 0.5, 0.25, 0.1] # 1.0 is done in `sim-tracing-isolation`
 
     # seed
     c = 0
