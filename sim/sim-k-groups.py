@@ -36,7 +36,6 @@ if __name__ == '__main__':
     # Split citizens in `K_groups` groups and alternatingly install social distancing measures for the groups
     # `K_groups_weeks` determines for how many weeks this strategy is active
     K_groups = [2, 3, 4]
-    K_groups_weeks = 6
 
     # seed
     c = 0

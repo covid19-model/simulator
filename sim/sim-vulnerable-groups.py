@@ -15,7 +15,7 @@ TO_HOURS = 24.0
 if __name__ == '__main__':
 
     name = 'vulnerable-groups'
-    random_repeats = 96
+    random_repeats = 48
     full_scale = True
     verbose = True
     seed_summary_path = None
@@ -34,7 +34,6 @@ if __name__ == '__main__':
 
     # experiment parameters
     # Isolate older age groups for `weeks` number of weeks
-    weeks = [2, 4, 8]
     p_stay_home = calibrated_params['p_stay_home']
 
     # seed
@@ -62,34 +61,35 @@ if __name__ == '__main__':
     )
 
     # Social distancing for vulnerable people (older age groups) for different time periods
-    for wk in weeks:
-        # measures
-        max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+    # measures
+    max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
-        m = [
-            SocialDistancingByAgeMeasure(
-                t_window=Interval(measure_window_in_hours['start'], (TO_HOURS * 7 * wk)),
-                p_stay_home=(
-                    [0.0, 0.0, 0.0, 0.0, p_stay_home, p_stay_home] if country == 'GER' else
-                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, p_stay_home, p_stay_home, p_stay_home]
-                ))
-            ]
+    m = [
+        SocialDistancingByAgeMeasure(
+            t_window=Interval(
+                measure_window_in_hours['start'], 
+                measure_window_in_hours['end']),
+            p_stay_home=(
+                [0.0, 0.0, 0.0, 0.0, p_stay_home, p_stay_home] if country == 'GER' else
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, p_stay_home, p_stay_home, p_stay_home]
+            ))
+        ]
 
-        simulation_info = options_to_str(
-            weeks=wk,
-            p_stay_home=p_stay_home)
+    simulation_info = options_to_str(
+        p_stay_home=p_stay_home)
 
-        experiment.add(
-            simulation_info=simulation_info,
-            country=country,
-            area=area,
-            measure_list=m,
-            lockdown_measures_active=False,
-            test_update=None,
-            seed_summary_path=seed_summary_path,
-            set_calibrated_params_to=calibrated_params,
-            set_initial_seeds_to=set_initial_seeds_to,
-            full_scale=full_scale)
+    experiment.add(
+        simulation_info=simulation_info,
+        country=country,
+        area=area,
+        measure_list=m,
+        lockdown_measures_active=False,
+        test_update=None,
+        seed_summary_path=seed_summary_path,
+        set_calibrated_params_to=calibrated_params,
+        set_initial_seeds_to=set_initial_seeds_to,
+        full_scale=full_scale)
+
     print(f'{experiment_info} configuration done.')
 
     # execute all simulations
