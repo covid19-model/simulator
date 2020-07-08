@@ -633,13 +633,15 @@ class DiseaseModel(object):
 
         # decide whether asymptomatic or (pre-)symptomatic
         if self.bernoulli_is_iasy[i]:
-            self.queue.push(
-                (t + self.delta_expo_to_iasy[i], 'iasy', i, None, None, None),
-                priority=t + self.delta_expo_to_iasy[i])
+            if t + self.delta_expo_to_iasy[i] < self.max_time:
+                self.queue.push(
+                    (t + self.delta_expo_to_iasy[i], 'iasy', i, None, None, None),
+                    priority=t + self.delta_expo_to_iasy[i])
         else:
-            self.queue.push(
-                (t + self.delta_expo_to_ipre[i], 'ipre', i, None, None, None),
-                priority=t + self.delta_expo_to_ipre[i])
+            if t + self.delta_expo_to_ipre[i] < self.max_time:
+                self.queue.push(
+                    (t + self.delta_expo_to_ipre[i], 'ipre', i, None, None, None),
+                    priority=t + self.delta_expo_to_ipre[i])
 
     def __process_presymptomatic_event(self, t, i, add_exposures=True):
         """
@@ -655,9 +657,10 @@ class DiseaseModel(object):
         self.state_started_at['ipre'][i] = t
 
         # resistant event
-        self.queue.push(
-            (t + self.delta_ipre_to_isym[i], 'isym', i, None, None, None),
-            priority=t + self.delta_ipre_to_isym[i])
+        if t + self.delta_ipre_to_isym[i] < self.max_time:
+            self.queue.push(
+                (t + self.delta_ipre_to_isym[i], 'isym', i, None, None, None),
+                priority=t + self.delta_ipre_to_isym[i])
 
         if add_exposures:
             # contact exposure of others
@@ -686,19 +689,22 @@ class DiseaseModel(object):
 
         # hospitalized?
         if self.bernoulli_is_hospi[i]:
-            self.queue.push(
-                (t + self.delta_isym_to_hosp[i], 'hosp', i, None, None, None),
-                priority=t + self.delta_isym_to_hosp[i])
+            if t + self.delta_isym_to_hosp[i] < self.max_time:
+                self.queue.push(
+                    (t + self.delta_isym_to_hosp[i], 'hosp', i, None, None, None),
+                    priority=t + self.delta_isym_to_hosp[i])
 
         # resistant event vs fatality event
         if self.bernoulli_is_fatal[i]:
-            self.queue.push(
-                (t + self.delta_isym_to_dead[i], 'dead', i, None, None, None),
-                priority=t + self.delta_isym_to_dead[i])
+            if t + self.delta_isym_to_dead[i] < self.max_time:
+                self.queue.push(
+                    (t + self.delta_isym_to_dead[i], 'dead', i, None, None, None),
+                    priority=t + self.delta_isym_to_dead[i])
         else:
-            self.queue.push(
-                (t + self.delta_isym_to_resi[i], 'resi', i, None, None, None),
-                priority=t + self.delta_isym_to_resi[i])
+            if t + self.delta_isym_to_resi[i] < self.max_time:
+                self.queue.push(
+                    (t + self.delta_isym_to_resi[i], 'resi', i, None, None, None),
+                    priority=t + self.delta_isym_to_resi[i])
 
     def __process_asymptomatic_event(self, t, i, add_exposures=True):
         """
@@ -714,9 +720,10 @@ class DiseaseModel(object):
         self.state_started_at['iasy'][i] = t
 
         # resistant event
-        self.queue.push(
-            (t + self.delta_iasy_to_resi[i], 'resi', i, None, None, None),
-            priority=t + self.delta_iasy_to_resi[i])
+        if t + self.delta_iasy_to_resi[i] < self.max_time:
+            self.queue.push(
+                (t + self.delta_iasy_to_resi[i], 'resi', i, None, None, None),
+                priority=t + self.delta_iasy_to_resi[i])
 
         if add_exposures:
             # contact exposure of others
@@ -834,7 +841,7 @@ class DiseaseModel(object):
         Z = self.__kernel_term(- self.delta, 0.0, 0.0)
 
         # sample next arrival from non-homogeneous point process
-        while self.mob.will_be_in_contact(indiv_i=j, indiv_j=infector, t=tau, site=None) and not sampled_event:
+        while self.mob.will_be_in_contact(indiv_i=j, indiv_j=infector, t=tau, site=None) and not sampled_event and tau < self.max_time:
             
             # check if j could get infected from infector at current `tau`
             # i.e. there is `delta`-contact from infector to j (i.e. non-zero intensity)
@@ -881,7 +888,7 @@ class DiseaseModel(object):
 
             # accept w.prob. lambda(t) / lambda_max
             u = np.random.uniform()
-            if u <= p:
+            if u <= p and tau < self.max_time:
                 self.queue.push(
                     (tau, 'expo', j, infector, site, None), priority=tau)
                 sampled_event = True
@@ -919,8 +926,9 @@ class DiseaseModel(object):
 
         # site = -1 means it is a household infection
         # thinning is done at exposure time if needed
-        self.queue.push(
-            (tau, 'expo', j, infector, -1, None), priority=tau)
+        if tau < self.max_time:
+            self.queue.push(
+                (tau, 'expo', j, infector, -1, None), priority=tau)
 
 
     def reject_exposure_due_to_measure(self, t, k):
@@ -1033,10 +1041,11 @@ class DiseaseModel(object):
                     is_positive_test = False
 
             # push test result with delay to the event queue
-            self.queue.push(
-                (t + self.test_reporting_lag, 'test', i, None, None, is_positive_test), 
-                priority=t + self.test_reporting_lag)
-            
+            if t + self.test_reporting_lag < self.max_time:
+                self.queue.push(
+                    (t + self.test_reporting_lag, 'test', i, None, None, is_positive_test), 
+                    priority=t + self.test_reporting_lag)
+                
             
 
     def __process_testing_event(self, t, i, metadata):
