@@ -127,7 +127,7 @@ class UpperBoundCasesSocialDistancing(SocialDistancingForAllMeasure):
         self.intervention_times = intervention_times
         self.intervention_history = InterLap()
         if init_active:
-            self.intervention_history.update([(0, 7 * 24 - EPS, True)])
+            self.intervention_history.update([(t_window.left, t_window.left + 7 * 24 - EPS, True)])
 
     def init_run(self, n_people, n_visits):
         super().init_run(n_people, n_visits)
@@ -635,7 +635,7 @@ class UpperBoundCasesBetaMultiplier(BetaMultiplierMeasure):
         self.intervention_times = intervention_times
         self.intervention_history = InterLap()
         if init_active:
-            self.intervention_history.update([(0, 7 * 24 - EPS, True)])
+            self.intervention_history.update([(t_window.left, t_window.left + 7 * 24 - EPS, True)])
 
     def init_run(self, n_people, n_visits):
         self.scaled_test_threshold = self.max_pos_tests_per_week_per_100k / 100000 * n_people

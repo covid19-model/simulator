@@ -7,7 +7,7 @@ import random as rd
 import pandas as pd
 from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
-from lib.calibrationSettings import calibration_lockdown_dates, calibration_start_dates
+from lib.calibrationSettings import calibration_lockdown_dates, calibration_start_dates, calibration_lockdown_beta_multipliers
 from lib.calibrationFunctions import get_calibrated_params
 
 TO_HOURS = 24.0
@@ -28,6 +28,7 @@ if __name__ == '__main__':
     args = process_command_line()
     country = args.country
     area = args.area
+    cpu_count = args.cpu_count
 
     # Load calibrated parameters up to `maxBOiters` iterations of BO
     maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
@@ -68,6 +69,7 @@ if __name__ == '__main__':
         start_date=start_date,
         end_date=end_date,
         random_repeats=random_repeats,
+        cpu_count=cpu_count,
         full_scale=full_scale,
         verbose=verbose,
     )
