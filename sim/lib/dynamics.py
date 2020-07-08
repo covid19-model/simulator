@@ -401,10 +401,10 @@ class DiseaseModel(object):
 
         # not initially seeded
         if self.lambda_0 > 0.0:
+            # sample non-contact exposure events
             delta_susc_to_expo = self.d.sample_susc_baseexpo(size=self.n_people)
             for i in range(self.n_people):
-                if not self.was_initial_seed[i]:
-                    # sample non-contact exposure events
+                if not self.was_initial_seed[i] and delta_susc_to_expo[i] < self.max_time: 
                     self.queue.push(
                         (delta_susc_to_expo[i], 'expo', i, None, None, None),
                         priority=delta_susc_to_expo[i])
