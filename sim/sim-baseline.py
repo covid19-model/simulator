@@ -33,6 +33,7 @@ if __name__ == '__main__':
     args = process_command_line()
     country = args.country
     area = args.area
+    cpu_count = args.cpu_count
 
     # Load calibrated parameters up to `maxBOiters` iterations of BO
     maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
@@ -51,6 +52,7 @@ if __name__ == '__main__':
         start_date=start_date,
         end_date=end_date,
         random_repeats=random_repeats,
+        cpu_count=cpu_count,
         full_scale=full_scale,
         verbose=verbose,
     )

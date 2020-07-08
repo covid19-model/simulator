@@ -115,6 +115,8 @@ def process_command_line(return_parser=False):
                         help="specify country indicator for experiment")
     parser.add_argument("--area",  required=True,
                         help="specify area indicator for experiment")
+    parser.add_argument("--cpu_count", type=int, default=multiprocessing.cpu_count(),
+                        help="update default number of cpus used for parallel simulation rollouts")
 
     if return_parser:
         return parser
@@ -150,12 +152,14 @@ class Experiment(object):
         random_repeats,
         full_scale,
         verbose,
+        cpu_count=None,
         multi_beta_calibration=False):
 
         self.experiment_info = experiment_info
         self.start_date = start_date
         self.end_date = end_date
         self.random_repeats = random_repeats
+        self.cpu_count = cpu_count if cpu_count else multiprocessing.cpu_count()
         self.full_scale = full_scale
         self.multi_beta_calibration = multi_beta_calibration
         self.verbose = verbose
@@ -366,7 +370,7 @@ class Experiment(object):
                 mob_settings=sim.mob_settings_file,
                 distributions=sim.distributions,
                 random_repeats=sim.random_repeats,
-                cpu_count=multiprocessing.cpu_count(),
+                cpu_count=self.cpu_count,
                 params=sim.model_params,
                 initial_seeds=sim.initial_seeds,
                 testing_params=sim.testing_params,
@@ -384,5 +388,3 @@ class Experiment(object):
 
             if self.verbose:
                 print(f'[Finished Sim] {self.get_sim_path(sim)}')
-
-            
