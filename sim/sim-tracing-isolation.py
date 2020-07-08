@@ -29,7 +29,7 @@ if __name__ == '__main__':
     expected_daily_base_expo_per100k = 1
 
     # experiment parameters
-    isolate_days_list = [7, 14] # how many days selected people have to stay in isolation 
+    isolate_days_list = [14, 7] # how many days selected people have to stay in isolation 
     contacts = 5000 # how many contacts are isolated in the `test_smart_delta` window at most
     policy = 'basic' # since all traced individuals are isolated, 'basic' == 'advanced'
 

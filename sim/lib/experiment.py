@@ -224,7 +224,7 @@ class Experiment(object):
 
             # Scale expectation to simulation size
             num_people = len(mob_settings['home_loc'])
-            expected_daily_base_expo = np.round(expected_daily_base_expo_per100k * (num_people / 100000))
+            expected_daily_base_expo = expected_daily_base_expo_per100k * (num_people / 100000)
 
             # Convert expectation to aggregate rate over population
             lambda_base_expo_population = 1 / expected_daily_base_expo
@@ -254,11 +254,15 @@ class Experiment(object):
             initial_seeds = extract_seeds_from_summary(
                 seed_summary_, seed_day_, sim_cases)
 
-        initial_seeds = set_initial_seeds_to or initial_seeds
+        if set_initial_seeds_to is not None:
+            initial_seeds = set_initial_seeds_to
 
         # Load calibrated model parameters for this area
-        calibrated_params = set_calibrated_params_to or get_calibrated_params(
+        calibrated_params = get_calibrated_params(
             country=country, area=area, multi_beta_calibration=self.multi_beta_calibration)
+        if set_calibrated_params_to is not None:
+            calibrated_params = set_calibrated_params_to 
+            
         p_stay_home_calibrated = calibrated_params['p_stay_home']
 
         if self.multi_beta_calibration:
