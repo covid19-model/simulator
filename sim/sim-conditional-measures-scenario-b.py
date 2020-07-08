@@ -17,12 +17,12 @@ if __name__ == '__main__':
     name = 'conditional-measures-scenario-b'
     start_date = '2021-01-01'
     end_date = '2021-05-01'
-    random_repeats = 96
+    random_repeats = 48
     full_scale = True
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = {}
-    expected_daily_base_expo_per100k = 1 
+    expected_daily_base_expo_per100k = 10 / 7
 
     # command line parsing
     args = process_command_line()

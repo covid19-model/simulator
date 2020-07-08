@@ -15,7 +15,7 @@ TO_HOURS = 24.0
 if __name__ == '__main__':
 
     name = 'baseline'
-    random_repeats = 96
+    random_repeats = 48
     full_scale = True
     verbose = True
     seed_summary_path = None

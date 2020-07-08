@@ -15,7 +15,7 @@ TO_HOURS = 24.0
 if __name__ == '__main__':
 
     name = 'continued-lockdown'
-    random_repeats = 96
+    random_repeats = 48
     full_scale = True
     verbose = True
     seed_summary_path = None
@@ -34,7 +34,7 @@ if __name__ == '__main__':
 
     # experiment parameters
     # Continue lockdown for 'lockdown_weeks' number of weeks
-    lockdown_weeks = [2, 4, 8]
+    lockdown_weeks = [4, 2]
     p_stay_home = calibrated_params['p_stay_home']
 
     # seed

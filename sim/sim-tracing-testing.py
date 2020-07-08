@@ -21,21 +21,18 @@ if __name__ == '__main__':
     name = 'tracing-testing'
     start_date = '2021-01-01'
     end_date = '2021-05-01'
-    random_repeats = 96
+    random_repeats = 48
     full_scale = True
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = {}
-    expected_daily_base_expo_per100k = 1
+    expected_daily_base_expo_per100k = 10 / 7
 
     # experiment parameters
-    contacts_tested = [30, 5000] # how many contacts in the `test_smart_delta` window are tested at most
-    capacity_factors = [1, 3] # multiplier for test capacity
-
-    # contact tracing and testing queue policy combinations
     policies = [
-        ('basic', 'fifo'),
-        ('advanced', 'exposure-risk'),
+        ('basic', 'fifo', 1, 30),
+        ('basic', 'fifo', 3, 5000),
+        ('advanced', 'exposure-risk', 1, 30),
     ]
 
     # seed
@@ -66,42 +63,40 @@ if __name__ == '__main__':
     )
 
     # contact tracing experiment for various options
-    for capacity_factor in capacity_factors:
-        for contacts in contacts_tested:
-            for policy, queue in policies:
-    
-                # no additional measures            
-                m = []
+    for policy, queue, capacity_factor, contacts in policies:
 
-                # set testing params via update function of standard testing parameters
-                def test_update(d):
-                    d['test_smart_delta'] =  3 * TO_HOURS # 3 day time window considered for inspecting contacts
-                    d['test_smart_action'] = 'test' # test traced individuals
-                    d['test_targets'] = 'isym' 
-                    d['smart_tracing'] = policy
-                    d['test_smart_num_contacts'] = contacts
-                    d['test_queue_policy'] = queue
-                    d['tests_per_batch'] = capacity_factor * d['tests_per_batch'] # test capacity is artificially increased
-                    return d
+        # no additional measures            
+        m = []
 
-                simulation_info = options_to_str(
-                    capacity_factor=capacity_factor,
-                    contacts=contacts, 
-                    policy=policy,
-                    queue=queue)
-                    
-                experiment.add(
-                    simulation_info=simulation_info,
-                    country=country,
-                    area=area,
-                    measure_list=m,
-                    test_update=test_update,
-                    seed_summary_path=seed_summary_path,
-                    set_initial_seeds_to=set_initial_seeds_to,
-                    set_calibrated_params_to=calibrated_params,
-                    full_scale=full_scale,
-                    expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
-                    
+        # set testing params via update function of standard testing parameters
+        def test_update(d):
+            d['test_smart_delta'] =  3 * TO_HOURS # 3 day time window considered for inspecting contacts
+            d['test_smart_action'] = 'test' # test traced individuals
+            d['test_targets'] = 'isym' 
+            d['smart_tracing'] = policy
+            d['test_smart_num_contacts'] = contacts
+            d['test_queue_policy'] = queue
+            d['tests_per_batch'] = capacity_factor * d['tests_per_batch'] # test capacity is artificially increased
+            return d
+
+        simulation_info = options_to_str(
+            capacity_factor=capacity_factor,
+            contacts=contacts, 
+            policy=policy,
+            queue=queue)
+            
+        experiment.add(
+            simulation_info=simulation_info,
+            country=country,
+            area=area,
+            measure_list=m,
+            test_update=test_update,
+            seed_summary_path=seed_summary_path,
+            set_initial_seeds_to=set_initial_seeds_to,
+            set_calibrated_params_to=calibrated_params,
+            full_scale=full_scale,
+            expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
+            
     print(f'{experiment_info} configuration done.')
 
     # execute all simulations

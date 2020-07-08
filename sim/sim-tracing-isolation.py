@@ -21,12 +21,12 @@ if __name__ == '__main__':
     name = 'tracing-isolation'
     start_date = '2021-01-01'
     end_date = '2021-05-01'
-    random_repeats = 96
+    random_repeats = 48
     full_scale = True
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = {}
-    expected_daily_base_expo_per100k = 1
+    expected_daily_base_expo_per100k = 10 / 7
 
     # experiment parameters
     isolate_days_list = [7, 14] # how many days selected people have to stay in isolation 

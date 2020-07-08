@@ -15,7 +15,7 @@ TO_HOURS = 24.0
 if __name__ == '__main__':
 
     name = 'k-groups'
-    random_repeats = 96
+    random_repeats = 48
     full_scale = True
     verbose = True
     seed_summary_path = None
@@ -35,7 +35,7 @@ if __name__ == '__main__':
     # experiment parameters
     # Split citizens in `K_groups` groups and alternatingly install social distancing measures for the groups
     # `K_groups_weeks` determines for how many weeks this strategy is active
-    K_groups = [2, 3, 4]
+    K_groups = [4, 3, 2]
 
     # seed
     c = 0
