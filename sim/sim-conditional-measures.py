@@ -41,7 +41,7 @@ if __name__ == '__main__':
     # `beta_multiplier` determines scaling for `beta` when measure is active
 
     max_pos_tests_per_week_per_100k = 50
-    is_measure_active_initially = True
+    is_measure_active_initially = False
     intervention_times = None
     p_stay_home = calibrated_params['p_stay_home']
     beta_multiplier = calibration_lockdown_beta_multipliers
