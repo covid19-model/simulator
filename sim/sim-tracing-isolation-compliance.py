@@ -80,7 +80,7 @@ if __name__ == '__main__':
                 test_smart_duration=TO_HOURS * isolate_days),
             ComplianceForAllMeasure(
                 t_window=Interval(0.0, TO_HOURS * max_days),
-                p_compliance=p_compliance)
+                p_compliance=p_compliance),
             SocialDistancingSymptomaticAfterSmartTracing(
                 t_window=Interval(0.0, TO_HOURS * max_days),
                 p_stay_home=1.0,
