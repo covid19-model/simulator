@@ -63,7 +63,6 @@ Result = namedtuple('Result', (
 Plot = namedtuple('Plot', (
     'path',    # path to result file of this simulation containing pickled `Result` namedetuple
     'label',   # label of this plot on the legend
-    'ymax',    # ymax of this plot
 ))
 
 

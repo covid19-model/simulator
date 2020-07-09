@@ -82,8 +82,7 @@ if __name__ == '__main__':
                 beta_multiplier=calibration_lockdown_beta_multipliers)
             ]
 
-        simulation_info = options_to_str(extended_lockdown_weeks=weeks,
-                                         p_stay_home=p_stay_home)
+        simulation_info = options_to_str(extended_lockdown_weeks=weeks)
 
         experiment.add(
             simulation_info=simulation_info,

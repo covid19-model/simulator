@@ -91,8 +91,7 @@ if __name__ == '__main__':
 
     simulation_info = options_to_str(
         max_pos_tests_per_week_per_100k=50,
-        initially_active=is_measure_active_initially,
-        p_stay_home=p_stay_home
+        initially_active=is_measure_active_initially
     )
 
     experiment.add(

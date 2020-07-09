@@ -77,8 +77,7 @@ if __name__ == '__main__':
             ))
         ]
 
-    simulation_info = options_to_str(
-        p_stay_home=p_stay_home)
+    simulation_info = ''
 
     experiment.add(
         simulation_info=simulation_info,

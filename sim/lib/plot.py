@@ -587,7 +587,7 @@ class Plotter(object):
     def compare_total_infections(self, sims, titles, figtitle='Title',
         filename='compare_inf_0', figsize=(10, 10), errorevery=20, acc=1000, ymax=None,
         lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None,
-        show_positives=False, show_legend=True, legendYoffset=0.0, legend_is_left=False,
+        show_positives=False, show_legend=True, legendYoffset=0.0, legend_is_left=False, legendXoffset=0.0,
         subplot_adjust=None, start_date='1970-01-01', first_one_dashed=False):
 
         ''''
@@ -687,6 +687,15 @@ class Plotter(object):
                 bb.y0 += legendYoffset
                 bb.y1 += legendYoffset
                 leg.set_bbox_to_anchor(bb, transform = ax.transAxes)
+            
+            if legendXoffset != 0.0:
+                # Get the bounding box of the original legend
+                bb = leg.get_bbox_to_anchor().inverse_transformed(ax.transAxes)
+
+                # Change to location of the legend.
+                bb.x0 += legendXoffset
+                bb.x1 += legendXoffset
+                leg.set_bbox_to_anchor(bb, transform=ax.transAxes)
 
         subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         plt.subplots_adjust(**subplot_adjust)
@@ -699,8 +708,11 @@ class Plotter(object):
         return
 
     def compare_total_fatalities_and_hospitalizations(self, sims, titles, figtitle=r'Hospitalizations and Fatalities',
-                                 filename='compare_inf_0', figsize=(10, 10), errorevery=20, acc=1000, ymax=None, lockdown_at=None,
-                                subplot_adjust=None, start_date='1970-01-01', first_one_dashed=False):
+        lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None,
+        filename='compare_inf_0', figsize=(10, 10), errorevery=20, acc=1000, ymax=None, 
+        show_legend=True, legendYoffset=0.0, legend_is_left=False, legendXoffset=0.0,
+        subplot_adjust=None, start_date='1970-01-01', first_one_dashed=False):
+
         ''''
         Plots total fatalities and hospitalizations for each simulation, named as provided by `titles`
         to compare different measures/interventions taken. Colors taken as defined in __init__, and
@@ -728,7 +740,7 @@ class Plotter(object):
                         c=self.color_different_scenarios[i], linestyle='-', elinewidth=0.8, capsize=3.0)
 
             ax.errorbar(ts, dead_mu, yerr=dead_sig, errorevery=errorevery,
-                        c=self.color_different_scenarios[i], linestyle='--', elinewidth=0.8, capsize=3.0)
+                        c=self.color_different_scenarios[i], linestyle='dotted', elinewidth=0.8, capsize=3.0)
 
         # axis
         if ymax is None:
@@ -738,10 +750,11 @@ class Plotter(object):
         # ax.set_xlabel('Days')
         ax.set_ylabel('People')
 
-
-        if lockdown_at is not None:
-            ax.plot(lockdown_at * np.ones(acc), np.linspace(0, ymax, num=acc),
-                    linewidth=1, linestyle='--', color='black', zorder=10)
+        if not isinstance(lockdown_at, dict):
+            if lockdown_at is not None:
+                lockdown_widget(lockdown_at, start_date,
+                                lockdown_label_y, ymax,
+                                lockdown_label, ax, xshift=0.5)
 
         # Hide the right and top spines
         ax.spines['right'].set_visible(False)
@@ -759,8 +772,30 @@ class Plotter(object):
         fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
 
         # legend
-        # ax.legend(loc='upper right', borderaxespad=0.5)
-        ax.legend(loc='upper left', borderaxespad=0.5)
+        if show_legend:
+            # legend
+            if legend_is_left:
+                leg = ax.legend(loc='upper left', borderaxespad=0.5)
+            else:
+                leg = ax.legend(loc='upper right', borderaxespad=0.5)
+
+            if legendYoffset != 0.0:
+                # Get the bounding box of the original legend
+                bb = leg.get_bbox_to_anchor().inverse_transformed(ax.transAxes)
+
+                # Change to location of the legend.
+                bb.y0 += legendYoffset
+                bb.y1 += legendYoffset
+                leg.set_bbox_to_anchor(bb, transform=ax.transAxes)
+
+            if legendXoffset != 0.0:
+                # Get the bounding box of the original legend
+                bb = leg.get_bbox_to_anchor().inverse_transformed(ax.transAxes)
+
+                # Change to location of the legend.
+                bb.x0 += legendXoffset
+                bb.x1 += legendXoffset
+                leg.set_bbox_to_anchor(bb, transform=ax.transAxes)
 
         subplot_adjust = subplot_adjust or {
             'bottom': 0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
@@ -769,6 +804,7 @@ class Plotter(object):
         plt.savefig('plots/' + filename + '.png', format='png', facecolor=None,
                     dpi=DPI, bbox_inches='tight')
 
+        print('should be saved')
         if NO_PLOT:
             plt.close()
         return
