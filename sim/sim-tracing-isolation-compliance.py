@@ -20,7 +20,7 @@ if __name__ == '__main__':
 
     name = 'tracing-isolation-compliance'
     start_date = '2021-01-01'
-    end_date = '2021-03-02'
+    end_date = '2021-04-01'
     random_repeats = 48
     full_scale = True
     verbose = True

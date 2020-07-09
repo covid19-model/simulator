@@ -366,11 +366,11 @@ class Plotter(object):
                     elinewidth=0.8, errorevery=errorevery, capsize=3.0)
 
         # filling
-        ax.fill_between(ts, line_xaxis, line_iasy, alpha=self.filling_alpha, label='Asymptomatic',
+        ax.fill_between(ts, line_xaxis, line_iasy, alpha=0.5, label='Asymptomatic',
                         edgecolor=self.color_iasy, facecolor=self.color_iasy, linewidth=0, zorder=0)
-        ax.fill_between(ts, line_iasy, line_ipre, alpha=self.filling_alpha, label='Pre-symptomatic',
+        ax.fill_between(ts, line_iasy, line_ipre, alpha=0.5, label='Pre-symptomatic',
                         edgecolor=self.color_ipre, facecolor=self.color_ipre, linewidth=0, zorder=0)
-        ax.fill_between(ts, line_ipre, line_isym, alpha=self.filling_alpha, label='Symptomatic',
+        ax.fill_between(ts, line_ipre, line_isym, alpha=0.5, label='Symptomatic',
                         edgecolor=self.color_isym, facecolor=self.color_isym, linewidth=0, zorder=0)
 
         # limits
