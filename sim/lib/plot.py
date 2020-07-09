@@ -75,7 +75,7 @@ def target_widget(show_target,start_date, ax, zorder=None):
     txx = np.linspace(0, show_target.shape[0] - 1, num=show_target.shape[0])
     txx = days_to_datetime(txx, start_date=start_date)
     ax.plot(txx, show_target, linewidth=4, linestyle='', marker='X', ms=6,
-            color='red', label='COVID-19 case data', zorder=zorder)
+            color='black', label='COVID-19 case data', zorder=zorder)
 
 
 class Plotter(object):
@@ -105,19 +105,14 @@ class Plotter(object):
 
         self.color_infected = '#000839'
 
-        self.filling_alpha = 0.5
+        self.filling_alpha = 0.2
 
         self.color_different_scenarios = [
-            '#dc2ade',
-            '#21ff53',
-            '#323edd',
-            '#ff9021',
-            '#4d089a',
-            '#cc0066',
-            '#ff6666',
-            '#216353',
-            '#66cccc',
-            '#ff2222'
+            '#e41a1c',
+            '#377eb8',
+            '#4daf4a',
+            '#984ea3',
+            '#ff7f00',
         ]
 
         self.color_different_scenarios_alt = [
@@ -456,15 +451,15 @@ class Plotter(object):
         T = posi_mu.shape[0]
 
         # lines
-        ax.errorbar(ts, posi_mu, yerr=posi_sig, elinewidth=0.8, errorevery=errorevery,
+        ax.errorbar(ts, line_posi, yerr=posi_sig, elinewidth=0.8, errorevery=errorevery,
                 c='black', linestyle='-')
-        ax.errorbar(ts, nega_mu, yerr=nega_sig, elinewidth=0.8, errorevery=errorevery,
+        ax.errorbar(ts, line_nega, yerr=nega_sig, elinewidth=0.8, errorevery=errorevery,
                 c='black', linestyle='-')
 
         # filling
-        ax.fill_between(ts, line_xaxis, posi_mu, alpha=self.filling_alpha, label=r'Positive tests',
+        ax.fill_between(ts, line_xaxis, line_posi, alpha=self.filling_alpha, label=r'Positive tests',
                         edgecolor=self.color_posi, facecolor=self.color_posi, linewidth=0, zorder=0)
-        ax.fill_between(ts, posi_mu, nega_mu, alpha=self.filling_alpha, label=r'Negative tests',
+        ax.fill_between(ts, line_posi, line_nega, alpha=self.filling_alpha, label=r'Negative tests',
                         edgecolor=self.color_nega, facecolor=self.color_nega, linewidth=0, zorder=0)
         # axis
         ax.set_xlim((0, np.max(ts)))
@@ -615,18 +610,13 @@ class Plotter(object):
             error_infected = np.sqrt(np.square(iasy_sig) + np.square(ipre_sig) + np.square(isym_sig))
 
             # lines
-            if show_positives:
-                ax.errorbar(ts, line_infected, yerr=error_infected, label='[Infected] ' + titles[i], errorevery=errorevery,
-                           c=self.color_different_scenarios[i], linestyle='-')
+            ax.plot(ts, line_infected, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
+            ax.fill_between(ts, line_infected - 2 * error_infected, line_infected + 2 * error_infected,
+                            color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
+        
 
-                T = posi_mu.shape[0]
-                ax.errorbar(ts, posi_mu, yerr=posi_sig, label='[Tested positive]', errorevery=errorevery,
-                            c=self.color_different_scenarios[i], linestyle='--', elinewidth=0.8)
-            else:
-
-
-                ax.errorbar(ts, line_infected, yerr=error_infected, label=titles[i], errorevery=errorevery, elinewidth=0.8,
-                    capsize=3.0, c=self.color_different_scenarios[i], linestyle='--' if i == 0 and first_one_dashed else '-')
+            # ax.errorbar(ts, line_infected, yerr=2*error_infected, label=titles[i], errorevery=errorevery, elinewidth=0.8,
+            #     capsize=3.0, c=self.color_different_scenarios[i], linestyle='--' if i == 0 and first_one_dashed else '-')
 
 
         # axis
@@ -736,11 +726,22 @@ class Plotter(object):
             ts = days_to_datetime(ts, start_date=start_date)
 
             # lines
-            ax.errorbar(ts, hosp_mu, yerr=hosp_sig, label=titles[i], errorevery=errorevery,
-                        c=self.color_different_scenarios[i], linestyle='-', elinewidth=0.8, capsize=3.0)
+            # ax.errorbar(ts, hosp_mu, yerr=2*hosp_sig, label=titles[i], errorevery=errorevery,
+            #             c=self.color_different_scenarios[i], linestyle='-', elinewidth=0.8, capsize=3.0)
 
-            ax.errorbar(ts, dead_mu, yerr=dead_sig, errorevery=errorevery,
-                        c=self.color_different_scenarios[i], linestyle='dotted', elinewidth=0.8, capsize=3.0)
+            # ax.errorbar(ts, dead_mu, yerr=2*dead_sig, errorevery=errorevery,
+            #             c=self.color_different_scenarios[i], linestyle='dotted', elinewidth=0.8, capsize=3.0)
+
+            ax.plot(ts, hosp_mu, linestyle='-',
+                    label=titles[i], c=self.color_different_scenarios[i])
+            ax.fill_between(ts, hosp_mu - 2 * hosp_sig, hosp_mu + 2 * hosp_sig,
+                            color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
+            
+            ax.plot(ts, dead_mu, linestyle='dotted', c=self.color_different_scenarios[i])
+            ax.fill_between(ts, dead_mu - 2 * dead_sig, dead_mu + 2 * dead_sig,
+                            color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
+
+
 
         # axis
         if ymax is None:
@@ -804,7 +805,6 @@ class Plotter(object):
         plt.savefig('plots/' + filename + '.png', format='png', facecolor=None,
                     dpi=DPI, bbox_inches='tight')
 
-        print('should be saved')
         if NO_PLOT:
             plt.close()
         return
@@ -952,7 +952,7 @@ class Plotter(object):
             plt.close()
         return
 
-    def plot_positives_vs_target(self, sim, targets, title='Example',
+    def plot_positives_vs_target(self, sims, titles, targets, title='Example',
         filename='inference_0', figsize=(6, 5), errorevery=1, acc=17, ymax=None,
         start_date='1970-01-01', lockdown_label='Lockdown', lockdown_at=None,
         lockdown_label_y=None, subplot_adjust=None):
@@ -961,25 +961,30 @@ class Plotter(object):
         together with targets from inference
         '''
 
-        if acc > sim.max_time:
-            acc = int(sim.max_time)
+        if acc > sims[0].max_time:
+            acc = int(sims[0].max_time)
 
         fig, ax = plt.subplots(figsize=figsize)
 
-        # inference
-        # automatically shifted by `test_lag` in the function
-        ts, posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
+        for i in range(len(sims)):
+            if acc > sims[i].max_time:
+                acc = int(sims[i].max_time)
 
-        T = posi_mu.shape[0]
-    
-        xx = days_to_datetime(ts, start_date=start_date)
-        ax.plot(xx, posi_mu, c='k', linestyle='-',
-                label='COVID-19 simulated case data')
-        ax.fill_between(xx, posi_mu - posi_sig, posi_mu + posi_sig,
-                        color='grey', alpha=0.1, linewidth=0.0)
+            ts, posi_mu, posi_sig = self.__comp_state_over_time(
+                sims[i], 'posi', acc)
 
-        # target
+            # Convert x-axis into posix timestamps and use pandas to plot as dates
+            ts = days_to_datetime(ts, start_date=start_date)
+
+            # lines
+            ax.plot(ts, posi_mu, linestyle='-',
+                    label=titles[i], c=self.color_different_scenarios[i])
+            ax.fill_between(ts, posi_mu - 2 * posi_sig, posi_mu + 2 * posi_sig,
+                            color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
+
+        # target   
         target_widget(targets, start_date, ax)
+
 
         # axis
         #ax.set_xlim((0, np.max(ts)))
