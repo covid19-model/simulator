@@ -33,6 +33,7 @@ if __name__ == '__main__':
         ('basic', 'fifo', 1, 30),
         ('basic', 'fifo', 10, 5000),
         ('advanced', 'exposure-risk', 1, 30),
+        ('advanced', 'exposure-risk', 10, 5000),
     ]
 
     # seed
