@@ -228,10 +228,7 @@ class Experiment(object):
 
             # Scale expectation to simulation size
             num_people = len(mob_settings['home_loc'])
-            expected_daily_base_expo = expected_daily_base_expo_per100k * (num_people / 100000)
-
-            # Convert expectation to aggregate rate over population
-            lambda_base_expo_population = 1 / expected_daily_base_expo
+            lambda_base_expo_population = expected_daily_base_expo_per100k * (num_people / 100000)
 
             # Convert to individual base rate by dividing by population size; priority queue handles superposition
             lambda_base_expo_indiv = lambda_base_expo_population / num_people

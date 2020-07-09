@@ -366,6 +366,12 @@ class DiseaseModel(object):
 
         self.measure_list.init_run(SocialDistancingForSmartTracingHousehold,
                                    n_people=self.n_people)
+        
+        self.measure_list.init_run(SocialDistancingSymptomaticAfterSmartTracing,
+                                   n_people=self.n_people)
+
+        self.measure_list.init_run(SocialDistancingSymptomaticAfterSmartTracingHousehold,
+                                   n_people=self.n_people)
 
         self.measure_list.init_run(SocialDistancingForKGroups)
 
@@ -492,6 +498,11 @@ class DiseaseModel(object):
                             state_dead_started_at=self.state_started_at['dead']) or
                         self.measure_list.is_contained(
                             SocialDistancingForSmartTracingHousehold, t=t,
+                            j=infector) or 
+                        self.measure_list.is_contained(
+                            SocialDistancingSymptomaticAfterSmartTracingHousehold, t=t,
+                            state_isym_started_at=self.state_started_at['isym'],
+                            state_isym_ended_at=self.state_ended_at['isym'],
                             j=infector)
                     )
 
@@ -505,6 +516,11 @@ class DiseaseModel(object):
                             state_dead_started_at=self.state_started_at['dead']) or
                         self.measure_list.is_contained(
                             SocialDistancingForSmartTracingHousehold, t=t,
+                            j=i) or
+                        self.measure_list.is_contained(
+                            SocialDistancingSymptomaticAfterSmartTracingHousehold, t=t,
+                            state_isym_started_at=self.state_started_at['isym'],
+                            state_isym_ended_at=self.state_ended_at['isym'],
                             j=i)
                     )
 
@@ -983,6 +999,11 @@ class DiseaseModel(object):
                 SocialDistancingForSmartTracing, t=t,
                 j=i, j_visit_id=visit_id) or 
             self.measure_list.is_contained(
+                SocialDistancingSymptomaticAfterSmartTracing, t=t,
+                state_isym_started_at=self.state_started_at['isym'],
+                state_isym_ended_at=self.state_ended_at['isym'],
+                j=i) or
+            self.measure_list.is_contained(
                 SocialDistancingForKGroups, t=t,
                 j=i) or
             self.measure_list.is_contained(
@@ -1156,13 +1177,15 @@ class DiseaseModel(object):
         
         # start contact tracing action for *contacts selected by policy* 
         max_contacts = len(contacts)
-        for j in range(min(self.test_smart_num_contacts, max_contacts)):
+        for _ in range(min(self.test_smart_num_contacts, max_contacts)):
             contact = contacts.pop()
 
             # contact tracing action
             if self.test_smart_action == 'isolate':
                 self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=contact)
                 self.measure_list.start_containment(SocialDistancingForSmartTracingHousehold, t=t, j=contact)
+                self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracing, t=t, j=contact)
+                self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracingHousehold, t=t, j=contact)
 
             if self.test_smart_action == 'test':
                 # only pass empirical survival probability information when using the `advanced` policy
@@ -1186,6 +1209,8 @@ class DiseaseModel(object):
             if self.test_smart_action == 'isolate':
                 self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=contact)
                 self.measure_list.start_containment(SocialDistancingForSmartTracingHousehold, t=t, j=contact)
+                self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracing, t=t, j=contact)
+                self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracingHousehold, t=t, j=contact)
             if self.test_smart_action == 'test':
                 # if j is positive and `test_smart_action == test`, 
                 # then skip (don't test positive people twice)

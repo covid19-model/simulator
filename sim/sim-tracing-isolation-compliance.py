@@ -26,13 +26,13 @@ if __name__ == '__main__':
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = {}
-    expected_daily_base_expo_per100k = 1
+    expected_daily_base_expo_per100k = 5 / 7
 
     # experiment parameters
     isolate_days = 14 # how many days selected people have to stay in isolation
     contacts = 5000  # how many contacts are isolated in the `test_smart_delta` window at most
-    policies = ['basic'] # contact tracing policies
-    ps_compliance = [0.75, 0.5, 0.25, 0.1] # 1.0 is done in `sim-tracing-isolation`
+    policy = 'basic' # contact tracing policies
+    ps_compliance = [0.75, 0.5, 0.25, 0.1] 
 
     # seed
     c = 0
@@ -65,49 +65,56 @@ if __name__ == '__main__':
 
     # contact tracing experiment for various options
     for p_compliance in ps_compliance:
-        for policy in policies:
 
-            # measures
-            max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
-            
-            m = [
-                SocialDistancingForSmartTracing(
-                    t_window=Interval(0.0, TO_HOURS * max_days), 
-                    p_stay_home=1.0, 
-                    test_smart_duration=TO_HOURS * isolate_days),
-                SocialDistancingForSmartTracingHousehold(
-                    t_window=Interval(0.0, TO_HOURS * max_days),
-                    p_isolate=1.0,
-                    test_smart_duration=TO_HOURS * isolate_days),
-                ComplianceForAllMeasure(
-                    t_window=Interval(0.0, TO_HOURS * max_days),
-                    p_compliance=p_compliance)
+        # measures
+        max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+        
+        m = [
+            SocialDistancingForSmartTracing(
+                t_window=Interval(0.0, TO_HOURS * max_days), 
+                p_stay_home=1.0, 
+                test_smart_duration=TO_HOURS * isolate_days),
+            SocialDistancingForSmartTracingHousehold(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_isolate=1.0,
+                test_smart_duration=TO_HOURS * isolate_days),
+            ComplianceForAllMeasure(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_compliance=p_compliance)
+            SocialDistancingSymptomaticAfterSmartTracing(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_stay_home=1.0,
+                test_smart_duration=TO_HOURS * isolate_days),
+            SocialDistancingSymptomaticAfterSmartTracingHousehold(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_isolate=1.0,
+                test_smart_duration=TO_HOURS * isolate_days),
             ]
 
-            # set testing params via update function of standard testing parameters
-            def test_update(d):
-                d['test_smart_delta'] =  3 * TO_HOURS # 3 day time window considered for inspecting contacts
-                d['test_smart_action'] = 'isolate' # isolate traced individuals
-                d['test_targets'] = 'isym' 
-                d['smart_tracing'] = policy
-                d['test_smart_num_contacts'] = contacts
-                return d
+        # set testing params via update function of standard testing parameters
+        def test_update(d):
+            d['test_smart_delta'] =  3 * TO_HOURS # 3 day time window considered for inspecting contacts
+            d['test_smart_action'] = 'isolate' # isolate traced individuals
+            d['test_targets'] = 'isym' 
+            d['smart_tracing'] = policy
+            d['test_smart_num_contacts'] = contacts
+            return d
 
-            simulation_info = options_to_str(
-                p=p_compliance,
-                policy=policy)
-                
-            experiment.add(
-                simulation_info=simulation_info,
-                country=country,
-                area=area,
-                measure_list=m,
-                test_update=test_update,
-                seed_summary_path=seed_summary_path,
-                set_initial_seeds_to=set_initial_seeds_to,
-                set_calibrated_params_to=calibrated_params,
-                full_scale=full_scale,
-                expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
+        simulation_info = options_to_str(
+            p=p_compliance,
+        )
+            
+        experiment.add(
+            simulation_info=simulation_info,
+            country=country,
+            area=area,
+            measure_list=m,
+            test_update=test_update,
+            seed_summary_path=seed_summary_path,
+            set_initial_seeds_to=set_initial_seeds_to,
+            set_calibrated_params_to=calibrated_params,
+            full_scale=full_scale,
+            expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
                 
     print(f'{experiment_info} configuration done.')
 

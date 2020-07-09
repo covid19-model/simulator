@@ -26,12 +26,12 @@ if __name__ == '__main__':
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = {}
-    expected_daily_base_expo_per100k = 1
+    expected_daily_base_expo_per100k = 5 / 7
 
     # experiment parameters
     policies = [
         ('basic', 'fifo', 1, 30),
-        ('basic', 'fifo', 3, 5000),
+        ('basic', 'fifo', 10, 5000),
         ('advanced', 'exposure-risk', 1, 30),
     ]
 

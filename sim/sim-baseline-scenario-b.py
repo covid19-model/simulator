@@ -26,7 +26,7 @@ if __name__ == '__main__':
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = {}
-    expected_daily_base_expo_per100k = 1
+    expected_daily_base_expo_per100k = 5 / 7
 
     # set `True` for narrow-casting plot; should only be done with 1 random restart:
     store_mob = False 

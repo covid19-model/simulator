@@ -26,12 +26,13 @@ if __name__ == '__main__':
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = {}
-    expected_daily_base_expo_per100k = 1
+    expected_daily_base_expo_per100k = 5 / 7
 
     # experiment parameters
-    isolate_days_list = [14, 7] # how many days selected people have to stay in isolation 
-    contacts = 5000 # how many contacts are isolated in the `test_smart_delta` window at most
-    policy = 'basic' # since all traced individuals are isolated, 'basic' == 'advanced'
+    isolate_days = 14 # how many days selected people have to stay in isolation
+    contacts = 5000  # how many contacts are isolated in the `test_smart_delta` window at most
+    policy = 'basic' # contact tracing policies
+    options_isolate_symptomatic_after_tracing = [True, False]
 
     # seed
     c = 0
@@ -63,7 +64,7 @@ if __name__ == '__main__':
     )
 
     # contact tracing experiment for various options
-    for isolate_days in isolate_days_list:
+    for isolate_symptomatic_after_tracing in options_isolate_symptomatic_after_tracing:
 
         # measures
         max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
@@ -79,6 +80,18 @@ if __name__ == '__main__':
                 test_smart_duration=TO_HOURS * isolate_days),
         ]
 
+        if isolate_symptomatic_after_tracing:
+            m += [
+                SocialDistancingSymptomaticAfterSmartTracing(
+                    t_window=Interval(0.0, TO_HOURS * max_days),
+                    p_stay_home=1.0,
+                    test_smart_duration=TO_HOURS * isolate_days),
+                SocialDistancingSymptomaticAfterSmartTracingHousehold(
+                    t_window=Interval(0.0, TO_HOURS * max_days),
+                    p_isolate=1.0,
+                    test_smart_duration=TO_HOURS * isolate_days),
+            ]
+
         # set testing params via update function of standard testing parameters
         def test_update(d):
             d['test_smart_delta'] =  3 * TO_HOURS # 3 day time window considered for inspecting contacts
@@ -89,9 +102,8 @@ if __name__ == '__main__':
             return d
 
         simulation_info = options_to_str(
-            isolate_days=isolate_days, 
-            contacts=contacts, 
-            policy=policy)
+            symptomatic_isolated=isolate_symptomatic_after_tracing,
+        )
             
         experiment.add(
             simulation_info=simulation_info,
@@ -104,7 +116,7 @@ if __name__ == '__main__':
             set_calibrated_params_to=calibrated_params,
             full_scale=full_scale,
             expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
-            
+                
     print(f'{experiment_info} configuration done.')
 
     # execute all simulations
