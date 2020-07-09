@@ -35,7 +35,7 @@ if __name__ == '__main__':
 
     # experiment parameters
     # Continue lockdown for 'lockdown_weeks' number of weeks
-    lockdown_weeks = [4, 2]
+    lockdown_weeks = [100, 4, 2]
     p_stay_home = calibrated_params['p_stay_home']
 
     # seed
@@ -70,11 +70,15 @@ if __name__ == '__main__':
 
         m = [
             SocialDistancingForAllMeasure(
-                t_window=Interval(measure_window_in_hours['start'], TO_HOURS * 7 * weeks),
+                t_window=Interval(
+                    measure_window_in_hours['start'], 
+                    measure_window_in_hours['start'] + TO_HOURS * 7 * weeks),
                 p_stay_home=p_stay_home),
 
             BetaMultiplierMeasureByType(
-                t_window=Interval(measure_window_in_hours['start'], TO_HOURS * 7 * weeks),
+                t_window=Interval(
+                    measure_window_in_hours['start'], 
+                    measure_window_in_hours['start'] + TO_HOURS * 7 * weeks),
                 beta_multiplier=calibration_lockdown_beta_multipliers)
             ]
 

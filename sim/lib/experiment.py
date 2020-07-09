@@ -78,7 +78,7 @@ def get_properties(objs, property):
         elif isinstance(o, Simulation) or isinstance(o, Plot) or isinstance(o, Result):
             out.append(getattr(o, property))
         else:
-            raise ValueError('Unknown type of elements in `objs`.')
+            raise ValueError(f'Unknown type of elements in `objs`. Type is {type(x).__name__}')
     return out
 
 
@@ -104,7 +104,7 @@ def load_summary_list(paths):
     return objs
 
 def options_to_str(**options):
-        return '-'.join(['{}={}'.format(k, v) for k, v in options.items()])
+    return '-'.join(['{}={}'.format(k, v) for k, v in options.items()])
 
 
 def process_command_line(return_parser=False):
