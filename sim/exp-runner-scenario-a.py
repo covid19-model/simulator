@@ -17,8 +17,14 @@ if __name__ == '__main__':
     # 2
     # locs = [('GER', 'TU'), ('GER', 'KL'), ('GER', 'RH')]
 
-    locs = [('CH', 'TI'), ('GER', 'TU'), ('CH', 'BE'),
+    # locs = [('CH', 'TI'), ('GER', 'TU'), ('CH', 'BE'),
+    #         ('GER', 'KL'), ('CH', 'JU'), ('GER', 'RH')]
+
+    locs = [('GER', 'TU'), ('CH', 'BE'),
             ('GER', 'KL'), ('CH', 'JU'), ('GER', 'RH')]
+
+
+    os.system(f'python sim-continued-lockdown.py --country CH --area TI')
 
     for country, area in locs:
 
@@ -36,11 +42,11 @@ if __name__ == '__main__':
 
         # sim-vulnerable-groups
         # exploring the effect of protection of vulnerable groups of the population only
-        os.system(f'python sim-vulnerable-groups.py --country {country} --area {area}')
+        # os.system(f'python sim-vulnerable-groups.py --country {country} --area {area}')
 
         # sim-baseline
         # baseline for uncontrolled pandemic after lockdown
-        os.system(f'python sim-baseline.py --country {country} --area {area}')
+        # os.system(f'python sim-baseline.py --country {country} --area {area}')
             
         
         
