@@ -32,9 +32,9 @@ if __name__ == '__main__':
             os.system(f'python sim-baseline-scenario-b.py --country {country} --area {area}')
 
     if args.option == 4:
-        os.system(f'python sim-baseline.py--country CH --area JU')
-        os.system(f'python sim-baseline.py--country CH --area BE')
-        os.system(f'python sim-baseline.py--country GER --area KL')
+        os.system(f'python sim-baseline.py --country CH --area JU')
+        os.system(f'python sim-baseline.py --country CH --area BE')
+        os.system(f'python sim-baseline.py --country GER --area KL')
 
         os.system(f'python sim-continued-lockdown.py --country CH --area JU')
         os.system(f'python sim-vulnerable-groups.py --country CH --area JU')
