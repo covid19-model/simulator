@@ -30,10 +30,10 @@ if __name__ == '__main__':
 
     # contact tracing experiment parameters
     settings = [
-        (['isolate', 'test'], 3.0, 100000, 'basic'),
         (['isolate', 'test'], 48.0, 100000, 'basic'),
+        (['isolate', 'test'], 48.0, 30, 'advanced'),
         (['isolate'], 48.0, None, None),
-        (['isolate', 'test'], 3.0, 30, 'advanced'),
+        (['isolate'], 3.0, None, None),
     ]
 
     # seed

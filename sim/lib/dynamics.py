@@ -1231,24 +1231,26 @@ class DiseaseModel(object):
                             raise ValueError('Invalid smart tracing policy.')
         
         # start contact tracing action for ** contacts selected by policy ** 
-        for _ in range(min(self.smart_tracing_isolated_contacts, len(contacts_isolation))):
-            contact = contacts_isolation.pop()                
-            self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=contact)
-            self.measure_list.start_containment(SocialDistancingForSmartTracingHousehold, t=t, j=contact)
-            self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracing, t=t, j=contact)
-            self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracingHousehold, t=t, j=contact)
+        if 'isolate' in self.smart_tracing_actions:
+            for _ in range(min(self.smart_tracing_isolated_contacts, len(contacts_isolation))):
+                contact = contacts_isolation.pop()                
+                self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=contact)
+                self.measure_list.start_containment(SocialDistancingForSmartTracingHousehold, t=t, j=contact)
+                self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracing, t=t, j=contact)
+                self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracingHousehold, t=t, j=contact)
 
-        for _ in range(min(self.smart_tracing_tested_contacts, len(contacts_testing))):
-            contact = contacts_testing.pop()
+        if 'test' in self.smart_tracing_actions:
+            for _ in range(min(self.smart_tracing_tested_contacts, len(contacts_testing))):
+                contact = contacts_testing.pop()
 
-            # only have empirical survival probability information when using the `advanced` policy
-            # not relevant when using `fifo` queue
-            if self.smart_tracing_policy_test == 'basic':
-                self.__apply_for_testing(t=t, i=contact, priority=1.0)
-            elif self.smart_tracing_policy_test == 'advanced':
-                self.__apply_for_testing(t=t, i=contact, priority=self.empirical_survival_probability[contact])
-            else:
-                raise ValueError('Invalid smart tracing policy.')
+                # only have empirical survival probability information when using the `advanced` policy
+                # not relevant when using `fifo` queue
+                if self.smart_tracing_policy_test == 'basic':
+                    self.__apply_for_testing(t=t, i=contact, priority=1.0)
+                elif self.smart_tracing_policy_test == 'advanced':
+                    self.__apply_for_testing(t=t, i=contact, priority=self.empirical_survival_probability[contact])
+                else:
+                    raise ValueError('Invalid smart tracing policy.')
 
         # start contact tracing action for compliant *household members*, ignoring individual i
         for contact in self.households[self.people_household[i]]:

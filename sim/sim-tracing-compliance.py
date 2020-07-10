@@ -29,7 +29,7 @@ if __name__ == '__main__':
     expected_daily_base_expo_per100k = 5 / 7
 
     # contact tracing experiment parameters
-    ps_compliance = [0.25, 0.5, 0.75]
+    ps_compliance = [0.75, 0.65, 0.5, 0.25]
 
     # seed
     c = 0
@@ -91,7 +91,7 @@ if __name__ == '__main__':
         # set testing params via update function of standard testing parameters
         def test_update(d):
             d['smart_tracing_actions'] = ['isolate', 'test']
-            d['test_reporting_lag'] = 3.0
+            d['test_reporting_lag'] = 48.0
             d['tests_per_batch'] = 100000
 
             # isolation
