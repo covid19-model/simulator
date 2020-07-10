@@ -207,7 +207,7 @@ class Experiment(object):
         days_until_lockdown_end = (lockdown_end_date - pd.to_datetime(self.start_date)).days
 
         # Load mob settings        
-        mob_settings_file = calibration_mob_paths[country][area]
+        mob_settings_file = calibration_mob_paths[country][area][1 if full_scale else 0]
         with open(mob_settings_file, 'rb') as fp:
             mob_settings = pickle.load(fp)
 

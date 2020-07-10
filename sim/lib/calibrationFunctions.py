@@ -312,7 +312,7 @@ def get_calibrated_params_limited_iters(country, area, multi_beta_calibration,  
     train_G = train_G[:min(maxiters, len(train_G))]
     train_theta = state['train_theta']
 
-    mob_settings = calibration_mob_paths[country][area]
+    mob_settings = calibration_mob_paths[country][area][0]
     with open(mob_settings, 'rb') as fp:
         mob_kwargs = pickle.load(fp)
     mob = MobilitySimulator(**mob_kwargs)
@@ -482,7 +482,7 @@ def make_bayes_opt_functions(args):
 
     data_country = args.country
     data_area = args.area
-    mob_settings = args.mob or calibration_mob_paths[data_country][data_area]
+    mob_settings = args.mob or calibration_mob_paths[data_country][data_area][0] # 0: downscaled, 1: full scale 
 
     # initialize mobility object to obtain information (no trace generation yet)
     with open(mob_settings, 'rb') as fp:
