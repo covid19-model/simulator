@@ -200,7 +200,7 @@ class Plotter(object):
             stds.append(np.std(restarts))
         return np.array(ts), np.array(means), np.array(stds)
 
-    def __comp_state_over_time(self, sim, state, acc):
+    def __comp_state_over_time(self, sim, state, acc, return_single_runs=False):
         '''
         Computes `state` variable over time [0, self.max_time] with given accuracy `acc
         '''
@@ -208,9 +208,14 @@ class Plotter(object):
         for t in np.linspace(0.0, sim.max_time, num=acc, endpoint=True):
             restarts = [np.sum(self.__is_state_at(sim, r, state, t))
                 for r in range(sim.random_repeats)]
-            ts.append(t/TO_HOURS)
-            means.append(np.mean(restarts))
-            stds.append(np.std(restarts))
+            if not return_single_runs:
+                ts.append(t/TO_HOURS)
+                means.append(np.mean(restarts))
+                stds.append(np.std(restarts))
+            else:
+                ts.append(t/TO_HOURS)
+                means.append(restarts)
+                stds.append(restarts)
         return np.array(ts), np.array(means), np.array(stds)
 
     def __comp_state_over_time_per_age(self, sim, state, acc, age):
@@ -587,7 +592,7 @@ class Plotter(object):
         filename='compare_inf_0', figsize=(10, 10), errorevery=20, acc=1000, ymax=None,
         lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None,
         show_positives=False, show_legend=True, legendYoffset=0.0, legend_is_left=False, legendXoffset=0.0,
-        subplot_adjust=None, start_date='1970-01-01', first_one_dashed=False):
+        subplot_adjust=None, start_date='1970-01-01', first_one_dashed=False, show_single_runs=False):
 
         ''''
         Plots total infections for each simulation, named as provided by `titles`
@@ -601,26 +606,42 @@ class Plotter(object):
             if acc > sims[i].max_time:
                 acc = int(sims[i].max_time)
 
-            ts, iasy_mu, iasy_sig = self.__comp_state_over_time(sims[i], 'iasy', acc)
-            _,  ipre_mu, ipre_sig = self.__comp_state_over_time(sims[i], 'ipre', acc)
-            _,  isym_mu, isym_sig = self.__comp_state_over_time(sims[i], 'isym', acc)
-            _,  posi_mu, posi_sig = self.__comp_state_over_time(sims[i], 'posi', acc)
+            if not show_single_runs:
 
-            # Convert x-axis into posix timestamps and use pandas to plot as dates
-            ts = days_to_datetime(ts, start_date=start_date)
+                ts, iasy_mu, iasy_sig = self.__comp_state_over_time(sims[i], 'iasy', acc)
+                _,  ipre_mu, ipre_sig = self.__comp_state_over_time(sims[i], 'ipre', acc)
+                _,  isym_mu, isym_sig = self.__comp_state_over_time(sims[i], 'isym', acc)
+                _,  posi_mu, posi_sig = self.__comp_state_over_time(sims[i], 'posi', acc)
 
-            line_xaxis = np.zeros(ts.shape)
-            line_infected = iasy_mu + ipre_mu + isym_mu
-            error_infected = np.sqrt(np.square(iasy_sig) + np.square(ipre_sig) + np.square(isym_sig))
+                # Convert x-axis into posix timestamps and use pandas to plot as dates
+                ts = days_to_datetime(ts, start_date=start_date)
 
-            # lines
-            ax.plot(ts, line_infected, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
-            ax.fill_between(ts, np.maximum(line_infected - 2 * error_infected, 0), line_infected + 2 * error_infected,
-                            color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
-        
+                line_xaxis = np.zeros(ts.shape)
+                line_infected = iasy_mu + ipre_mu + isym_mu
+                error_infected = np.sqrt(np.square(iasy_sig) + np.square(ipre_sig) + np.square(isym_sig))
 
-            # ax.errorbar(ts, line_infected, yerr=2*error_infected, label=titles[i], errorevery=errorevery, elinewidth=0.8,
-            #     capsize=3.0, c=self.color_different_scenarios[i], linestyle='--' if i == 0 and first_one_dashed else '-')
+                # lines
+                ax.plot(ts, line_infected, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
+                ax.fill_between(ts, np.maximum(line_infected - 2 * error_infected, 0), line_infected + 2 * error_infected,
+                                color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
+            
+            else:
+
+                ts, iasy, iasy_sig = self.__comp_state_over_time(sims[i], 'iasy', acc, return_single_runs=True)
+                _,  ipre, ipre_sig = self.__comp_state_over_time(sims[i], 'ipre', acc, return_single_runs=True)
+                _,  isym, isym_sig = self.__comp_state_over_time(sims[i], 'isym', acc, return_single_runs=True)
+
+                # Convert x-axis into posix timestamps and use pandas to plot as dates
+                ts = days_to_datetime(ts, start_date=start_date)
+
+                line_xaxis = np.zeros(ts.shape)
+                lines_infected = iasy + ipre + isym
+
+                # lines
+                for r in range(min(show_single_runs, sims[i].random_repeats)):
+                    ax.plot(ts, lines_infected[:, r], linestyle='-', label=titles[i] if r == 0 else None, 
+                            c=self.color_different_scenarios[i], lw=1, alpha=0.8)
+
 
 
         # axis
@@ -659,9 +680,10 @@ class Plotter(object):
         ax.yaxis.set_ticks_position('left')
         ax.xaxis.set_ticks_position('bottom')
 
+        # fig.autofmt_xdate()
         #set ticks every week
         # ax.xaxis.set_major_locator(mdates.WeekdayLocator())
-        ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
+        ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=4))
         #set major ticks format
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
         fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')

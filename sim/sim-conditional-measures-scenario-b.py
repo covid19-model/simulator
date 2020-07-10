@@ -55,11 +55,9 @@ if __name__ == '__main__':
     rd.seed(c)
 
     # set simulation and intervention dates
-    start_date = calibration_start_dates[country][area]
-    end_date = calibration_lockdown_dates[country]['end']
-    measure_start_date = calibration_lockdown_dates[country]['start']
+    measure_start_date = start_date
     measure_window_in_hours = dict()
-    measure_window_in_hours['start'] = (pd.to_datetime(measure_start_date) - pd.to_datetime(start_date)).days * TO_HOURS
+    measure_window_in_hours['start'] = 0.0
     measure_window_in_hours['end'] = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days * TO_HOURS
 
     # create experiment object
