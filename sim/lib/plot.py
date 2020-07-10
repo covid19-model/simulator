@@ -113,6 +113,10 @@ class Plotter(object):
             '#4daf4a',
             '#984ea3',
             '#ff7f00',
+            '#ffff33',
+            '#a65628',
+            '#f781bf',
+            '#999999'
         ]
 
         self.color_different_scenarios_alt = [
@@ -611,7 +615,7 @@ class Plotter(object):
 
             # lines
             ax.plot(ts, line_infected, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
-            ax.fill_between(ts, line_infected - 2 * error_infected, line_infected + 2 * error_infected,
+            ax.fill_between(ts, np.maximum(line_infected - 2 * error_infected, 0), line_infected + 2 * error_infected,
                             color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
         
 
