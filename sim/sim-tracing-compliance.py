@@ -18,7 +18,7 @@ TO_HOURS = 24.0
 
 if __name__ == '__main__':
 
-    name = 'tracing-isolation'
+    name = 'tracing-compliance'
     start_date = '2021-01-01'
     end_date = '2021-04-01'
     random_repeats = 48
@@ -28,11 +28,8 @@ if __name__ == '__main__':
     set_initial_seeds_to = {}
     expected_daily_base_expo_per100k = 5 / 7
 
-    # experiment parameters
-    isolate_days = 14 # how many days selected people have to stay in isolation
-    contacts = 5000  # how many contacts are isolated in the `test_smart_delta` window at most
-    policy = 'basic' # contact tracing policies
-    delays = [6.0, 48.0] # 48.0 is default
+    # contact tracing experiment parameters
+    ps_compliance = [0.25, 0.5, 0.75]
 
     # seed
     c = 0
@@ -64,42 +61,53 @@ if __name__ == '__main__':
     )
 
     # contact tracing experiment for various options
-    for delay in delays:
+    for p_compliance in ps_compliance:
 
         # measures
         max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
         
         m = [
+            ComplianceForAllMeasure(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_compliance=p_compliance),
             SocialDistancingForSmartTracing(
                 t_window=Interval(0.0, TO_HOURS * max_days), 
                 p_stay_home=1.0, 
-                test_smart_duration=TO_HOURS * isolate_days),
+                smart_tracing_isolation_duration=TO_HOURS * 14.0),
             SocialDistancingForSmartTracingHousehold(
                 t_window=Interval(0.0, TO_HOURS * max_days),
                 p_isolate=1.0,
-                test_smart_duration=TO_HOURS * isolate_days),
+                smart_tracing_isolation_duration=TO_HOURS * 14.0),
             SocialDistancingSymptomaticAfterSmartTracing(
                 t_window=Interval(0.0, TO_HOURS * max_days),
                 p_stay_home=1.0,
-                test_smart_duration=TO_HOURS * isolate_days),
+                smart_tracing_isolation_duration=TO_HOURS * 14.0),
             SocialDistancingSymptomaticAfterSmartTracingHousehold(
                 t_window=Interval(0.0, TO_HOURS * max_days),
                 p_isolate=1.0,
-                test_smart_duration=TO_HOURS * isolate_days),
+                smart_tracing_isolation_duration=TO_HOURS * 14.0),
             ]
 
         # set testing params via update function of standard testing parameters
         def test_update(d):
-            d['test_smart_delta'] =  3 * TO_HOURS # 3 day time window considered for inspecting contacts
-            d['test_smart_action'] = 'isolate' # isolate traced individuals
-            d['test_targets'] = 'isym' 
-            d['smart_tracing'] = policy
-            d['test_smart_num_contacts'] = contacts
-            d['test_reporting_lag'] = delay
+            d['smart_tracing_actions'] = ['isolate', 'test']
+            d['test_reporting_lag'] = 3.0
+            d['tests_per_batch'] = 100000
+
+            # isolation
+            d['smart_tracing_policy_isolate'] = 'basic'
+            d['smart_tracing_isolated_contacts'] = 100000
+            d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
+
+            # testing
+            d['smart_tracing_policy_test'] = 'basic'
+            d['smart_tracing_tested_contacts'] = 100000
+
             return d
 
+
         simulation_info = options_to_str(
-            delay=delay,
+            p=p_compliance,
         )
             
         experiment.add(

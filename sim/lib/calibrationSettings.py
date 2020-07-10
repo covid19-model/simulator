@@ -52,13 +52,19 @@ calibration_testing_params = {
     'tests_per_batch': None,  # [set automatically in code]
     'test_fpr': 0.0,
     'test_fnr': 0.0,
-    'test_smart_delta': 3 * TO_HOURS,
-    'test_smart_duration': 7 * TO_HOURS, 
-    'test_smart_action': 'isolate',
-    'test_smart_num_contacts': 10,
     'test_targets': 'isym',
     'test_queue_policy': 'fifo',
-    'smart_tracing': None,
+
+    # smart tracing
+    'smart_tracing_contact_delta': 10 * TO_HOURS,
+    'smart_tracing_actions': [], # any of `isolate`, `test`
+
+    'smart_tracing_policy_isolate': None, # one of None, `basic`, `advanced`
+    'smart_tracing_isolated_contacts': 0,
+    'smart_tracing_isolation_duration': 14 * TO_HOURS,
+
+    'smart_tracing_policy_test': None,  # one of None, `basic`, `advanced`
+    'smart_tracing_tested_contacts': 0,
 }
 
 # BO acquisition function optimization (Knowledge gradient)

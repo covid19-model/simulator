@@ -318,12 +318,17 @@ class DiseaseModel(object):
         self.test_fpr = testing_params['test_fpr']
         self.test_fnr = testing_params['test_fnr']
         
-        # smart tracing
-        self.smart_tracing       = testing_params['smart_tracing']
-        self.test_smart_action   = testing_params['test_smart_action']
-        self.test_smart_delta    = testing_params['test_smart_delta']
-        self.test_smart_num_contacts   = testing_params['test_smart_num_contacts']
-        self.test_smart_duration = testing_params['test_smart_duration']
+        # smart tracing settings
+        self.smart_tracing_actions            = testing_params['smart_tracing_actions']
+        self.smart_tracing_contact_delta      = testing_params['smart_tracing_contact_delta']
+
+        self.smart_tracing_policy_isolate     = testing_params['smart_tracing_policy_isolate']
+        self.smart_tracing_isolation_duration = testing_params['smart_tracing_isolation_duration']
+        self.smart_tracing_isolated_contacts = testing_params['smart_tracing_isolated_contacts']
+
+        self.smart_tracing_policy_test        = testing_params['smart_tracing_policy_test']
+        self.smart_tracing_tested_contacts    = testing_params['smart_tracing_tested_contacts']
+        
         
         # Set list of measures
         if not isinstance(measure_list, MeasureList):
@@ -498,11 +503,15 @@ class DiseaseModel(object):
                             state_dead_started_at=self.state_started_at['dead']) or
                         self.measure_list.is_contained(
                             SocialDistancingForSmartTracingHousehold, t=t,
+                            state_nega_started_at=self.state_started_at['nega'],
+                            state_nega_ended_at=self.state_ended_at['nega'],
                             j=infector) or 
                         self.measure_list.is_contained(
                             SocialDistancingSymptomaticAfterSmartTracingHousehold, t=t,
                             state_isym_started_at=self.state_started_at['isym'],
                             state_isym_ended_at=self.state_ended_at['isym'],
+                            state_nega_started_at=self.state_started_at['nega'],
+                            state_nega_ended_at=self.state_ended_at['nega'],
                             j=infector)
                     )
 
@@ -516,11 +525,15 @@ class DiseaseModel(object):
                             state_dead_started_at=self.state_started_at['dead']) or
                         self.measure_list.is_contained(
                             SocialDistancingForSmartTracingHousehold, t=t,
+                            state_nega_started_at=self.state_started_at['nega'],
+                            state_nega_ended_at=self.state_ended_at['nega'],
                             j=i) or
                         self.measure_list.is_contained(
                             SocialDistancingSymptomaticAfterSmartTracingHousehold, t=t,
                             state_isym_started_at=self.state_started_at['isym'],
                             state_isym_ended_at=self.state_ended_at['isym'],
+                            state_nega_started_at=self.state_started_at['nega'],
+                            state_nega_ended_at=self.state_ended_at['nega'],
                             j=i)
                     )
 
@@ -997,11 +1010,15 @@ class DiseaseModel(object):
                 age=self.people_age[i], j_visit_id=visit_id) or
             self.measure_list.is_contained(
                 SocialDistancingForSmartTracing, t=t,
+                state_nega_started_at=self.state_started_at['nega'],
+                state_nega_ended_at=self.state_ended_at['nega'],
                 j=i, j_visit_id=visit_id) or 
             self.measure_list.is_contained(
                 SocialDistancingSymptomaticAfterSmartTracing, t=t,
                 state_isym_started_at=self.state_started_at['isym'],
                 state_isym_ended_at=self.state_ended_at['isym'],
+                state_nega_started_at=self.state_started_at['nega'],
+                state_nega_ended_at=self.state_ended_at['nega'],
                 j=i) or
             self.measure_list.is_contained(
                 SocialDistancingForKGroups, t=t,
@@ -1115,10 +1132,10 @@ class DiseaseModel(object):
 
         # smart tracing compliance of the individual
         is_i_compliant = self.measure_list.is_compliant(
-            ComplianceForAllMeasure, t=t-self.test_smart_delta, j=i)
+            ComplianceForAllMeasure, t=max(t - self.smart_tracing_contact_delta, 0.0), j=i)
 
         # if the individual is tested positive and compliant, process contact tracing when active
-        if is_i_compliant and self.state['posi'][i] and (self.smart_tracing != None):
+        if is_i_compliant and self.state['posi'][i] and (self.smart_tracing_actions != []):
             self.__update_smart_tracing(t, i)
     
     def __update_smart_tracing(self, t, i):
@@ -1130,15 +1147,15 @@ class DiseaseModel(object):
         if not self.lazy_contacts:
             def valid_j():
                 '''Generate individuals j where `i` was present
-                up to `self.test_smart_delta` hours before t '''
+                up to `self.smart_tracing_contact_delta` hours before t '''
                 for j in range(self.n_people):
                     if not self.state['dead'][j]:
-                        if self.mob.will_be_in_contact(indiv_i=j, indiv_j=i, site=None, t=t-self.test_smart_delta):
+                        if self.mob.will_be_in_contact(indiv_i=j, indiv_j=i, site=None, t=t-self.smart_tracing_contact_delta):
                             yield j
 
             valid_contacts = valid_j()
         else:
-            infectors_contacts = self.mob.find_contacts_of_indiv(indiv=i, tmin=t - self.test_smart_delta)
+            infectors_contacts = self.mob.find_contacts_of_indiv(indiv=i, tmin=t - self.smart_tracing_contact_delta)
             valid_contacts = set()
 
             for contact in infectors_contacts:
@@ -1147,51 +1164,61 @@ class DiseaseModel(object):
                         self.mob.contacts[contact.indiv_i][i].update([contact])
                     valid_contacts.add(contact.indiv_i)
 
-        contacts = PriorityQueue()
+        contacts_isolation = PriorityQueue()
+        contacts_testing = PriorityQueue()
         
         # determine valid contacts at sites for individual i
         for j in valid_contacts:
 
             # check compliance of overlapping contact
             is_j_compliant = self.measure_list.is_compliant(
-                ComplianceForAllMeasure, t=t-self.test_smart_delta, j=j)
+                ComplianceForAllMeasure, t=max(t - self.smart_tracing_contact_delta, 0.0), j=j)
             
             # if j is not compliant, skip
             if not is_j_compliant:
                 continue
 
-            # if j is positive and `test_smart_action == test`, skip (don't test positive people twice)
-            if self.state['posi'][j] and self.test_smart_action == 'test':
-                continue
-
             valid_contact, s = self.__compute_empirical_survival_probability(t, i, j)
-            
             if valid_contact:
+
                 self.empirical_survival_probability[j] = s
-                if self.smart_tracing == 'basic':
-                    contacts.push(j, priority=t)
-                elif self.smart_tracing == 'advanced':
-                    contacts.push(j, priority=self.empirical_survival_probability[j])
+
+                # isolation
+                if self.smart_tracing_policy_isolate == 'basic':
+                    contacts_isolation.push(j, priority=t)
+                elif self.smart_tracing_policy_isolate == 'advanced':
+                    contacts_isolation.push(j, priority=self.empirical_survival_probability[j])
                 else:
                     raise ValueError('Invalid smart tracing policy.')
-        
-        # start contact tracing action for *contacts selected by policy* 
-        max_contacts = len(contacts)
-        for _ in range(min(self.test_smart_num_contacts, max_contacts)):
-            contact = contacts.pop()
 
-            # contact tracing action
-            if self.test_smart_action == 'isolate':
+                # testing
+                # if contact is positive, skip (don't test positive people twice)
+                if not self.state['posi'][j]:
+                    if self.smart_tracing_policy_test == 'basic':
+                        contacts_testing.push(j, priority=t)
+                    elif self.smart_tracing_policy_test == 'advanced':
+                        contacts_testing.push(j, priority=self.empirical_survival_probability[j])
+                    else:
+                        raise ValueError('Invalid smart tracing policy.')
+        
+        # start contact tracing action for ** contacts selected by policy ** 
+        if 'isolate' in self.smart_tracing_actions:
+            for _ in range(min(self.smart_tracing_isolated_contacts, len(contacts_isolation))):
+                contact = contacts_isolation.pop()                
                 self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=contact)
                 self.measure_list.start_containment(SocialDistancingForSmartTracingHousehold, t=t, j=contact)
                 self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracing, t=t, j=contact)
                 self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracingHousehold, t=t, j=contact)
 
-            if self.test_smart_action == 'test':
-                # only pass empirical survival probability information when using the `advanced` policy
-                if self.smart_tracing == 'basic':
+        if 'test' in self.smart_tracing_actions:
+            for _ in range(min(self.smart_tracing_tested_contacts, len(contacts_testing))):
+                contact = contacts_testing.pop()
+
+                # only have empirical survival probability information when using the `advanced` policy
+                # not relevant when using `fifo` queue
+                if self.smart_tracing_policy_test == 'basic':
                     self.__apply_for_testing(t=t, i=contact, priority=1.0)
-                elif self.smart_tracing == 'advanced':
+                elif self.smart_tracing_policy_test == 'advanced':
                     self.__apply_for_testing(t=t, i=contact, priority=self.empirical_survival_probability[contact])
                 else:
                     raise ValueError('Invalid smart tracing policy.')
@@ -1201,21 +1228,24 @@ class DiseaseModel(object):
             
             # check that contact satisfies conditions
             is_contact_compliant = self.measure_list.is_compliant(
-                ComplianceForAllMeasure, t=t-self.test_smart_delta, j=contact)
+                ComplianceForAllMeasure, t=max(t-self.smart_tracing_contact_delta, 0.0), j=contact)
             if self.state['dead'][contact] or contact == i or (not is_contact_compliant):
                 continue
             
             # contact tracing action
-            if self.test_smart_action == 'isolate':
+            if 'isolate' in self.smart_tracing_actions:
                 self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=contact)
                 self.measure_list.start_containment(SocialDistancingForSmartTracingHousehold, t=t, j=contact)
                 self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracing, t=t, j=contact)
                 self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracingHousehold, t=t, j=contact)
-            if self.test_smart_action == 'test':
-                # if j is positive and `test_smart_action == test`, 
+
+            if 'test' in self.smart_tracing_actions:
+                # if j is positive and `smart_tracing_actions == test`, 
                 # then skip (don't test positive people twice)
+
                 if not self.state['posi'][contact]:
                     # household members always treated as `empirical survival prob. = 0` for `exposure-risk` policy
+                    # not relevant for `fifo` queue 
                     self.__apply_for_testing(t=t, i=contact, priority=0.0)
 
     # compute empirical survival probability of individual j due to node i at time t
@@ -1223,7 +1253,7 @@ class DiseaseModel(object):
         s = 0
         valid_contact = False
             
-        next_contact_obj = self.mob.next_contact(indiv_i=j, indiv_j=i, t=t - self.test_smart_delta, site=None)      
+        next_contact_obj = self.mob.next_contact(indiv_i=j, indiv_j=i, t=t - self.smart_tracing_contact_delta, site=None)      
         while next_contact_obj is not None:
 
             start_next_contact = next_contact_obj.t_from
@@ -1232,7 +1262,8 @@ class DiseaseModel(object):
             # break if next contact is >= t
             if start_next_contact >= t:
                 break
-
+            
+            # get visit ID for contact
             is_in_contact, contact = self.mob.is_in_contact(indiv_i=j, indiv_j=i, site=None, t=start_next_contact)
             assert(is_in_contact)
             j_visit_id, i_visit_id = contact.id_tup
@@ -1241,7 +1272,7 @@ class DiseaseModel(object):
             is_j_contained = self.is_person_home_from_visit_due_to_measure(t=start_next_contact, i=j, visit_id=j_visit_id)  
             is_i_contained = self.is_person_home_from_visit_due_to_measure(t=start_next_contact, i=i, visit_id=i_visit_id)
                 
-            # check hospitalization
+            # check hospitalization of i
             is_i_contained = is_i_contained or (
                 self.state['hosp'][i] and self.state_started_at['hosp'][i] < start_next_contact)
                     
@@ -1262,13 +1293,20 @@ class DiseaseModel(object):
 
             # decide if i and j really had overlap
             if (not is_j_contained) and (not is_i_contained):
-                if self.smart_tracing == 'basic':
-                    valid_contact = True
-                    break
-                elif self.smart_tracing == 'advanced':
+
+                need_probability = \
+                    ('isolate' in self.smart_tracing_actions and 
+                     self.smart_tracing_policy_isolate == 'advanced') or  \
+                    ('test' in self.smart_tracing_actions and 
+                     self.smart_tracing_policy_test == 'advanced')
+
+                if need_probability:
                     s += (min(end_next_contact, t) - start_next_contact) \
                          * self.betas[self.site_dict[self.site_type[site]]] * beta_fact
                     valid_contact = True
+                else:
+                    valid_contact = True
+                    break
                 
             # get next contact (if it exists)
             next_contact_obj = self.mob.next_contact(indiv_i=j, indiv_j=i, t=end_next_contact + self.delta, site=None)

@@ -23,20 +23,16 @@ if __name__ == '__main__':
     for country, area in locs:
 
         # sim-tracing-isolation
-        # contact tracing with isolation of individuals both from site and from home
-        os.system(f'python sim-tracing-isolation-delay.py --country {country} --area {area}')
-
-        # sim-tracing-testing
-        # contact tracing with testing of traced individuals
-        os.system(f'python sim-tracing-testing.py --country {country} --area {area}')
+        # contact tracing with isolation and testing of individuals both from site and from home
+        os.system(f'python sim-tracing.py --country {country} --area {area}')
 
         # sim-baseline-scenario-b
         # baseline for uncontrolled pandemic scenario B
         os.system(f'python sim-baseline-scenario-b.py --country {country} --area {area}')
 
         # sim-tracing-isolation-compliance
-        # contact tracing with isolation of individuals both from site and from home, only with partially compliance/adoption
-        # os.system(f'python sim-tracing-isolation-compliance.py --country {country} --area {area}')
+        # contact tracing with isolation and testing of individuals both from site and from home, only with partially compliance/adoption
+        # os.system(f'python sim-tracing-compliance.py --country {country} --area {area}')
 
         # sim-conditional-measures-scenario-b
         # social distancing measures active only when daily case count goes above a certain threshold of cases per 100k inhabitants

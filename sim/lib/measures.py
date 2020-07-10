@@ -391,13 +391,13 @@ class SocialDistancingByAgeMeasure(Measure):
 class SocialDistancingForSmartTracing(Measure):
     """
     Social distancing measure. Only the population who intersected with positive cases 
-    for ``test_smart_duration``. Each visit of each individual respects the measure with 
+    for ``smart_tracing_isolation_duration``. Each visit of each individual respects the measure with 
     some probability.
 
     NOTE: This is the same as a SocialDistancingForAllMeasure but `is_contained` query also checks that the state 'posi' of individual j is True
     """
 
-    def __init__(self, t_window, p_stay_home, test_smart_duration):
+    def __init__(self, t_window, p_stay_home, smart_tracing_isolation_duration):
         """
 
         Parameters
@@ -414,7 +414,7 @@ class SocialDistancingForSmartTracing(Measure):
         if (not isinstance(p_stay_home, float)) or (p_stay_home < 0):
             raise ValueError("`p_stay_home` should be a non-negative float")
         self.p_stay_home = p_stay_home
-        self.test_smart_duration = test_smart_duration
+        self.smart_tracing_isolation_duration = smart_tracing_isolation_duration
 
     def init_run(self, n_people, n_visits):
         """Init the measure for this run by sampling the outcome of each visit
@@ -434,24 +434,29 @@ class SocialDistancingForSmartTracing(Measure):
         self._is_init = True
 
     @enforce_init_run
-    def is_contained(self, *, j, j_visit_id, t):
+    def is_contained(self, *, j, j_visit_id, state_nega_started_at, state_nega_ended_at, t):
         """Indicate if individual `j` respects measure for visit `j_visit_id`
+        Negatively tested are not isolated
         """
-        if self._in_window(t) and self.bernoulli_stay_home[j, j_visit_id]:
+        is_not_nega_now = not (state_nega_started_at[j] <= t and t < state_nega_ended_at[j])
+
+        if self._in_window(t) and self.bernoulli_stay_home[j, j_visit_id] and is_not_nega_now:
             for interval in self.intervals_stay_home[j].find((t, t)):
                 return True
         return False
 
     @enforce_init_run
     def start_containment(self, *, j, t):
-        self.intervals_stay_home[j].update([(t, t + self.test_smart_duration)])
+        self.intervals_stay_home[j].update([(t, t + self.smart_tracing_isolation_duration)])
         return
 
     @enforce_init_run
-    def is_contained_prob(self, *, j, t):
+    def is_contained_prob(self, *, j, state_nega_started_at, state_nega_ended_at, t):
         """Returns probability of containment for individual `j` at time `t`
         """
-        if self._in_window(t):
+        is_not_nega_now = not (state_nega_started_at[j] <= t and t < state_nega_ended_at[j])
+
+        if self._in_window(t) and is_not_nega_now:
             for interval in self.intervals_stay_home[j].find((t, t)):
                 return self.p_stay_home
         return 0.0
@@ -469,7 +474,7 @@ class SocialDistancingSymptomaticAfterSmartTracing(Measure):
     and isolated by contact tracing, the individual isolates until symptoms disappear.
     """
 
-    def __init__(self, t_window, p_stay_home, test_smart_duration):
+    def __init__(self, t_window, p_stay_home, smart_tracing_isolation_duration):
         """
 
         Parameters
@@ -486,7 +491,7 @@ class SocialDistancingSymptomaticAfterSmartTracing(Measure):
         if (not isinstance(p_stay_home, float)) or (p_stay_home < 0):
             raise ValueError("`p_stay_home` should be a non-negative float")
         self.p_stay_home = p_stay_home
-        self.test_smart_duration = test_smart_duration
+        self.smart_tracing_isolation_duration = smart_tracing_isolation_duration
 
     def init_run(self, n_people):
         """Init the measure for this run by sampling the outcome of each visit
@@ -505,11 +510,14 @@ class SocialDistancingSymptomaticAfterSmartTracing(Measure):
         self._is_init = True
 
     @enforce_init_run
-    def is_contained(self, *, j, state_isym_started_at, state_isym_ended_at, t):
+    def is_contained(self, *, j, state_isym_started_at, state_isym_ended_at, state_nega_started_at, state_nega_ended_at, t):
         """Indicate if individual `j` respects measure
+        Negatively tested are not isolated.
         """
+        is_not_nega_now = not (state_nega_started_at[j] <= t and t < state_nega_ended_at[j])
         is_isym_now = (state_isym_started_at[j] <= t and t < state_isym_ended_at[j])
-        return self._in_window(t) and self.bernoulli_stay_home[j] and is_isym_now and self.got_contained[j]
+
+        return self._in_window(t) and self.bernoulli_stay_home[j] and is_isym_now and is_not_nega_now and self.got_contained[j]
 
     @enforce_init_run
     def start_containment(self, *, j, t):
@@ -517,11 +525,13 @@ class SocialDistancingSymptomaticAfterSmartTracing(Measure):
         return
 
     @enforce_init_run
-    def is_contained_prob(self, *, j, state_isym_started_at, state_isym_ended_at, t):
+    def is_contained_prob(self, *, j, state_isym_started_at, state_isym_ended_at, state_nega_started_at, state_nega_ended_at, t):
         """Returns probability of containment for individual `j` at time `t`
         """
+        is_not_nega_now = not (state_nega_started_at[j] <= t and t < state_nega_ended_at[j])
         is_isym_now = (state_isym_started_at[j] <= t and t < state_isym_ended_at[j])
-        if self._in_window(t) and is_isym_now and self.got_contained[j]:
+
+        if self._in_window(t) and is_isym_now and self.got_contained[j] and is_not_nega_now:
             return self.p_stay_home
         return 0.0
 
@@ -535,11 +545,11 @@ class SocialDistancingSymptomaticAfterSmartTracing(Measure):
 class SocialDistancingForSmartTracingHousehold(Measure):
     """
     Social distancing measure. Isolate traced individuals cases from household members. 
-    Only the population who intersected with positive cases for ``test_smart_duration``. 
+    Only the population who intersected with positive cases for ``smart_tracing_isolation_duration``. 
     Each visit of each individual respects the measure with some probability.
     """
 
-    def __init__(self, t_window, p_isolate, test_smart_duration):
+    def __init__(self, t_window, p_isolate, smart_tracing_isolation_duration):
         """
         Parameters
         ----------
@@ -556,7 +566,7 @@ class SocialDistancingForSmartTracingHousehold(Measure):
         if (not isinstance(p_isolate, float)) or (p_isolate < 0):
             raise ValueError("`p_isolate` should be a non-negative float")
         self.p_isolate = p_isolate
-        self.test_smart_duration = test_smart_duration
+        self.smart_tracing_isolation_duration = smart_tracing_isolation_duration
 
     def init_run(self, n_people):
         """Init the measure for this run. Sampling of Bernoulli of respecting the measure done online."""
@@ -564,25 +574,28 @@ class SocialDistancingForSmartTracingHousehold(Measure):
         self._is_init = True
 
     @enforce_init_run
-    def is_contained(self, *, j, t):
+    def is_contained(self, *, j, state_nega_started_at, state_nega_ended_at, t):
         """Indicate if individual `j` respects measure at time `t`
         """
+        is_not_nega_now = not (state_nega_started_at[j] <= t and t < state_nega_ended_at[j])
         is_isolated = np.random.binomial(1, self.p_isolate)
-        if self._in_window(t) and is_isolated:
+        if self._in_window(t) and is_isolated and is_not_nega_now:
             for interval in self.intervals_isolated[j].find((t, t)):
                 return True
         return False
 
     @enforce_init_run
     def start_containment(self, *, j, t):
-        self.intervals_isolated[j].update([(t, t + self.test_smart_duration)])
+        self.intervals_isolated[j].update([(t, t + self.smart_tracing_isolation_duration)])
         return
 
     @enforce_init_run
-    def is_contained_prob(self, *, j, t):
+    def is_contained_prob(self, *, j, state_nega_started_at, state_nega_ended_at, t):
         """Returns probability of containment for individual `j` at time `t`
         """
-        if self._in_window(t):
+        is_not_nega_now = not (state_nega_started_at[j] <= t and t < state_nega_ended_at[j])
+
+        if self._in_window(t) and is_not_nega_now:
             for interval in self.intervals_isolated[j].find((t, t)):
                 return self.p_isolate
         return 0.0
@@ -601,7 +614,7 @@ class SocialDistancingSymptomaticAfterSmartTracingHousehold(Measure):
     until symptoms disappear.
     """
 
-    def __init__(self, t_window, p_isolate, test_smart_duration):
+    def __init__(self, t_window, p_isolate, smart_tracing_isolation_duration):
         """
         Parameters
         ----------
@@ -618,7 +631,7 @@ class SocialDistancingSymptomaticAfterSmartTracingHousehold(Measure):
         if (not isinstance(p_isolate, float)) or (p_isolate < 0):
             raise ValueError("`p_isolate` should be a non-negative float")
         self.p_isolate = p_isolate
-        self.test_smart_duration = test_smart_duration
+        self.smart_tracing_isolation_duration = smart_tracing_isolation_duration
 
     def init_run(self, n_people):
         """Init the measure for this run. Sampling of Bernoulli of respecting the measure done online."""
@@ -627,12 +640,14 @@ class SocialDistancingSymptomaticAfterSmartTracingHousehold(Measure):
         self._is_init = True
 
     @enforce_init_run
-    def is_contained(self, *, j, state_isym_started_at, state_isym_ended_at, t):
+    def is_contained(self, *, j, state_isym_started_at, state_isym_ended_at, state_nega_started_at, state_nega_ended_at, t):
         """Indicate if individual `j` respects measure
         """
         is_isolated = np.random.binomial(1, self.p_isolate)
         is_isym_now = (state_isym_started_at[j] <= t and t < state_isym_ended_at[j])
-        return self._in_window(t) and is_isolated and is_isym_now and self.got_contained[j]
+        is_not_nega_now = not (state_nega_started_at[j] <= t and t < state_nega_ended_at[j])
+
+        return self._in_window(t) and is_isolated and is_isym_now and self.got_contained[j] and is_not_nega_now
 
     @enforce_init_run
     def start_containment(self, *, j, t):
@@ -640,11 +655,13 @@ class SocialDistancingSymptomaticAfterSmartTracingHousehold(Measure):
         return
 
     @enforce_init_run
-    def is_contained_prob(self, *, j, t):
+    def is_contained_prob(self, *, j, state_isym_started_at, state_isym_ended_at, state_nega_started_at, state_nega_ended_at, t):
         """Returns probability of containment for individual `j` at time `t`
         """
         is_isym_now = (state_isym_started_at[j] <= t and t < state_isym_ended_at[j])
-        if self._in_window(t) and is_isym_now and self.got_contained[j]:
+        is_not_nega_now = not (state_nega_started_at[j] <= t and t < state_nega_ended_at[j])
+
+        if self._in_window(t) and is_isym_now and self.got_contained[j] and is_not_nega_now:
             return self.p_isolate
         return 0.0
 

@@ -18,22 +18,23 @@ TO_HOURS = 24.0
 
 if __name__ == '__main__':
 
-    name = 'tracing-testing'
+    name = 'tracing'
     start_date = '2021-01-01'
     end_date = '2021-04-01'
     random_repeats = 48
     full_scale = True
+    full_scale = False
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = {}
     expected_daily_base_expo_per100k = 5 / 7
 
-    # experiment parameters
-    policies = [
-        ('basic', 'fifo', 1, 30),
-        ('basic', 'fifo', 10, 5000),
-        ('advanced', 'exposure-risk', 1, 30),
-        ('advanced', 'exposure-risk', 10, 5000),
+    # contact tracing experiment parameters
+    settings = [
+        (['isolate', 'test'], 3.0, 100000, 'basic'),
+        (['isolate', 'test'], 48.0, 100000, 'basic'),
+        (['isolate'], 48.0, None, None),
+        (['isolate', 'test'], 3.0, 30, 'advanced'),
     ]
 
     # seed
@@ -66,27 +67,57 @@ if __name__ == '__main__':
     )
 
     # contact tracing experiment for various options
-    for policy, queue, capacity_factor, contacts in policies:
+    for (smart_tracing_actions,
+         test_delay,
+         contacts_tested,
+         test_policy) in settings:
 
-        # no additional measures            
-        m = []
+        # measures
+        max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+        
+        m = [
+            SocialDistancingForSmartTracing(
+                t_window=Interval(0.0, TO_HOURS * max_days), 
+                p_stay_home=1.0, 
+                smart_tracing_isolation_duration=TO_HOURS * 14.0),
+            SocialDistancingForSmartTracingHousehold(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_isolate=1.0,
+                smart_tracing_isolation_duration=TO_HOURS * 14.0),
+            SocialDistancingSymptomaticAfterSmartTracing(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_stay_home=1.0,
+                smart_tracing_isolation_duration=TO_HOURS * 14.0),
+            SocialDistancingSymptomaticAfterSmartTracingHousehold(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_isolate=1.0,
+                smart_tracing_isolation_duration=TO_HOURS * 14.0),
+            ]
 
         # set testing params via update function of standard testing parameters
         def test_update(d):
-            d['test_smart_delta'] =  3 * TO_HOURS # 3 day time window considered for inspecting contacts
-            d['test_smart_action'] = 'test' # test traced individuals
-            d['test_targets'] = 'isym' 
-            d['smart_tracing'] = policy
-            d['test_smart_num_contacts'] = contacts
-            d['test_queue_policy'] = queue
-            d['tests_per_batch'] = capacity_factor * d['tests_per_batch'] # test capacity is artificially increased
+            d['smart_tracing_actions'] = smart_tracing_actions
+            d['test_reporting_lag'] = test_delay
+            d['tests_per_batch'] = 100000
+
+            # isolation
+            d['smart_tracing_policy_isolate'] = 'basic'
+            d['smart_tracing_isolated_contacts'] = 100000
+            d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
+
+            # testing
+            d['smart_tracing_policy_test'] = test_policy
+            d['smart_tracing_tested_contacts'] = contacts_tested
+
             return d
 
+
         simulation_info = options_to_str(
-            capacity_factor=capacity_factor,
-            contacts=contacts, 
-            policy=policy,
-            queue=queue)
+            tracing='+'.join(smart_tracing_actions),
+            delay=test_delay,
+            contacts_tested=contacts_tested,
+            test_policy=test_policy,
+        )
             
         experiment.add(
             simulation_info=simulation_info,
@@ -99,7 +130,7 @@ if __name__ == '__main__':
             set_calibrated_params_to=calibrated_params,
             full_scale=full_scale,
             expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
-            
+                
     print(f'{experiment_info} configuration done.')
 
     # execute all simulations
