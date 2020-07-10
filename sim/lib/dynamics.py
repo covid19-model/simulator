@@ -549,12 +549,22 @@ class DiseaseModel(object):
                         self.__process_exposure_event(t, i, infector)
 
                     # if 2), 3), or 4) were true, i.e. infector not recovered,
-                    # a household infection could happen at a later point, hence sample a new event
+                    # a household exposure could happen at a later point, hence sample a new event
                     if (infector_hospitalized or away_from_home or somebody_isolated):
 
-                        mu_infector = self.mu if self.state['iasy'][infector] else 1.0
-                        self.__push_household_exposure_infector_to_j(
-                            t=t, infector=infector, j=i, base_rate=mu_infector) 
+                        # find tmax for efficiency
+                        if self.state['iasy'][infector]:
+                            base_rate_infector = self.mu
+                            tmax = self.state_started_at['iasy'][infector] + self.delta_iasy_to_resi[infector]
+                        else:
+                            base_rate_infector = 1.0
+                            tmax = (self.state_started_at['ipre'][infector] + self.delta_ipre_to_isym[infector] +
+                                self.delta_isym_to_dead[infector] if self.bernoulli_is_fatal[infector] else self.delta_isym_to_resi[infector])
+
+                        # sample exposure at later point 
+                        if t < tmax:
+                            self.__push_household_exposure_infector_to_j(
+                                t=t, infector=infector, j=i, base_rate=base_rate_infector, tmax=tmax)
 
                 # contact exposure
                 if (infector is not None) and i_susceptible and k >= 0:
@@ -593,12 +603,23 @@ class DiseaseModel(object):
                         self.__process_exposure_event(t, i, infector)
 
                     # if any of 2), 3), 4) were true, i.e. infector not recovered,
-                    # an infection could happen at a later point, hence sample a new event 
+                    # an exposure could happen at a later point, hence sample a new event 
                     if (infector_contained or i_contained or site_avoided_infection):
 
-                        mu_infector = self.mu if self.state['iasy'][infector] else 1.0
-                        self.__push_contact_exposure_infector_to_j(
-                            t=t, infector=infector, j=i, base_rate=mu_infector)                    
+                        # find tmax for efficiency
+                        if self.state['iasy'][infector]:
+                            base_rate_infector = self.mu
+                            tmax = self.state_started_at['iasy'][infector] + \
+                                self.delta_iasy_to_resi[infector]
+                        else:
+                            base_rate_infector = 1.0
+                            tmax = (self.state_started_at['ipre'][infector] + self.delta_ipre_to_isym[infector] +
+                                    self.delta_isym_to_dead[infector] if self.bernoulli_is_fatal[infector] else self.delta_isym_to_resi[infector])
+
+                        # sample exposure at later point
+                        if t < tmax:
+                            self.__push_contact_exposure_infector_to_j(
+                                t=t, infector=infector, j=i, base_rate=base_rate_infector, tmax=tmax)                 
 
             elif event == 'ipre':
                 self.__process_presymptomatic_event(t, i)
@@ -685,19 +706,25 @@ class DiseaseModel(object):
         self.state_ended_at['expo'][i] = t
         self.state_started_at['ipre'][i] = t
 
-        # resistant event
+        # symptomatic event
         if t + self.delta_ipre_to_isym[i] < self.max_time:
             self.queue.push(
                 (t + self.delta_ipre_to_isym[i], 'isym', i, None, None, None),
                 priority=t + self.delta_ipre_to_isym[i])
 
         if add_exposures:
+
+            # find tmax for efficiency reasons (based on when individual i will not be infectious anymore)
+            tmax = (t + self.delta_ipre_to_isym[i] + 
+                self.delta_isym_to_dead[i] if self.bernoulli_is_fatal[i] else 
+                self.delta_isym_to_resi[i])
+
             # contact exposure of others
-            self.__push_contact_exposure_events(t, i, 1.0)
+            self.__push_contact_exposure_events(t=t, infector=i, base_rate=1.0, tmax=tmax)
             
             # household exposures
             if self.households is not None and self.beta_household > 0:
-                self.__push_household_exposure_events(t, i, 1.0)
+                self.__push_household_exposure_events(t=t, infector=i, base_rate=1.0, tmax=tmax)
 
     def __process_symptomatic_event(self, t, i, apply_for_test=True):
         """
@@ -756,11 +783,11 @@ class DiseaseModel(object):
 
         if add_exposures:
             # contact exposure of others
-            self.__push_contact_exposure_events(t, i, self.mu)
+            self.__push_contact_exposure_events(t=t, infector=i, base_rate=self.mu, tmax=t + self.delta_iasy_to_resi[i])
             
             # household exposures
             if self.households is not None and self.beta_household > 0:
-                self.__push_household_exposure_events(t, i, self.mu)
+                self.__push_household_exposure_events(t=t, infector=i, base_rate=self.mu, tmax=t + self.delta_iasy_to_resi[i])
 
     def __process_resistant_event(self, t, i):
         """
@@ -825,7 +852,7 @@ class DiseaseModel(object):
         return (np.exp(self.gamma * (b - T)) - np.exp(self.gamma * (a - T))) / self.gamma
 
 
-    def __push_contact_exposure_events(self, t, infector, base_rate):
+    def __push_contact_exposure_events(self, *, t, infector, base_rate, tmax):
         """
         Pushes all exposure events that person `i` causes
         for other people via contacts, using `base_rate` as basic infectivity
@@ -844,7 +871,7 @@ class DiseaseModel(object):
             valid_contacts = valid_j()
         else:
             # compute all delta-contacts of `infector` with any other individual
-            infectors_contacts = self.mob.find_contacts_of_indiv(indiv=infector, tmin=t)
+            infectors_contacts = self.mob.find_contacts_of_indiv(indiv=infector, tmin=t, tmax=tmax)
 
             # iterate over contacts and store contact of with each individual `indiv_i` that is still susceptible 
             valid_contacts = set()
@@ -856,10 +883,10 @@ class DiseaseModel(object):
 
         # generate potential exposure event for `j` from contact with `infector`
         for j in valid_contacts:
-            self.__push_contact_exposure_infector_to_j(t=t, infector=infector, j=j, base_rate=base_rate)
+            self.__push_contact_exposure_infector_to_j(t=t, infector=infector, j=j, base_rate=base_rate, tmax=tmax)
 
 
-    def __push_contact_exposure_infector_to_j(self, t, infector, j, base_rate):
+    def __push_contact_exposure_infector_to_j(self, *, t, infector, j, base_rate, tmax):
         """
         Pushes the next exposure event that person `infector` causes for person `j`
         using `base_rate` as basic infectivity of person `i` 
@@ -870,7 +897,7 @@ class DiseaseModel(object):
         Z = self.__kernel_term(- self.delta, 0.0, 0.0)
 
         # sample next arrival from non-homogeneous point process
-        while self.mob.will_be_in_contact(indiv_i=j, indiv_j=infector, t=tau, site=None) and not sampled_event and tau < self.max_time:
+        while self.mob.will_be_in_contact(indiv_i=j, indiv_j=infector, t=tau, site=None) and not sampled_event and tau < min(tmax, self.max_time):
             
             # check if j could get infected from infector at current `tau`
             # i.e. there is `delta`-contact from infector to j (i.e. non-zero intensity)
@@ -922,7 +949,7 @@ class DiseaseModel(object):
                     (tau, 'expo', j, infector, site, None), priority=tau)
                 sampled_event = True
 
-    def __push_household_exposure_events(self, t, infector, base_rate):
+    def __push_household_exposure_events(self, *, t, infector, base_rate, tmax):
         """
         Pushes all exposure events that person `i` causes
         in the household, using `base_rate` as basic infectivity
@@ -938,9 +965,9 @@ class DiseaseModel(object):
 
         # generate potential exposure event for `j` from contact with `infector`
         for j in valid_j():
-            self.__push_household_exposure_infector_to_j(t=t, infector=infector, j=j, base_rate=base_rate)
+            self.__push_household_exposure_infector_to_j(t=t, infector=infector, j=j, base_rate=base_rate, tmax=tmax)
 
-    def __push_household_exposure_infector_to_j(self, t, infector, j, base_rate):
+    def __push_household_exposure_infector_to_j(self, *, t, infector, j, base_rate, tmax):
         """
         Pushes the next exposure event that person `infector` causes for person `j`,
         who lives in the same household, using `base_rate` as basic infectivity of 
@@ -955,7 +982,7 @@ class DiseaseModel(object):
 
         # site = -1 means it is a household infection
         # thinning is done at exposure time if needed
-        if tau < self.max_time:
+        if tau < min(tmax, self.max_time):
             self.queue.push(
                 (tau, 'expo', j, infector, -1, None), priority=tau)
 
@@ -1155,7 +1182,7 @@ class DiseaseModel(object):
 
             valid_contacts = valid_j()
         else:
-            infectors_contacts = self.mob.find_contacts_of_indiv(indiv=i, tmin=t - self.smart_tracing_contact_delta)
+            infectors_contacts = self.mob.find_contacts_of_indiv(indiv=i, tmin=t - self.smart_tracing_contact_delta, tmax=t)
             valid_contacts = set()
 
             for contact in infectors_contacts:

@@ -538,7 +538,7 @@ class MobilitySimulator:
                                                  for_all_individuals=True)
         return contacts
 
-    def find_contacts_of_indiv(self, indiv, tmin):
+    def find_contacts_of_indiv(self, indiv, tmin, tmax):
         """
         Finds all delta-contacts of person 'indiv' with any other individual after time 'tmin'
         and returns them as InterLap object.
@@ -549,20 +549,25 @@ class MobilitySimulator:
         visited_sites = []
 
         for v in self.all_mob_traces:
-            if v.indiv == indiv:
-                infector_mob_traces_at_site[v.site].append(v)
-                if v.site not in visited_sites:
-                    visited_sites.append(v.site)
-            mob_traces_at_site[v.site].append(v)
+            # Only consider visit if overlap with [tmin, tmax] 
+            if tmin < v.t_to_shifted and (v.t_from < tmax if (tmax is not None) else True):
+
+                # Store as either mob_trace of infector or of everyone else
+                if v.indiv == indiv:
+                    infector_mob_traces_at_site[v.site].append(v)
+                    if v.site not in visited_sites:
+                        visited_sites.append(v.site)
+                mob_traces_at_site[v.site].append(v)
 
         contacts = self._find_mob_trace_overlaps(sites=visited_sites,
                                                  mob_traces_at_site=mob_traces_at_site,
                                                  infector_mob_traces_at_site=infector_mob_traces_at_site,
                                                  tmin=tmin,
+                                                 tmax=tmax,
                                                  for_all_individuals=False)
         return contacts
 
-    def _find_mob_trace_overlaps(self, sites, mob_traces_at_site, infector_mob_traces_at_site, tmin, for_all_individuals):
+    def _find_mob_trace_overlaps(self, sites, mob_traces_at_site, infector_mob_traces_at_site, tmin, tmax, for_all_individuals):
 
         # decide way of storing depending on way the function is used (all or individual)
         # FIXME: this could be done in a cleaner way by calling this function several times in `_find_contacts` 
@@ -590,8 +595,8 @@ class MobilitySimulator:
             # Iterate over each visit of the infector at site s
             for v_inf in infector_mob_traces_at_site[s]:
 
-                # Skip if delta-contact ends before `tmin` 
-                if v_inf.t_to_shifted > tmin:
+                # Skip if delta-contact ends before `tmin` or begins after `tmax`
+                if tmin < v_inf.t_to_shifted and (v_inf.t_from < tmax if (tmax is not None) else True):
                     
                     v_time = (v_inf.t_from, v_inf.t_to_shifted)
 

@@ -133,7 +133,7 @@ if __name__ == '__main__':
                 resulttuple = load_summary(summary_path+'.pk')
                 summary = resulttuple[1]
 
-                mob_settings_paths = calibration_mob_paths[country][area][1 if exp['full_scale'] else 0]
+                mob_settings_paths = calibration_mob_paths[country][area]
                 with open(mob_settings_paths, 'rb') as fp:
                     mob_settings = pickle.load(fp)
 

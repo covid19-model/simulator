@@ -23,7 +23,6 @@ if __name__ == '__main__':
     end_date = '2021-04-01'
     random_repeats = 48
     full_scale = True
-    full_scale = False
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = {}
