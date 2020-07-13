@@ -95,8 +95,8 @@ class Plotter(object):
 
         self.color_testing = '#ffa41b'
 
-        self.color_posi = '#21bf73'
-        self.color_nega = '#fd5e53'
+        self.color_posi = '#4daf4a'
+        self.color_nega = '#e41a1c'
 
         self.color_all = '#ffa41b'
         self.color_positive = '#00a8cc'
@@ -461,14 +461,14 @@ class Plotter(object):
 
         # lines
         ax.errorbar(ts, line_posi, yerr=posi_sig, elinewidth=0.8, errorevery=errorevery,
-                c='black', linestyle='-')
+                c='black', linestyle='dotted')
         ax.errorbar(ts, line_nega, yerr=nega_sig, elinewidth=0.8, errorevery=errorevery,
                 c='black', linestyle='-')
 
         # filling
-        ax.fill_between(ts, line_xaxis, line_posi, alpha=self.filling_alpha, label=r'Positive tests',
+        ax.fill_between(ts, line_xaxis, line_posi, alpha=0.5, label=r'Positive tests',
                         edgecolor=self.color_posi, facecolor=self.color_posi, linewidth=0, zorder=0)
-        ax.fill_between(ts, line_posi, line_nega, alpha=self.filling_alpha, label=r'Negative tests',
+        ax.fill_between(ts, line_posi, line_nega, alpha=0.5, label=r'Negative tests',
                         edgecolor=self.color_nega, facecolor=self.color_nega, linewidth=0, zorder=0)
         # axis
         ax.set_xlim((0, np.max(ts)))
