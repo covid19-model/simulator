@@ -642,6 +642,19 @@ class Plotter(object):
                     ax.plot(ts, lines_infected[:, r], linestyle='-', label=titles[i] if r == 0 else None, 
                             c=self.color_different_scenarios[i], lw=1, alpha=0.8)
 
+                    # For conditional measures only
+                    if lockdown_at and isinstance(lockdown_at, list):
+                        for lockdown in lockdown_at[r]:
+                            start_lockdown = lockdown[0] / TO_HOURS
+                            end_lockdown = lockdown[1] / TO_HOURS
+
+                            lockdown_widget(start_lockdown, start_date,
+                                            lockdown_label_y, ymax,
+                                            'start lockdown', ax, xshift=0.5, color='red')
+                            lockdown_widget(end_lockdown, start_date,
+                                            lockdown_label_y, ymax,
+                                            'end lockdown', ax, xshift=0.5, color='green')
+
 
 
         # axis
@@ -653,24 +666,11 @@ class Plotter(object):
         # ax.set_xlabel('Days')
         ax.set_ylabel('People')
 
-        if not isinstance(lockdown_at, dict):
+        if not isinstance(lockdown_at, list):
             if lockdown_at is not None:
                 lockdown_widget(lockdown_at, start_date,
                                 lockdown_label_y, ymax,
                                 lockdown_label, ax, xshift=0.5)
-        else:
-            # This is only for plotting the activity of the case dependent measures (sim-conditional-measures.ipynb)
-            ii = 1
-            for i in lockdown_at.keys():
-                interventions = lockdown_at[i]
-                labels = lockdown_label[i]
-                label_pos_y = lockdown_label_y[i]
-                simcolor = self.color_different_scenarios[ii]
-                ii += 1
-                for k in range(len(interventions)):
-                    lockdown_widget(interventions[k], start_date,
-                                    label_pos_y, ymax,
-                                    labels[k], ax, xshift=0.5, color=simcolor)
 
         # Hide the right and top spines
         ax.spines['right'].set_visible(False)
