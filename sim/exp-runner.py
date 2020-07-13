@@ -40,6 +40,17 @@ if __name__ == '__main__':
         os.system(f'python sim-vulnerable-groups.py --country CH --area JU')
         os.system(f'python sim-k-groups.py --country CH --area JU')
 
+    if args.option == 5:
+        for country, area in [('CH', 'TI'), ('CH', 'BE'), ('CH', 'JU')]:
+            os.system(
+                f'python sim-tracing-extra.py --country {country} --area {area}')
+
+    if args.option == 6:
+        for country, area in [('GER', 'TU'), ('GER', 'KL'), ('GER', 'RH')]:
+            os.system(
+                f'python sim-tracing-extra.py --country {country} --area {area}')
+
+
 
 
         
