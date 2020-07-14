@@ -683,7 +683,7 @@ class Plotter(object):
         # fig.autofmt_xdate()
         #set ticks every week
         # ax.xaxis.set_major_locator(mdates.WeekdayLocator())
-        ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=4))
+        ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
         #set major ticks format
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
         fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
@@ -1034,7 +1034,7 @@ class Plotter(object):
         ax.yaxis.set_ticks_position('left')
 
         #set ticks every week
-        ax.xaxis.set_major_locator(mdates.WeekdayLocator())
+        ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
         #set major ticks format
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
         fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
@@ -1142,7 +1142,7 @@ class Plotter(object):
                        subplot_adjust=None, lockdown_label='Lockdown',
                        lockdown_at=None, lockdown_label_y=None, ymax=None,
                        colors=['grey'], fill_between=True, draw_dots=True,
-                       errorevery=1, show_legend=False, xtick_interval=1, ci=0.9):
+                       errorevery=1, show_legend=False, xtick_interval=2, ci=0.9):
 
         # If a single summary is provided
         if not isinstance(sims, list):
