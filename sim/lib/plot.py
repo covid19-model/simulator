@@ -71,10 +71,10 @@ def lockdown_widget(lockdown_at, start_date, lockdown_label_y, ymax,
             y=lockdown_label_y, s=lockdown_label, rotation=90)
 
 
-def target_widget(show_target,start_date, ax, zorder=None):
+def target_widget(show_target,start_date, ax, zorder=None, ms=6):
     txx = np.linspace(0, show_target.shape[0] - 1, num=show_target.shape[0])
     txx = days_to_datetime(txx, start_date=start_date)
-    ax.plot(txx, show_target, linewidth=4, linestyle='', marker='X', ms=6,
+    ax.plot(txx, show_target, linewidth=4, linestyle='', marker='X', ms=ms,
             color='black', label='COVID-19 case data', zorder=zorder)
 
 
@@ -1079,13 +1079,13 @@ class Plotter(object):
             T = posi_mu.shape[0]
 
             xx = days_to_datetime(ts, start_date=start_date)
-            axs[age].plot(xx, posi_mu, c='k', linestyle='-',
+            axs[age].plot(xx, posi_mu, c=self.color_different_scenarios[0], linestyle='-',
                     label='COVID-19 simulated case data')
-            axs[age].fill_between(xx, posi_mu - posi_sig, posi_mu + posi_sig,
-                            color='grey', alpha=0.1, linewidth=0.0)
+            axs[age].fill_between(xx, posi_mu - 2 * posi_sig, posi_mu + 2 * posi_sig,
+                            color=self.color_different_scenarios[0], alpha=0.1, linewidth=0.0)
 
             # target
-            target_widget(targets[:, age], start_date, axs[age])
+            target_widget(targets[:, age], start_date, axs[age], ms=4)
 
             # axis
             #ax.set_xlim((0, np.max(ts)))
@@ -1098,7 +1098,12 @@ class Plotter(object):
                 if ytitle is not None:
                     axs[age].set_ylabel(ytitle)
 
-            axs[age].set_title(f'{age}')
+            if n_age_groups == 6:
+                age_groups = ['0-4', '5-15', '15-34', '35-59', '60-79', '80+']
+            else:
+                age_groups = ['0-9', '10-19', '20-29', '30-39', '40-49', '50-59', '60-69', '70-79', '80+']
+
+            axs[age].set_title(f'{age_groups[age]} years')
 
             if lockdown_at is not None:
                 lockdown_widget(lockdown_at, start_date,
