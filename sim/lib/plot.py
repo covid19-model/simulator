@@ -477,7 +477,7 @@ class Plotter(object):
         ax.set_ylim((0, ymax))
 
         ax.set_xlabel(r'$t$ [days]')
-        ax.set_ylabel(r'[people]')
+        ax.set_ylabel(r'Tests')
 
         # Hide the right and top spines
         ax.spines['right'].set_visible(False)
@@ -592,7 +592,8 @@ class Plotter(object):
         filename='compare_inf_0', figsize=(10, 10), errorevery=20, acc=1000, ymax=None,
         lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None,
         show_positives=False, show_legend=True, legendYoffset=0.0, legend_is_left=False, legendXoffset=0.0,
-        subplot_adjust=None, start_date='1970-01-01', first_one_dashed=False, show_single_runs=False):
+        subplot_adjust=None, start_date='1970-01-01', x_label_interval=2, first_one_dashed=False,
+        show_single_runs=False, which_single_runs=None):
 
         ''''
         Plots total infections for each simulation, named as provided by `titles`
@@ -638,8 +639,9 @@ class Plotter(object):
                 lines_infected = iasy + ipre + isym
 
                 # lines
-                for r in range(min(show_single_runs, sims[i].random_repeats)):
-                    ax.plot(ts, lines_infected[:, r], linestyle='-', label=titles[i] if r == 0 else None, 
+                runs = [which_single_runs] if which_single_runs else range(min(show_single_runs, sims[i].random_repeats))
+                for k, r in enumerate(runs):
+                    ax.plot(ts, lines_infected[:, r], linestyle='-', label=titles[i] if k == 0 else None,
                             c=self.color_different_scenarios[i], lw=1, alpha=0.8)
 
                     # For conditional measures only
@@ -650,10 +652,10 @@ class Plotter(object):
 
                             lockdown_widget(start_lockdown, start_date,
                                             lockdown_label_y, ymax,
-                                            'start lockdown', ax, xshift=0.5, color='red')
+                                            'start lockdown', ax, xshift=3.0, color='red')
                             lockdown_widget(end_lockdown, start_date,
                                             lockdown_label_y, ymax,
-                                            'end lockdown', ax, xshift=0.5, color='green')
+                                            'end lockdown', ax, xshift=3.0, color='green')
 
 
 
@@ -680,10 +682,11 @@ class Plotter(object):
         ax.yaxis.set_ticks_position('left')
         ax.xaxis.set_ticks_position('bottom')
 
+
         # fig.autofmt_xdate()
         #set ticks every week
         # ax.xaxis.set_major_locator(mdates.WeekdayLocator())
-        ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
+        ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=x_label_interval))
         #set major ticks format
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
         fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
