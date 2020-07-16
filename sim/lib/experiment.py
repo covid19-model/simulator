@@ -46,8 +46,7 @@ Simulation = namedtuple('Simulation', (
     'full_scale',               # Whether or not simulation is done at full scale
     'measure_list',             # Measure list
     'testing_params',           # Testing params
-    'store_mob',                # Indicator of whether to return and store MobilitySimulator object
-    'store_measure_bernoullis', # Indicator of whether to return and store Bernoulli r.v.s in Mobility Simulator object
+    'store_mob',                # Indicator of whether to return and store MobilitySimulator object and measure bernoullis
 
     # Model
     'model_params',             # Model parameters (from calibration)
@@ -192,8 +191,7 @@ class Experiment(object):
         set_calibrated_params_to=None,
         set_initial_seeds_to=None,
         expected_daily_base_expo_per100k=0,
-        store_mob=False,
-        store_measure_bernoullis=False):
+        store_mob=False):
 
         # Set time window based on experiment start and end date
         sim_days = (pd.to_datetime(self.end_date) - pd.to_datetime(self.start_date)).days
@@ -339,7 +337,6 @@ class Experiment(object):
             measure_list=measure_list,
             testing_params=testing_params,
             store_mob=store_mob,
-            store_measure_bernoullis=store_measure_bernoullis,
 
             # Model
             model_params=model_params,
@@ -384,7 +381,7 @@ class Experiment(object):
                 site_loc=mob_settings['site_loc'],
                 num_sites=len(mob_settings['site_loc']),
                 store_mob=sim.store_mob,
-                store_measure_bernoullis=sim.store_measure_bernoullis,
+                store_measure_bernoullis=sim.store_mob,
                 lazy_contacts=True,
                 verbose=False)
 

@@ -22,7 +22,6 @@ if __name__ == '__main__':
 
     # set `True` for narrow-casting plot; should only be done with 1 random restart:
     store_mob = True
-    store_measure_bernoullis = True
     cpu_count = 1
     random_repeats = 1
 
@@ -95,7 +94,6 @@ if __name__ == '__main__':
         set_calibrated_params_to=calibrated_params,
         set_initial_seeds_to=set_initial_seeds_to,
         full_scale=full_scale,
-        store_measure_bernoullis=store_measure_bernoullis,
         store_mob=store_mob)
 
     print(f'{experiment_info} configuration done.')
