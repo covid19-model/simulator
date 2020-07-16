@@ -32,26 +32,27 @@ ROOT = 'summaries'
 Simulation = namedtuple('Simulation', (
 
     # Generic information
-    'experiment_info',   # Description of the experiment that contains the simulation
-    'simulation_info',   # Description of the simulation itself
-    'start_date',        # Start date
-    'end_date',          # End date
-    'sim_days',          # Days of simulation
-    'country',           # Country
-    'area',              # Area
-    'random_repeats',    # Random repeats of simulation
+    'experiment_info',          # Description of the experiment that contains the simulation
+    'simulation_info',          # Description of the simulation itself
+    'start_date',               # Start date
+    'end_date',                 # End date
+    'sim_days',                 # Days of simulation
+    'country',                  # Country
+    'area',                     # Area
+    'random_repeats',           # Random repeats of simulation
 
     # Mobility and measures
-    'mob_settings_file', # Mobility settings
-    'full_scale',        # Whether or not simulation is done at full scale
-    'measure_list',      # Measure list
-    'testing_params',    # Testing params
-    'store_mob',         # Indicator of whether to return and store MobilitySimulator object
+    'mob_settings_file',        # Mobility settings
+    'full_scale',               # Whether or not simulation is done at full scale
+    'measure_list',             # Measure list
+    'testing_params',           # Testing params
+    'store_mob',                # Indicator of whether to return and store MobilitySimulator object
+    'store_measure_bernoullis', # Indicator of whether to return and store Bernoulli r.v.s in Mobility Simulator object
 
     # Model
-    'model_params',      # Model parameters (from calibration)
-    'distributions',     # Transition distributions
-    'initial_seeds',     # Simulation seeds
+    'model_params',             # Model parameters (from calibration)
+    'distributions',            # Transition distributions
+    'initial_seeds',            # Simulation seeds
 
 ))
 
@@ -191,7 +192,8 @@ class Experiment(object):
         set_calibrated_params_to=None,
         set_initial_seeds_to=None,
         expected_daily_base_expo_per100k=0,
-        store_mob=False):
+        store_mob=False,
+        store_measure_bernoullis=False):
 
         # Set time window based on experiment start and end date
         sim_days = (pd.to_datetime(self.end_date) - pd.to_datetime(self.start_date)).days
@@ -337,6 +339,7 @@ class Experiment(object):
             measure_list=measure_list,
             testing_params=testing_params,
             store_mob=store_mob,
+            store_measure_bernoullis=store_measure_bernoullis,
 
             # Model
             model_params=model_params,
@@ -381,6 +384,7 @@ class Experiment(object):
                 site_loc=mob_settings['site_loc'],
                 num_sites=len(mob_settings['site_loc']),
                 store_mob=sim.store_mob,
+                store_measure_bernoullis=sim.store_measure_bernoullis,
                 lazy_contacts=True,
                 verbose=False)
 
@@ -388,3 +392,4 @@ class Experiment(object):
 
             if self.verbose:
                 print(f'[Finished Sim] {self.get_sim_path(sim)}')
+ 

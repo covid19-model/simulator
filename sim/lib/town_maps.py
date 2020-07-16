@@ -84,6 +84,9 @@ class MapIllustrator():
             ).add_to(map_obj)
 
         return map_obj
+
+    """
+    Deprecated
     
     def __comp_checkins_in_a_day(self, sim, r, t):
         '''
@@ -105,9 +108,14 @@ class MapIllustrator():
                                                                 state_dead_started_at=sim.state_started_at['dead'][r, :])) and
                      (sim.state_started_at['dead'][r, indiv] > t) and
                      (len(list(sim.mob[r].list_intervals_in_window_individual_at_site(indiv=indiv, site=site, t0=t, t1=t+TO_HOURS))) > 0) ):
+
+
+
                     site_checkins[site] += 1
         
         return site_checkins
+
+    """
 
     def __compute_empirical_survival_probability_site(self, sim, r, t0, t1, delta, site):
         '''
@@ -121,20 +129,48 @@ class MapIllustrator():
                 for visit in sim.mob[r].mob_traces[j].find((t0, t1)):
                     if visit.t_to > t0 and visit.site == site:
                         # skip if j was contained
-                        j_visit_id = visit.id
-            
-                        is_j_contained = ((not sim.measure_list[r].is_contained_prob(SocialDistancingForAllMeasure, t=visit.t_from, j=j)) and
-                                          (not sim.measure_list[r].is_contained_prob(SocialDistancingForSmartTracing, t=visit.t_from, j=j)) and
-                                          (not sim.measure_list[r].is_contained_prob(SocialDistancingByAgeMeasure, t=visit.t_from, age=sim.people_age[r, j])) and
-                                          (not sim.measure_list[r].is_contained_prob(SocialDistancingForPositiveMeasure,
-                                                                                     t=visit.t_from, j=j,
-                                                                                     state_posi_started_at=sim.state_started_at['posi'][r, :],
-                                                                                     state_posi_ended_at=sim.state_ended_at['posi'][r, :],
-                                                                                     state_resi_started_at=sim.state_started_at['resi'][r, :],
-                                                                                     state_dead_started_at=sim.state_started_at['dead'][r, :])) and
-                                          (sim.state_started_at['dead'][r, j] > visit.t_from))
+                        visit_id = visit.id
+
+                        is_j_contained = (
+                            sim.measure_list[r].is_contained(
+                                SocialDistancingForAllMeasure, t=t,
+                                j=j, j_visit_id=visit_id) or 
+                            sim.measure_list[r].is_contained(
+                                SocialDistancingForPositiveMeasure, t=t,
+                                j=j, j_visit_id=visit_id, 
+                                state_posi_started_at=sim.state_started_at['posi'][r, :],
+                                state_posi_ended_at=sim.state_ended_at['posi'][r, :],
+                                state_resi_started_at=sim.state_started_at['resi'][r, :],
+                                state_dead_started_at=sim.state_started_at['dead'][r, :]) or
+                            sim.measure_list[r].is_contained(
+                                SocialDistancingByAgeMeasure, t=t,
+                                age=sim.people_age[r, j], j_visit_id=visit_id) or
+                            sim.measure_list[r].is_contained(
+                                SocialDistancingForSmartTracing, t=t,
+                                state_nega_started_at=sim.state_started_at['nega'][r, :],
+                                state_nega_ended_at=sim.state_ended_at['nega'][r, :],
+                                j=j, j_visit_id=visit_id) or 
+                            sim.measure_list[r].is_contained(
+                                SocialDistancingSymptomaticAfterSmartTracing, t=t,
+                                state_isym_started_at=sim.state_started_at['isym'][r, :],
+                                state_isym_ended_at=sim.state_ended_at['isym'][r, :],
+                                state_nega_started_at=sim.state_started_at['nega'][r, :],
+                                state_nega_ended_at=sim.state_ended_at['nega'][r, :],
+                                j=j) or
+                            sim.measure_list[r].is_contained(
+                                SocialDistancingForKGroups, t=t,
+                                j=j)
+
+                            # UpperBoundCasesSocialDistancing ommited as `t_pos_tests` not stored
+                            # sim.measure_list[r].is_contained(
+                            #     UpperBoundCasesSocialDistancing, t=t,
+                            #     j=j, j_visit_id=visit_id, t_pos_tests=sim.t_pos_tests)
+
+                            or (sim.state_started_at['hosp'][r, j] > visit.t_from))
+                            or (sim.state_started_at['dead'][r, j] > visit.t_from))
+                        )
                 
-                        is_j_not_compliant = sim.measure_list[r].is_contained(ComplianceForAllMeasure, t=visit.t_from, j=j)
+                        is_j_not_compliant = not sim.measure_list[r].is_compliant(ComplianceForAllMeasure, t=visit.t_from, j=j)
                 
                         if is_j_contained or is_j_not_compliant:
                             continue
@@ -230,6 +266,9 @@ class MapIllustrator():
 
         return m
 
+    """
+    Deprecated 
+
     def checkin_rate_map(self, bbox, site_loc, site_type, site_dict, map_name, sim, t, max_checkin=None, r=0):
         '''
         Computes the rate of check-ins per site for a given day starting at time t
@@ -291,6 +330,8 @@ class MapIllustrator():
 
         return m, max_checkin
     
+    """
+    
     def empirical_infection_probability_map(self, bbox, site_loc, site_type, site_dict, map_name, sim, t0, t1, delta, r=0):
         '''
         Computes the empirical survival probability s per site for a given interval
@@ -322,6 +363,10 @@ class MapIllustrator():
         m : MapIllustrator object
             The generated map
         '''
+
+        if sim.measure_list == []:
+            print('Summary file does not contain a MeasureList object. Unable to create `empirical_infection_probability_map`.')
+            return None
         
         # center map around the given bounding box
         center = ((bbox[0]+bbox[1])/2,(bbox[2]+bbox[3])/2)

@@ -302,6 +302,73 @@ def get_calibrated_params(*, country, area, multi_beta_calibration, maxiters=Non
     return param_dict
 
 
+def get_unique_calibration_params(*, country, area, multi_beta_calibration, maxiters=None):
+    """
+    Returns all unique parameter settings that ** improved ** the objective
+    during calibration for a `country` and an `area`
+    """
+
+    param_bounds = (
+        calibration_model_param_bounds_multi
+        if multi_beta_calibration else
+        calibration_model_param_bounds_single)
+    sim_bounds = pdict_to_parr(
+        pdict=param_bounds,
+        multi_beta_calibration=multi_beta_calibration
+    ).T
+
+    state = load_state(calibration_states[country][area])
+    train_theta = state['train_theta']
+    train_G = state['train_G']
+    
+    mob_settings = calibration_mob_paths[country][area][0]
+    with open(mob_settings, 'rb') as fp:
+        mob_kwargs = pickle.load(fp)
+    mob = MobilitySimulator(**mob_kwargs)
+
+    data_start_date = calibration_start_dates[country][area]
+    data_end_date = calibration_lockdown_dates[country]['end']
+
+    unscaled_area_cases = collect_data_from_df(country=country, area=area, datatype='new',
+                                            start_date_string=data_start_date, end_date_string=data_end_date)
+    assert (len(unscaled_area_cases.shape) == 2)
+
+    # Scale down cases based on number of people in town and region
+    sim_cases = downsample_cases(unscaled_area_cases, mob_kwargs)
+    n_days, n_age = sim_cases.shape
+
+    G_obs = torch.tensor(sim_cases).reshape(1, n_days * n_age)
+    G_obs_aggregate = torch.tensor(sim_cases).sum(dim=-1)
+
+    def objective(G):
+        return - (G - G_obs_aggregate).pow(2).sum(dim=-1) / n_days
+
+    # if maxiters provided, select submatrix of state
+    if maxiters:
+        train_theta = train_theta[:min(maxiters, train_theta.shape[0])]
+        train_G = train_G[:min(maxiters, train_G.shape[0])]
+
+    # extract all parameter settings that improved
+    best = - 99999999999999
+    t = 0
+    all_params = []
+
+    while t < train_theta.shape[0]:
+        theta = train_theta[t]
+        G = train_G[t]
+        obj = objective(G).item()
+
+        if obj > best:
+            best = obj
+            calibrated_params = transforms.unnormalize(theta, sim_bounds)
+            all_params.append(
+                (t, parr_to_pdict(parr=calibrated_params, multi_beta_calibration=multi_beta_calibration)))
+
+        t += 1
+
+    return all_params
+
+
 def get_calibrated_params_limited_iters(country, area, multi_beta_calibration,  maxiters):
     """
     Returns calibrated parameters using only the first `maxiters` iterations of BO.
