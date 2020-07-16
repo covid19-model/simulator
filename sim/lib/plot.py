@@ -19,6 +19,8 @@ from lib.measures import (MeasureList, BetaMultiplierMeasureBySite,
                       SocialDistancingForAllMeasure, BetaMultiplierMeasureByType,
                       SocialDistancingForPositiveMeasure, SocialDistancingByAgeMeasure, SocialDistancingForSmartTracing, ComplianceForAllMeasure)
 from lib.rt import compute_daily_rts, R_T_RANGE
+from lib.experiment import load_summary, get_properties
+import pickle
 
 import numpy as np
 import seaborn as sns
@@ -61,10 +63,10 @@ def days_to_datetime(arr, start_date):
 
 
 def lockdown_widget(lockdown_at, start_date, lockdown_label_y, ymax,
-                    lockdown_label, ax, ls='--', xshift=0.0, zorder=None, color='black'):
+                    lockdown_label, ax, ls='--', lw=2.5, xshift=0.0, zorder=None, color='black'):
     # Convert x-axis into posix timestamps and use pandas to plot as dates
     lckdn_x = days_to_datetime(lockdown_at, start_date=start_date)
-    ax.plot([lckdn_x, lckdn_x], [0, ymax], linewidth=2.5, linestyle=ls,
+    ax.plot([lckdn_x, lckdn_x], [0, ymax], linewidth=lw, linestyle=ls,
             color=color, label='_nolegend_', zorder=zorder)
     lockdown_label_y = lockdown_label_y or ymax*0.4
     ax.text(x=lckdn_x - pd.Timedelta(2.1 + xshift, unit='d'),
@@ -589,7 +591,7 @@ class Plotter(object):
         return
 
     def compare_total_infections(self, sims, titles, figtitle='Title',
-        filename='compare_inf_0', figsize=(10, 10), errorevery=20, acc=1000, ymax=None,
+        filename='compare_inf_0', figsize=(10, 10), errorevery=20, acc=1000, ymax=None, x_axis_dates=True,
         lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None,
         show_positives=False, show_legend=True, legendYoffset=0.0, legend_is_left=False, legendXoffset=0.0,
         subplot_adjust=None, start_date='1970-01-01', x_label_interval=2, first_one_dashed=False,
@@ -603,19 +605,40 @@ class Plotter(object):
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
 
-        for i in range(len(sims)):
-            if acc > sims[i].max_time:
-                acc = int(sims[i].max_time)
+        for i, sim in enumerate(sims):
+            if isinstance(sim, str):
+                try:
+                    data = load_extracted_data(sim)
+                except FileNotFoundError:
+                    extract_data_from_summary(sim, acc=acc)
+                    data = load_extracted_data(sim)
+                acc = data['acc']
+                ts = data['ts']
+                iasy_mu = data['iasy_mu']
+                iasy_sig = data['iasy_sig']
+                ipre_mu = data['ipre_mu']
+                ipre_sig = data['ipre_sig']
+                isym_mu = data['isym_mu']
+                isym_sig = data['isym_sig']
+                posi_mu = data['posi_mu']
+                posi_sig = data['posi_sig']
+                loaded_extracted_data = True
+            else:
+                loaded_extracted_data = False
 
             if not show_single_runs:
+                if not loaded_extracted_data:
+                    if acc > sim.max_time:
+                        acc = int(sim.max_time)
 
-                ts, iasy_mu, iasy_sig = self.__comp_state_over_time(sims[i], 'iasy', acc)
-                _,  ipre_mu, ipre_sig = self.__comp_state_over_time(sims[i], 'ipre', acc)
-                _,  isym_mu, isym_sig = self.__comp_state_over_time(sims[i], 'isym', acc)
-                _,  posi_mu, posi_sig = self.__comp_state_over_time(sims[i], 'posi', acc)
+                    ts, iasy_mu, iasy_sig = self.__comp_state_over_time(sim, 'iasy', acc)
+                    _,  ipre_mu, ipre_sig = self.__comp_state_over_time(sim, 'ipre', acc)
+                    _,  isym_mu, isym_sig = self.__comp_state_over_time(sim, 'isym', acc)
+                    _,  posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
 
-                # Convert x-axis into posix timestamps and use pandas to plot as dates
-                ts = days_to_datetime(ts, start_date=start_date)
+                if x_axis_dates:
+                    # Convert x-axis into posix timestamps and use pandas to plot as dates
+                    ts = days_to_datetime(ts, start_date=start_date)
 
                 line_xaxis = np.zeros(ts.shape)
                 line_infected = iasy_mu + ipre_mu + isym_mu
@@ -627,19 +650,23 @@ class Plotter(object):
                                 color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
             
             else:
+                if not loaded_extracted_data:
+                    if acc > sim.max_time:
+                        acc = int(sim.max_time)
 
-                ts, iasy, iasy_sig = self.__comp_state_over_time(sims[i], 'iasy', acc, return_single_runs=True)
-                _,  ipre, ipre_sig = self.__comp_state_over_time(sims[i], 'ipre', acc, return_single_runs=True)
-                _,  isym, isym_sig = self.__comp_state_over_time(sims[i], 'isym', acc, return_single_runs=True)
+                    ts, iasy, iasy_sig = self.__comp_state_over_time(sim, 'iasy', acc, return_single_runs=True)
+                    _,  ipre, ipre_sig = self.__comp_state_over_time(sim, 'ipre', acc, return_single_runs=True)
+                    _,  isym, isym_sig = self.__comp_state_over_time(sim, 'isym', acc, return_single_runs=True)
 
-                # Convert x-axis into posix timestamps and use pandas to plot as dates
-                ts = days_to_datetime(ts, start_date=start_date)
+                if x_axis_dates:
+                    # Convert x-axis into posix timestamps and use pandas to plot as dates
+                    ts = days_to_datetime(ts, start_date=start_date)
 
                 line_xaxis = np.zeros(ts.shape)
                 lines_infected = iasy + ipre + isym
 
                 # lines
-                runs = [which_single_runs] if which_single_runs else range(min(show_single_runs, sims[i].random_repeats))
+                runs = [which_single_runs] if which_single_runs else range(min(show_single_runs, sim.random_repeats))
                 for k, r in enumerate(runs):
                     ax.plot(ts, lines_infected[:, r], linestyle='-', label=titles[i] if k == 0 else None,
                             c=self.color_different_scenarios[i], lw=1, alpha=0.8)
@@ -652,10 +679,10 @@ class Plotter(object):
 
                             lockdown_widget(start_lockdown, start_date,
                                             lockdown_label_y, ymax,
-                                            'start lockdown', ax, xshift=3.0, color='red')
+                                            None, ax, ls='-', lw=1.5, color='grey')
                             lockdown_widget(end_lockdown, start_date,
                                             lockdown_label_y, ymax,
-                                            'end lockdown', ax, xshift=3.0, color='green')
+                                            None, ax, lw=1.5, color='grey')
 
 
 
@@ -666,6 +693,8 @@ class Plotter(object):
         ax.set_ylim((0, ymax))
 
         # ax.set_xlabel('Days')
+        if not x_axis_dates:
+            ax.set_xlabel(r'$t$ [days]')
         ax.set_ylabel('People')
 
         if not isinstance(lockdown_at, list):
@@ -682,14 +711,14 @@ class Plotter(object):
         ax.yaxis.set_ticks_position('left')
         ax.xaxis.set_ticks_position('bottom')
 
-
-        # fig.autofmt_xdate()
-        #set ticks every week
-        # ax.xaxis.set_major_locator(mdates.WeekdayLocator())
-        ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=x_label_interval))
-        #set major ticks format
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
-        fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
+        if x_axis_dates:
+            # fig.autofmt_xdate()
+            #set ticks every week
+            # ax.xaxis.set_major_locator(mdates.WeekdayLocator())
+            ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=x_label_interval))
+            #set major ticks format
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+            fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
 
         if show_legend:
             # legend
@@ -741,15 +770,30 @@ class Plotter(object):
         ax = fig.add_subplot(111)
 
         # hospitalizations
-        for i in range(len(sims)):
-            if acc > sims[i].max_time:
-                acc = int(sims[i].max_time)
+        for i, sim in enumerate(sims):
+            if isinstance(sim, str):
+                try:
+                    data = load_extracted_data(sim)
+                except FileNotFoundError:
+                    extract_data_from_summary(sim, acc=acc)
+                    data = load_extracted_data(sim)
 
-            ts, hosp_mu, hosp_sig = self.__comp_state_over_time(
-                sims[i], 'hosp', acc)
+                acc = data['acc']
+                ts = data['ts']
+                hosp_mu = data['hosp_mu']
+                hosp_sig = data['hosp_sig']
+                dead_mu = data['dead_mu']
+                dead_sig = data['dead_sig']
+                loaded_extracted_data = True
+            else:
+                loaded_extracted_data = False
 
-            ts, dead_mu, dead_sig = self.__comp_state_over_time(
-                sims[i], 'dead', acc)
+            if not loaded_extracted_data:
+                if acc > sim.max_time:
+                    acc = int(sim.max_time)
+
+                ts, hosp_mu, hosp_sig = self.__comp_state_over_time(sim, 'hosp', acc)
+                ts, dead_mu, dead_sig = self.__comp_state_over_time(sim, 'dead', acc)
 
             # Convert x-axis into posix timestamps and use pandas to plot as dates
             ts = days_to_datetime(ts, start_date=start_date)
@@ -774,7 +818,7 @@ class Plotter(object):
 
         # axis
         if ymax is None:
-            ymax = 1.5 * np.max(iasy_mu + ipre_mu + isym_mu)
+            ymax = 1.5 * np.max(hosp_mu + hosp_sig)
         ax.set_ylim((0, ymax))
 
         # ax.set_xlabel('Days')
@@ -1252,3 +1296,37 @@ class Plotter(object):
 
         if NO_PLOT:
             plt.close()
+
+
+def extract_data_from_summary(summary_path, acc=1000):
+    print(f'Extracting data from summary: {summary_path}')
+    result = load_summary(summary_path)
+    sim = result[1]
+
+    if acc > sim.max_time:
+        acc = int(sim.max_time)
+
+    plotter = Plotter()
+    comp_state_over_time = plotter._Plotter__comp_state_over_time
+    ts, iasy_mu, iasy_sig = comp_state_over_time(sim, 'iasy', acc)
+    _, ipre_mu, ipre_sig = comp_state_over_time(sim, 'ipre', acc)
+    _, isym_mu, isym_sig = comp_state_over_time(sim, 'isym', acc)
+    _, posi_mu, posi_sig = comp_state_over_time(sim, 'posi', acc)
+    _, hosp_mu, hosp_sig = comp_state_over_time(sim, 'hosp', acc)
+    _, dead_mu, dead_sig = comp_state_over_time(sim, 'dead', acc)
+
+    data = {'acc': acc, 'ts': ts, 'iasy_mu': iasy_mu, 'iasy_sig': iasy_sig, 'ipre_mu': ipre_mu, 'ipre_sig': ipre_sig,
+            'isym_mu': isym_mu, 'isym_sig': isym_sig, 'posi_mu': posi_mu, 'posi_sig': posi_sig, 'hosp_mu': hosp_mu,
+            'hosp_sig': hosp_sig, 'dead_mu': dead_mu, 'dead_sig': dead_sig}
+
+    with open(os.path.join('summaries', summary_path[:-3]+'_extracted_data.pk'), 'wb') as fp:
+        pickle.dump(data, fp)
+    print(f'Data extraction successful.')
+
+
+def load_extracted_data(summary_path):
+    with open(os.path.join('summaries', summary_path[:-3]+'_extracted_data.pk'), 'rb') as fp:
+        data = pickle.load(fp)
+    print('Loaded previously extracted data.')
+    return data
+
