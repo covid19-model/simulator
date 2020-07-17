@@ -168,7 +168,8 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
 
     with ProcessPoolExecutor(cpu_count) as ex:
         res = ex.map(pp_launch, repeat_ids, mob_setting_list, distributions_list, params_list,
-                     initial_seeds_list, testing_params_list, measure_list_list, max_time_list, lazy_contacts_list)
+                     initial_seeds_list, testing_params_list, measure_list_list, max_time_list, lazy_contacts_list,
+                     store_mob)
 
     # # DEBUG mode (to see errors printed properly)
     # res = []
