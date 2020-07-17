@@ -77,7 +77,7 @@ def get_properties(objs, property):
         elif isinstance(o, Simulation) or isinstance(o, Plot) or isinstance(o, Result):
             out.append(getattr(o, property))
         else:
-            raise ValueError(f'Unknown type of elements in `objs`. Type is {type(x).__name__}')
+            raise ValueError(f'Unknown type of elements in `objs`. Type is {type(o).__name__}')
     return out
 
 
