@@ -615,10 +615,10 @@ class Plotter(object):
             if isinstance(sim, str):
                 is_conditional = True if i == conditional_measures else False
                 try:
-                    data = load_extracted_data(sim)
+                    data = load_extracted_data(sim, acc)
                 except FileNotFoundError:
-                    extract_data_from_summary(sim, acc=acc, conditional_measures=is_conditional)
-                    data = load_extracted_data(sim)
+                    acc = extract_data_from_summary(sim, acc=acc, conditional_measures=is_conditional)
+                    data = load_extracted_data(sim, acc)
                 acc = data['acc']
                 ts = data['ts']
                 iasy_mu = data['iasy_mu']
@@ -1055,9 +1055,9 @@ class Plotter(object):
         for i, sim in enumerate(sims):
             if isinstance(sim, str):
                 try:
-                    data = load_extracted_data(sim)
+                    data = load_extracted_data(sim, acc)
                 except FileNotFoundError:
-                    extract_data_from_summary(sim, acc=acc)
+                    acc = extract_data_from_summary(sim, acc=acc)
                     data = load_extracted_data(sim, acc=acc)
                 acc = data['acc']
                 ts = data['ts']
@@ -1224,7 +1224,7 @@ class Plotter(object):
             sigma = [sigma]
 
         results = list()
-        for i, sim in enumerate(sims):
+        for i, sim in enumerate([sims[0]]):
             res = compute_daily_rts(sim, start_date, sigma[i], r_t_range, window, ci)
             results.append(res)
 
@@ -1244,7 +1244,10 @@ class Plotter(object):
         ax = fig.add_subplot(111)
 
         for i, result in enumerate(results):
-            index = result['ML'].index
+            if x_axis_dates:
+                index = result['ML'].index
+            else:
+                index = np.arange(0, len(result['ML'].index))
             values = result['ML'].values
 
             # Plot dots and line
@@ -1256,14 +1259,24 @@ class Plotter(object):
                            edgecolors='k', zorder=2)
 
             # Aesthetically, extrapolate credible interval by 1 day either side
-            lowfn = interp1d(date2num(index), result[f'Low_{ci*100:.0f}'].values,
-                            bounds_error=False, fill_value='extrapolate')
-            highfn = interp1d(date2num(index), result[f'High_{ci*100:.0f}'].values,
-                            bounds_error=False, fill_value='extrapolate')
+            if x_axis_dates:
+                lowfn = interp1d(date2num(index), result[f'Low_{ci*100:.0f}'].values,
+                                bounds_error=False, fill_value='extrapolate')
+                highfn = interp1d(date2num(index), result[f'High_{ci*100:.0f}'].values,
+                                bounds_error=False, fill_value='extrapolate')
 
-            extended = pd.date_range(start=index[0], end=index[-1])
-            error_low = lowfn(date2num(extended))
-            error_high =  highfn(date2num(extended))
+                extended = pd.date_range(start=index[0], end=index[-1])
+                error_low = lowfn(date2num(extended))
+                error_high = highfn(date2num(extended))
+            else:
+                lowfn = interp1d(index, result[f'Low_{ci * 100:.0f}'].values,
+                                 bounds_error=False, fill_value='extrapolate')
+                highfn = interp1d(index, result[f'High_{ci * 100:.0f}'].values,
+                                  bounds_error=False, fill_value='extrapolate')
+
+                extended = index
+                error_low = lowfn(extended)
+                error_high = highfn(extended)
 
             if fill_between:
                 ax.fill_between(extended, error_low, error_high,
