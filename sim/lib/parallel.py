@@ -115,7 +115,7 @@ def create_ParallelSummary_from_DiseaseModel(sim, store_mob=False):
 
 
 def pp_launch(r, kwargs, distributions, params, initial_counts, testing_params, measure_list, max_time, lazy_contacts,
-              store_mob=False):
+              store_mob):
 
     mob = MobilitySimulator(**kwargs)
     mob.simulate(max_time=max_time, lazy_contacts=lazy_contacts)
@@ -161,6 +161,7 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
     testing_params_list = [copy.deepcopy(testing_params) for _ in range(random_repeats)]
     max_time_list = [copy.deepcopy(max_time) for _ in range(random_repeats)]
     lazy_contacts_list = [copy.deepcopy(lazy_contacts) for _ in range(random_repeats)]
+    store_mob_list = [copy.deepcopy(store_mob) for _ in range(random_repeats)]
     repeat_ids = list(range(random_repeats))
 
     if verbose:
@@ -169,7 +170,7 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
     with ProcessPoolExecutor(cpu_count) as ex:
         res = ex.map(pp_launch, repeat_ids, mob_setting_list, distributions_list, params_list,
                      initial_seeds_list, testing_params_list, measure_list_list, max_time_list, lazy_contacts_list,
-                     store_mob)
+                     store_mob_list)
 
     # # DEBUG mode (to see errors printed properly)
     # res = []
