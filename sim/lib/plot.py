@@ -681,7 +681,7 @@ class Plotter(object):
                 runs = [which_single_runs] if which_single_runs else range(min(show_single_runs, sim.random_repeats))
                 for k, r in enumerate(runs):
                     ax.plot(ts, lines_infected[:, r], linestyle='-', label=titles[i] if k == 0 else None,
-                            c=self.color_different_scenarios[i], lw=1, alpha=0.8)
+                            c=self.color_different_scenarios[i])
 
                     # For conditional measures only
                     if lockdown_at:
@@ -690,10 +690,10 @@ class Plotter(object):
                             end_lockdown = lockdown[1] / TO_HOURS
                             lockdown_widget(start_lockdown, 0.0,
                                             lockdown_label_y, ymax,
-                                            None, ax, ls='-', lw=1.5, color='grey')
+                                            None, ax)
                             lockdown_widget(end_lockdown, 0.0,
                                             lockdown_label_y, ymax,
-                                            None, ax, lw=1.5, color='grey')
+                                            None, ax, ls='-')
 
 
 
@@ -1093,7 +1093,7 @@ class Plotter(object):
         if lockdown_at is not None:
             lockdown_widget(lockdown_at, start_date,
                             lockdown_label_y, ymax,
-                            lockdown_label, ax)
+                            lockdown_label, ax, xshift=0.5)
 
         # Hide the right and top spines
         ax.spines['right'].set_visible(False)
@@ -1305,7 +1305,7 @@ class Plotter(object):
         if lockdown_at is not None:
             lockdown_widget(lockdown_at, start_date,
                             lockdown_label_y, ymax,
-                            lockdown_label, ax, zorder=-200)
+                            lockdown_label, ax, zorder=-200, xshift=0.5)
 
         # Hide the right and top spines
         ax.spines['right'].set_visible(False)

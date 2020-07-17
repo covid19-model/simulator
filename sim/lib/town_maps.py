@@ -75,7 +75,7 @@ class MapIllustrator():
         for i_marker, marker in enumerate(markers):
             folium.CircleMarker(
                 location = marker, 
-                radius = self.marker_radius * (self.marker_min_scale_radius + scale[i_marker]),
+                radius = self.marker_radius * (self.marker_min_scale_radius + 0.3 * scale[i_marker]),
                 color=matplotlib.colors.rgb2hex(self.color_map(categories[i_marker])),
                 fill_color=matplotlib.colors.rgb2hex(self.color_map(categories[i_marker])),
                 popup=labels[i_marker],
@@ -117,78 +117,79 @@ class MapIllustrator():
 
     """
 
-    def __compute_empirical_survival_probability_site(self, sim, r, t0, t1, delta, site):
+    def __compute_empirical_survival_probability_site(self, summary, r, t0, t1, delta, site):
         '''
         Computes the empirical survival probability for site ``site'' between t0 and t1
         '''        
         s = 0
+        mob = summary.mob[r]
         
-        for j in range(sim.n_people):
-            if ( (sim.state_started_at['posi'][r, j] < t1 + delta) and
-                 (sim.state_started_at['posi'][r, j] >= t0 - delta) ):
-                for visit in sim.mob[r].mob_traces[j].find((t0, t1)):
+        for j in range(summary.n_people):
+            if ( (summary.state_started_at['posi'][r, j] < t1 + delta) and
+                 (summary.state_started_at['posi'][r, j] >= t0 - delta) ):
+                for visit in summary.mob[r].mob_traces[j].find((t0, t1)):
                     if visit.t_to > t0 and visit.site == site:
                         # skip if j was contained
                         visit_id = visit.id
+                        t = visit.t_from
 
                         is_j_contained = (
-                            sim.measure_list[r].is_contained(
+                            summary.measure_list[r].is_contained(
                                 SocialDistancingForAllMeasure, t=t,
                                 j=j, j_visit_id=visit_id) or 
-                            sim.measure_list[r].is_contained(
+                            summary.measure_list[r].is_contained(
                                 SocialDistancingForPositiveMeasure, t=t,
                                 j=j, j_visit_id=visit_id, 
-                                state_posi_started_at=sim.state_started_at['posi'][r, :],
-                                state_posi_ended_at=sim.state_ended_at['posi'][r, :],
-                                state_resi_started_at=sim.state_started_at['resi'][r, :],
-                                state_dead_started_at=sim.state_started_at['dead'][r, :]) or
-                            sim.measure_list[r].is_contained(
+                                state_posi_started_at=summary.state_started_at['posi'][r, :],
+                                state_posi_ended_at=summary.state_ended_at['posi'][r, :],
+                                state_resi_started_at=summary.state_started_at['resi'][r, :],
+                                state_dead_started_at=summary.state_started_at['dead'][r, :]) or
+                            summary.measure_list[r].is_contained(
                                 SocialDistancingByAgeMeasure, t=t,
-                                age=sim.people_age[r, j], j_visit_id=visit_id) or
-                            sim.measure_list[r].is_contained(
+                                age=summary.people_age[r, j], j_visit_id=visit_id) or
+                            summary.measure_list[r].is_contained(
                                 SocialDistancingForSmartTracing, t=t,
-                                state_nega_started_at=sim.state_started_at['nega'][r, :],
-                                state_nega_ended_at=sim.state_ended_at['nega'][r, :],
+                                state_nega_started_at=summary.state_started_at['nega'][r, :],
+                                state_nega_ended_at=summary.state_ended_at['nega'][r, :],
                                 j=j, j_visit_id=visit_id) or 
-                            sim.measure_list[r].is_contained(
+                            summary.measure_list[r].is_contained(
                                 SocialDistancingSymptomaticAfterSmartTracing, t=t,
-                                state_isym_started_at=sim.state_started_at['isym'][r, :],
-                                state_isym_ended_at=sim.state_ended_at['isym'][r, :],
-                                state_nega_started_at=sim.state_started_at['nega'][r, :],
-                                state_nega_ended_at=sim.state_ended_at['nega'][r, :],
+                                state_isym_started_at=summary.state_started_at['isym'][r, :],
+                                state_isym_ended_at=summary.state_ended_at['isym'][r, :],
+                                state_nega_started_at=summary.state_started_at['nega'][r, :],
+                                state_nega_ended_at=summary.state_ended_at['nega'][r, :],
                                 j=j) or
-                            sim.measure_list[r].is_contained(
+                            summary.measure_list[r].is_contained(
                                 SocialDistancingForKGroups, t=t,
                                 j=j)
 
                             # UpperBoundCasesSocialDistancing ommited as `t_pos_tests` not stored
-                            # sim.measure_list[r].is_contained(
+                            # summary.measure_list[r].is_contained(
                             #     UpperBoundCasesSocialDistancing, t=t,
-                            #     j=j, j_visit_id=visit_id, t_pos_tests=sim.t_pos_tests)
+                            #     j=j, j_visit_id=visit_id, t_pos_tests=summary.t_pos_tests)
 
-                            or (sim.state_started_at['hosp'][r, j] > visit.t_from))
-                            or (sim.state_started_at['dead'][r, j] > visit.t_from))
+                            # This doesn't make sense because this will be true for anyone who hasn't been hospitalized or died
+                            # or (summary.state_started_at['hosp'][r, j] > visit.t_from) or (summary.state_started_at['dead'][r, j] > visit.t_from)
                         )
                 
-                        is_j_not_compliant = not sim.measure_list[r].is_compliant(ComplianceForAllMeasure, t=visit.t_from, j=j)
-                
+                        is_j_not_compliant = not summary.measure_list[r].is_compliant(ComplianceForAllMeasure, t=visit.t_from, j=j)
+
                         if is_j_contained or is_j_not_compliant:
                             continue
                 
                         # we take into account beta multiplier, but we ignore \beta value
-                        # FIXME: \beta value is not available in summary in sim, we should add it and multiply with beta_fact
+                        # FIXME: \beta value is not available in summary in summary, we should add it and multiply with beta_fact
                         beta_fact = 1.0
                         
-                        beta_mult_measure = sim.measure_list[r].find(BetaMultiplierMeasureBySite, t=visit.t_from)
+                        beta_mult_measure = summary.measure_list[r].find(BetaMultiplierMeasureBySite, t=visit.t_from)
                         beta_fact *= beta_mult_measure.beta_factor(k=site, t=visit.t_from) if beta_mult_measure else 1.0
             
-                        beta_mult_measure = sim.measure_list[r].find(BetaMultiplierMeasureByType, t=visit.t_from)
-                        beta_fact *= beta_mult_measure.beta_factor(typ=sim.site_type[site], t=visit.t_from) if beta_mult_measure else 1.0 
-  
+                        beta_mult_measure = summary.measure_list[r].find(BetaMultiplierMeasureByType, t=visit.t_from)
+                        beta_fact *= beta_mult_measure.beta_factor(typ=mob.site_dict[mob.site_type[site]], t=visit.t_from) if beta_mult_measure else 1.0
                         s += (min(visit.t_to, t1) - max(visit.t_from, t0)) * beta_fact
-        
+
         s = np.exp(-s)
-                                                               
+
         return s
     
     def population_map(self, bbox, map_name, home_loc):
