@@ -19,7 +19,7 @@ class MapIllustrator():
         # map constants
         self.tile = 'OpenStreetMap'
         self.marker_radius = 3
-        self.marker_min_scale_radius = 0.1
+        self.marker_min_scale_radius = 0.2
         self.marker_opacity = 0.7
         self.marker_fill_opacity = 1
         self.heatmap_opacity = '.6'
@@ -64,7 +64,7 @@ class MapIllustrator():
 
         return map_obj
 
-    def _add_markers_with_category(self, map_obj, markers, categories, labels, scale=None):
+    def _add_markers_with_category(self, map_obj, markers, categories, labels, scaling_markersize=1.0, scale=None):
         '''
         Adds markers of different colors to a map, depending on their categories.
         '''
@@ -75,7 +75,7 @@ class MapIllustrator():
         for i_marker, marker in enumerate(markers):
             folium.CircleMarker(
                 location = marker, 
-                radius = self.marker_radius * (self.marker_min_scale_radius + 0.3 * scale[i_marker]),
+                radius = self.marker_radius * (self.marker_min_scale_radius + scaling_markersize * scale[i_marker]),
                 color=matplotlib.colors.rgb2hex(self.color_map(categories[i_marker])),
                 fill_color=matplotlib.colors.rgb2hex(self.color_map(categories[i_marker])),
                 popup=labels[i_marker],
@@ -333,7 +333,8 @@ class MapIllustrator():
     
     """
     
-    def empirical_infection_probability_map(self, bbox, site_loc, site_type, site_dict, map_name, sim, t0, t1, delta, r=0):
+    def empirical_infection_probability_map(self, bbox, site_loc, site_type, site_dict, map_name, sim, t0, t1, delta,
+                                            scaling_markersize=0.3, r=0):
         '''
         Computes the empirical survival probability s per site for a given interval
         and visualizes 1-s with markers of different sizes. The map is saved as an 
@@ -385,7 +386,8 @@ class MapIllustrator():
         pinf = pinf.tolist()
         
         # add sites as markers
-        self._add_markers_with_category(map_obj=m, markers=site_loc, categories=site_type, labels=labels, scale=pinf)
+        self._add_markers_with_category(map_obj=m, markers=site_loc, categories=site_type, labels=labels, scale=pinf,
+                                        scaling_markersize=scaling_markersize)
         
         # uncomment to show heatmap
         # self._add_heatmap(map_obj=m, points=site_loc, intensity=checkins, max_intensity=max_checkin)

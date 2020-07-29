@@ -75,15 +75,15 @@ def lockdown_widget(lockdown_at, start_date, lockdown_label_y, ymax,
         ax.plot([lckdn_x, lckdn_x], [0, ymax], linewidth=lw, linestyle=ls,
                 color=color, label='_nolegend_', zorder=zorder)
         lockdown_label_y = lockdown_label_y or ymax*0.4
-        ax.text(x=lckdn_x - pd.Timedelta(2.1 + xshift, unit='d'),
+        ax.text(x=lckdn_x - pd.Timedelta(xshift, unit='d'),
                 y=lockdown_label_y, s=lockdown_label, rotation=90)
 
 
-def target_widget(show_target,start_date, ax, zorder=None, ms=6):
+def target_widget(show_target,start_date, ax, zorder=None, ms=6, label='COVID-19 case data'):
     txx = np.linspace(0, show_target.shape[0] - 1, num=show_target.shape[0])
     txx = days_to_datetime(txx, start_date=start_date)
     ax.plot(txx, show_target, linewidth=4, linestyle='', marker='X', ms=ms,
-            color='black', label='COVID-19 case data', zorder=zorder)
+            color='black', label=label, zorder=zorder)
 
 
 class Plotter(object):
@@ -710,9 +710,11 @@ class Plotter(object):
 
         if not isinstance(lockdown_at, list):
             if lockdown_at is not None:
+                if x_axis_dates:
+                    xshift = 2.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
                 lockdown_widget(lockdown_at, start_date,
                                 lockdown_label_y, ymax,
-                                lockdown_label, ax, xshift=0.5)
+                                lockdown_label, ax, xshift=xshift)
 
         # Hide the right and top spines
         ax.spines['right'].set_visible(False)
@@ -842,9 +844,10 @@ class Plotter(object):
 
         if not isinstance(lockdown_at, dict):
             if lockdown_at is not None:
+                xshift = 2.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
                 lockdown_widget(lockdown_at, start_date,
                                 lockdown_label_y, ymax,
-                                lockdown_label, ax, xshift=0.5)
+                                lockdown_label, ax, xshift=xshift)
 
         # Hide the right and top spines
         ax.spines['right'].set_visible(False)
@@ -1044,7 +1047,7 @@ class Plotter(object):
     def plot_positives_vs_target(self, sims, titles, targets, title='Example',
         filename='inference_0', figsize=(6, 5), errorevery=1, acc=17, ymax=None,
         start_date='1970-01-01', lockdown_label='Lockdown', lockdown_at=None,
-        lockdown_label_y=None, subplot_adjust=None):
+        lockdown_label_y=None, subplot_adjust=None, n_age_groups=None):
         ''''
         Plots daily tested averaged over random restarts, using error bars for std-dev
         together with targets from inference
@@ -1057,7 +1060,7 @@ class Plotter(object):
                 try:
                     data = load_extracted_data(sim, acc)
                 except FileNotFoundError:
-                    acc = extract_data_from_summary(sim, acc=acc)
+                    acc = extract_data_from_summary(sim, acc=acc, n_age_groups=n_age_groups)
                     data = load_extracted_data(sim, acc=acc)
                 acc = data['acc']
                 ts = data['ts']
@@ -1078,7 +1081,7 @@ class Plotter(object):
                             color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
 
         # target   
-        target_widget(targets, start_date, ax)
+        target_widget(targets, start_date, ax, label='Real cumulative cases')
 
 
         # axis
@@ -1091,9 +1094,10 @@ class Plotter(object):
         ax.set_ylabel('Positive cases')
 
         if lockdown_at is not None:
+            xshift = 2.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
             lockdown_widget(lockdown_at, start_date,
                             lockdown_label_y, ymax,
-                            lockdown_label, ax, xshift=0.5)
+                            lockdown_label, ax, xshift=xshift)
 
         # Hide the right and top spines
         ax.spines['right'].set_visible(False)
@@ -1133,17 +1137,33 @@ class Plotter(object):
         together with targets from inference
         '''
 
-        if acc > sim.max_time:
-            acc = int(sim.max_time)
-
         n_age_groups = targets.shape[1]
+        if n_age_groups == 6:
+            age_groups = ['0-4', '5-15', '15-34', '35-59', '60-79', '80+']
+        else:
+            age_groups = ['0-9', '10-19', '20-29', '30-39', '40-49', '50-59', '60-69', '70-79', '80+']
+
+        if isinstance(sim, str):
+            try:
+                data = load_extracted_data(sim, acc=acc)
+            except FileNotFoundError:
+                acc = extract_data_from_summary(sim, acc=acc, n_age_groups=n_age_groups)
+                data = load_extracted_data(sim, acc=acc)
+        else:
+            if acc > sim.max_time:
+                acc = int(sim.max_time)
+
         fig, axs = plt.subplots(1, n_age_groups, figsize=figsize)
 
-        for age in range(n_age_groups):
+        for i, age in enumerate(range(n_age_groups)):
 
-            # automatically shifted by `test_lag` in the function
-            ts, posi_mu, posi_sig = self.__comp_state_over_time_per_age(
-                sim, 'posi', acc, age)
+            if isinstance(sim, str):
+                ts = data['ts']
+                posi_mu = data['posi_mu_age'][i]
+                posi_sig = data['posi_sig_age'][i]
+            else:
+                # automatically shifted by `test_lag` in the function
+                ts, posi_mu, posi_sig = self.__comp_state_over_time_per_age(sim, 'posi', acc, age)
 
             T = posi_mu.shape[0]
 
@@ -1167,17 +1187,13 @@ class Plotter(object):
                 if ytitle is not None:
                     axs[age].set_ylabel(ytitle)
 
-            if n_age_groups == 6:
-                age_groups = ['0-4', '5-15', '15-34', '35-59', '60-79', '80+']
-            else:
-                age_groups = ['0-9', '10-19', '20-29', '30-39', '40-49', '50-59', '60-69', '70-79', '80+']
-
             axs[age].set_title(f'{age_groups[age]} years')
 
             if lockdown_at is not None:
+                xshift = 2.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
                 lockdown_widget(lockdown_at, start_date,
                                 lockdown_label_y, ymax,
-                                lockdown_label, axs[age])
+                                lockdown_label, axs[age], xshift=xshift)
 
             # Hide the right and top spines
             axs[age].spines['right'].set_visible(False)
@@ -1185,6 +1201,9 @@ class Plotter(object):
             axs[age].spines['left'].set_visible(False)
             axs[age].spines['bottom'].set_visible(False)
             axs[age].get_xaxis().set_ticks([])
+
+            axs[age].set_xlabel(r'$t$')
+            # axs[age].set_ylabel(r'Cases')
 
             # Only show ticks on the left and bottom spines
             # axs[age].yaxis.set_ticks_position('left')
@@ -1201,7 +1220,7 @@ class Plotter(object):
         subplot_adjust = subplot_adjust or {
             'bottom': 0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         plt.subplots_adjust(**subplot_adjust)
-
+        plt.tight_layout()
         plt.draw()
 
         plt.savefig('plots/' + filename + '.png', format='png', facecolor=None,
@@ -1303,9 +1322,10 @@ class Plotter(object):
 
         # extra
         if lockdown_at is not None:
+            xshift = 2.5 * pd.to_timedelta(pd.to_datetime(index[-1]) - pd.to_datetime(start_date), 'd') / 54
             lockdown_widget(lockdown_at, start_date,
                             lockdown_label_y, ymax,
-                            lockdown_label, ax, zorder=-200, xshift=0.5)
+                            lockdown_label, ax, zorder=-200, xshift=xshift)
 
         # Hide the right and top spines
         ax.spines['right'].set_visible(False)
@@ -1336,14 +1356,14 @@ class Plotter(object):
             plt.close()
 
 
-def extract_data_from_summary(summary_path, acc=500, conditional_measures=False):
+def extract_data_from_summary(summary_path, acc=500, conditional_measures=False, n_age_groups=None):
     print(f'Extracting data from summary: {summary_path}')
     result = load_summary(summary_path)
     sim = result[1]
 
     if acc > sim.max_time:
         acc = int(sim.max_time)
-        print(f'Accuracy not attainable, maximal acc={acc}')
+        print(f'Requested accuracy not attainable, using maximal acc={acc} ...')
 
     plotter = Plotter()
     comp_state_over_time = plotter._Plotter__comp_state_over_time
@@ -1358,21 +1378,34 @@ def extract_data_from_summary(summary_path, acc=500, conditional_measures=False)
     _, iasy, _ = comp_state_over_time(sim, 'iasy', acc, return_single_runs=True)
     _, ipre, _ = comp_state_over_time(sim, 'ipre', acc, return_single_runs=True)
     _, isym, _ = comp_state_over_time(sim, 'isym', acc, return_single_runs=True)
+
     lockdowns = None
-
+    mean_lockdown_time = 0
     if conditional_measures:
-        lockdowns = get_lockdown_times(sim)
+        lockdowns, mean_lockdown_time = get_lockdown_times(sim)
 
-    data = {'acc': acc, 'ts': ts,
+    posi_mu_age, posi_sig_age = [], []
+    if n_age_groups:
+        for age in range(n_age_groups):
+            _, posi_mean, posi_std = plotter._Plotter__comp_state_over_time_per_age(sim, 'posi', acc, age)
+            posi_mu_age.append(posi_mean)
+            posi_sig_age.append(posi_std)
+
+    data = {'acc': acc,
+            'max_time': sim.max_time,
+            'ts': ts,
             'iasy': iasy, 'iasy_mu': iasy_mu, 'iasy_sig': iasy_sig,
             'ipre': ipre, 'ipre_mu': ipre_mu, 'ipre_sig': ipre_sig,
             'isym': isym, 'isym_mu': isym_mu, 'isym_sig': isym_sig,
-            'posi_mu': posi_mu, 'posi_sig': posi_sig,
             'hosp_mu': hosp_mu, 'hosp_sig': hosp_sig,
             'dead_mu': dead_mu, 'dead_sig': dead_sig,
             'posi_mu': posi_mu, 'posi_sig': posi_sig,
             'nega_mu': nega_mu, 'nega_sig': nega_sig,
-            'lockdowns': lockdowns}
+            'lockdowns': lockdowns,
+            'mean_lockdown_time': mean_lockdown_time,
+            'posi_mu_age': posi_mu_age,
+            'posi_sig_age': posi_sig_age,
+            }
 
     filepath = os.path.join('summaries', 'condensed_summaries', summary_path[:-3]+f'_extracted_data_acc={acc}.pk')
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -1397,7 +1430,10 @@ def get_lockdown_times(summary):
             # Search for active measure if conditional measure was not active initially
             hist = list(ml.find(UpperBoundCasesBetaMultiplier, t=t).intervention_history)
             t += TO_HOURS
-        lockdowns = [hist[0][:2]]
+        try:
+            lockdowns = [hist[0][:2]]
+        except IndexError:
+            lockdowns = None
         j = 0
         for k in range(len(hist)):
             if k > j:
@@ -1408,4 +1444,14 @@ def get_lockdown_times(summary):
                     lockdowns.append(hist[k][0:2])
                     j += 1
         interventions.append(lockdowns)
-    return interventions
+
+    lockdown_times = []
+    for run in interventions:
+        lockdown_time = 0
+        if run is not None:
+            for lockdown in run:
+                if lockdown is not None:
+                    lockdown_time += lockdown[1] - lockdown[0]
+            lockdown_times.append(lockdown_time)
+    mean_lockdown_time = np.mean(lockdown_times)
+    return interventions, mean_lockdown_time
