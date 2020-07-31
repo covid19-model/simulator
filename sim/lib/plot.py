@@ -20,7 +20,7 @@ from lib.measures import (MeasureList, BetaMultiplierMeasureBySite,
                           SocialDistancingForPositiveMeasure, SocialDistancingByAgeMeasure,
                           SocialDistancingForSmartTracing, ComplianceForAllMeasure, UpperBoundCasesBetaMultiplier)
 from lib.rt import compute_daily_rts, R_T_RANGE
-from lib.experiment import load_summary, get_properties
+from lib.experiment import load_summary
 import pickle
 
 import numpy as np
@@ -64,7 +64,7 @@ def days_to_datetime(arr, start_date):
 
 
 def lockdown_widget(lockdown_at, start_date, lockdown_label_y, ymax,
-                    lockdown_label, ax, ls='--', lw=2.5, xshift=0.0, zorder=None, color='black'):
+                    lockdown_label, ax, ls='--', lw=2.5, xshift=0.0, zorder=None, color='black', text_off=False):
     # Convert x-axis into posix timestamps and use pandas to plot as dates
     if isinstance(start_date, float):
         lckdn_x = start_date + lockdown_at
@@ -75,8 +75,9 @@ def lockdown_widget(lockdown_at, start_date, lockdown_label_y, ymax,
         ax.plot([lckdn_x, lckdn_x], [0, ymax], linewidth=lw, linestyle=ls,
                 color=color, label='_nolegend_', zorder=zorder)
         lockdown_label_y = lockdown_label_y or ymax*0.4
-        ax.text(x=lckdn_x - pd.Timedelta(xshift, unit='d'),
-                y=lockdown_label_y, s=lockdown_label, rotation=90)
+        if not text_off:
+            ax.text(x=lckdn_x - pd.Timedelta(xshift, unit='d'),
+                    y=lockdown_label_y, s=lockdown_label, rotation=90)
 
 
 def target_widget(show_target,start_date, ax, zorder=None, ms=6, label='COVID-19 case data'):
@@ -844,7 +845,7 @@ class Plotter(object):
 
         if not isinstance(lockdown_at, dict):
             if lockdown_at is not None:
-                xshift = 2.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
+                xshift = 3.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
                 lockdown_widget(lockdown_at, start_date,
                                 lockdown_label_y, ymax,
                                 lockdown_label, ax, xshift=xshift)
@@ -1047,7 +1048,7 @@ class Plotter(object):
     def plot_positives_vs_target(self, sims, titles, targets, title='Example',
         filename='inference_0', figsize=(6, 5), errorevery=1, acc=17, ymax=None,
         start_date='1970-01-01', lockdown_label='Lockdown', lockdown_at=None,
-        lockdown_label_y=None, subplot_adjust=None, n_age_groups=None):
+        lockdown_label_y=None, subplot_adjust=None, n_age_groups=None, small_figure=False):
         ''''
         Plots daily tested averaged over random restarts, using error bars for std-dev
         together with targets from inference
@@ -1080,8 +1081,11 @@ class Plotter(object):
             ax.fill_between(ts, posi_mu - 2 * posi_sig, posi_mu + 2 * posi_sig,
                             color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
 
-        # target   
-        target_widget(targets, start_date, ax, label='Real cumulative cases')
+        # target
+        if small_figure:
+            target_widget(targets, start_date, ax, label='Real cases', ms=3)
+        else:
+            target_widget(targets, start_date, ax, label='Real cases')
 
 
         # axis
@@ -1091,13 +1095,18 @@ class Plotter(object):
         ax.set_ylim((0, ymax))
 
         # ax.set_xlabel('Days')
-        ax.set_ylabel('Positive cases')
+        ax.set_ylabel(r'Positive cases')
 
         if lockdown_at is not None:
-            xshift = 2.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
+            if small_figure:
+                xshift = 3.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
+                text_off = True
+            else:
+                xshift = 2.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
+                text_off = True
             lockdown_widget(lockdown_at, start_date,
                             lockdown_label_y, ymax,
-                            lockdown_label, ax, xshift=xshift)
+                            lockdown_label, ax, xshift=xshift, text_off=text_off)
 
         # Hide the right and top spines
         ax.spines['right'].set_visible(False)
@@ -1107,13 +1116,23 @@ class Plotter(object):
         ax.yaxis.set_ticks_position('left')
 
         #set ticks every week
-        ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
+        if small_figure:
+            ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=2, interval=4))
+        else:
+            ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
         #set major ticks format
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
         fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
 
         # legend
-        ax.legend(loc='upper left', borderaxespad=0.5)
+        if small_figure:
+            ax.legend(loc='upper left', borderaxespad=0.5, prop={'size': 16})
+            plt.rcParams.update({'xtick.labelsize': 'large',
+                                 'ytick.labelsize': 'large',
+                                 'axes.labelsize': 'large'
+                                 })
+        else:
+            ax.legend(loc='upper left', borderaxespad=0.5)
 
         subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         plt.subplots_adjust(**subplot_adjust)
@@ -1121,7 +1140,7 @@ class Plotter(object):
         plt.draw()
 
         plt.savefig('plots/' + filename + '.png', format='png', facecolor=None,
-                    dpi=DPI)#, bbox_inches='tight')
+                    dpi=DPI, bbox_inches='tight')
 
         if NO_PLOT:
             plt.close()
