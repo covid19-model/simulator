@@ -1071,6 +1071,8 @@ class Plotter(object):
                 if acc > sim.max_time:
                     acc = int(sim.max_time)
                 ts, posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
+                
+            plain_ts = ts
 
             # Convert x-axis into posix timestamps and use pandas to plot as dates
             ts = days_to_datetime(ts, start_date=start_date)
@@ -1144,7 +1146,9 @@ class Plotter(object):
 
         if NO_PLOT:
             plt.close()
-        return
+
+        return plain_ts, posi_mu
+
 
     def plot_age_group_positives_vs_target(self, sim, targets, ytitle=None,
                                  filename='inference_0', figsize=(6, 5), errorevery=1, acc=17, ymax=None,
