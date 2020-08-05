@@ -13,41 +13,42 @@ Inference runs:
 ## Germany
 * Tubingen 
 ```
-python calibrate.py --seed "tu0" --country "GER" --area "TU" --start "2020-03-08" --end "2020-03-27" --mob "lib/mobility/Tubingen_settings_10.pk" --rollouts 80 --ninit 30 --niters 200
+python calibrate.py --seed "tu0" --country "GER" --area "TU" --rollouts 96 --ninit 20 --niters 80
 ```
 
 * Kaiserslautern 
 ```
-python calibrate.py --seed "kl0" --country "GER" --area "KL" --start "2020-03-08" --end "2020-03-27" --mob "lib/mobility/Kaiserslautern_settings_10.pk" --rollouts 80 --ninit 30 --niters 200
-```
-
-* Tirschenreuth 
-```
-python calibrate.py --seed "tr0" --country "GER" --area "TR" --start "2020-03-10" --end "2020-03-27" --mob "lib/mobility/Tirschenreuth_settings_10.pk" --rollouts 80 --ninit 30 --niters 200
+python calibrate.py --seed "kl0" --country "GER" --area "KL" --rollouts 96 --ninit 20 --niters 80
 ```
 
 * Ruedesheim
 ```
-python calibrate.py --seed "rh0" --country "GER" --area "RH" --start "2020-03-08" --end "2020-03-27" --mob "lib/mobility/Ruedesheim_settings_10.pk" --rollouts 80 --ninit 30 --niters 200
+python calibrate.py --seed "rh0" --country "GER" --area "RH" --rollouts 96 --ninit 20 --niters 80
+```
+
+* Tirschenreuth 
+```
+python calibrate.py --seed "tr0" --country "GER" --area "TR" --rollouts 96 --ninit 20 --niters 80
 ```
 
 ## Switzerland
-* Lausanne 
+
+* Lausanne (Vaud)
 ```
-python calibrate.py --seed "vd0" --country "CH" --area "VD" --start "2020-02-28" --end "2020-03-20" --mob "lib/mobility/Lausanne_settings_10.pk" --rollouts 80 --ninit 30 --niters 200
+python calibrate.py --seed "vd0" --country "CH" --area "VD" --rollouts 96 --ninit 20 --niters 80
 ```
 
-* Lucerne
+* Bern
 ```
-python calibrate.py --seed "lu0" --country "CH" --area "LU" --start "2020-03-03" --end "2020-03-20" --mob "lib/mobility/Lucerne_settings_5.pk" --rollouts 80 --ninit 30 --niters 200
+python calibrate.py --seed "be0" --country "CH" --area "BE" --rollouts 96 --ninit 20 --niters 80
 ```
 
-* Locarno 
+* Locarno (Ticino)
 ```
-python calibrate.py --seed "ti0" --country "CH" --area "TI" --start "2020-02-28" --end "2020-03-20" --mob "lib/mobility/Locarno_settings_2.pk" --rollouts 80 --ninit 30 --niters 200
+python calibrate.py --seed "ti0" --country "CH" --area "TI" --rollouts 96 --ninit 20 --niters 80
 ```
 
 * Canton Jura 
 ```
-python calibrate.py --seed "ju0" --country "CH" --area "JU" --start "2020-03-03" --end "2020-03-20" --mob "lib/mobility/Jura_settings_10.pk" --rollouts 80 --ninit 30 --niters 200
+python calibrate.py --seed "ju0" --country "CH" --area "JU" --rollouts 96 --ninit 20 --niters 80
 ```

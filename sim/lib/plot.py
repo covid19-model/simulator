@@ -16,9 +16,12 @@ import matplotlib.dates as mdates
 from matplotlib.dates import date2num, num2date
 
 from lib.measures import (MeasureList, BetaMultiplierMeasureBySite,
-                      SocialDistancingForAllMeasure, BetaMultiplierMeasureByType,
-                      SocialDistancingForPositiveMeasure, SocialDistancingByAgeMeasure, SocialDistancingForSmartTracing, ComplianceForAllMeasure)
+                          SocialDistancingForAllMeasure, BetaMultiplierMeasureByType,
+                          SocialDistancingForPositiveMeasure, SocialDistancingByAgeMeasure,
+                          SocialDistancingForSmartTracing, ComplianceForAllMeasure, UpperBoundCasesBetaMultiplier)
 from lib.rt import compute_daily_rts, R_T_RANGE
+from lib.experiment import load_summary
+import pickle
 
 import numpy as np
 import seaborn as sns
@@ -61,21 +64,27 @@ def days_to_datetime(arr, start_date):
 
 
 def lockdown_widget(lockdown_at, start_date, lockdown_label_y, ymax,
-                    lockdown_label, ax, ls='--', xshift=0.0, zorder=None):
+                    lockdown_label, ax, ls='--', lw=2.5, xshift=0.0, zorder=None, color='black', text_off=False):
     # Convert x-axis into posix timestamps and use pandas to plot as dates
-    lckdn_x = days_to_datetime(lockdown_at, start_date=start_date)
-    ax.plot([lckdn_x, lckdn_x], [0, ymax], linewidth=2.5, linestyle=ls,
-            color='black', label='_nolegend_', zorder=zorder)
-    lockdown_label_y = lockdown_label_y or ymax*0.4
-    ax.text(x=lckdn_x - pd.Timedelta(2.1 + xshift, unit='d'),
-            y=lockdown_label_y, s=lockdown_label, rotation=90)
+    if isinstance(start_date, float):
+        lckdn_x = start_date + lockdown_at
+        ax.plot([lckdn_x, lckdn_x], [0, ymax], linewidth=lw, linestyle=ls,
+                color=color, label='_nolegend_', zorder=zorder)
+    else:
+        lckdn_x = days_to_datetime(lockdown_at, start_date=start_date)
+        ax.plot([lckdn_x, lckdn_x], [0, ymax], linewidth=lw, linestyle=ls,
+                color=color, label='_nolegend_', zorder=zorder)
+        lockdown_label_y = lockdown_label_y or ymax*0.4
+        if not text_off:
+            ax.text(x=lckdn_x - pd.Timedelta(xshift, unit='d'),
+                    y=lockdown_label_y, s=lockdown_label, rotation=90)
 
 
-def target_widget(show_target,start_date, ax, zorder=None):
+def target_widget(show_target,start_date, ax, zorder=None, ms=6, label='COVID-19 case data'):
     txx = np.linspace(0, show_target.shape[0] - 1, num=show_target.shape[0])
     txx = days_to_datetime(txx, start_date=start_date)
-    ax.plot(txx, show_target, linewidth=4, linestyle='', marker='X', ms=6,
-            color='red', label='COVID-19 case data', zorder=zorder)
+    ax.plot(txx, show_target, linewidth=4, linestyle='', marker='X', ms=ms,
+            color='black', label=label, zorder=zorder)
 
 
 class Plotter(object):
@@ -95,8 +104,8 @@ class Plotter(object):
 
         self.color_testing = '#ffa41b'
 
-        self.color_posi = '#21bf73'
-        self.color_nega = '#fd5e53'
+        self.color_posi = '#4daf4a'
+        self.color_nega = '#e41a1c'
 
         self.color_all = '#ffa41b'
         self.color_positive = '#00a8cc'
@@ -105,19 +114,18 @@ class Plotter(object):
 
         self.color_infected = '#000839'
 
-        self.filling_alpha = 0.5
+        self.filling_alpha = 0.2
 
         self.color_different_scenarios = [
-            '#dc2ade',
-            '#21ff53',
-            '#323edd',
-            '#ff9021',
-            '#4d089a',
-            '#cc0066',
-            '#ff6666',
-            '#216353',
-            '#66cccc',
-            '#ff2222'
+            '#e41a1c',
+            '#377eb8',
+            '#4daf4a',
+            '#984ea3',
+            '#ff7f00',
+            '#ffff33',
+            '#a65628',
+            '#f781bf',
+            '#999999'
         ]
 
         self.color_different_scenarios_alt = [
@@ -201,7 +209,7 @@ class Plotter(object):
             stds.append(np.std(restarts))
         return np.array(ts), np.array(means), np.array(stds)
 
-    def __comp_state_over_time(self, sim, state, acc):
+    def __comp_state_over_time(self, sim, state, acc, return_single_runs=False):
         '''
         Computes `state` variable over time [0, self.max_time] with given accuracy `acc
         '''
@@ -209,6 +217,25 @@ class Plotter(object):
         for t in np.linspace(0.0, sim.max_time, num=acc, endpoint=True):
             restarts = [np.sum(self.__is_state_at(sim, r, state, t))
                 for r in range(sim.random_repeats)]
+            if not return_single_runs:
+                ts.append(t/TO_HOURS)
+                means.append(np.mean(restarts))
+                stds.append(np.std(restarts))
+            else:
+                ts.append(t/TO_HOURS)
+                means.append(restarts)
+                stds.append(restarts)
+        return np.array(ts), np.array(means), np.array(stds)
+
+    def __comp_state_over_time_per_age(self, sim, state, acc, age):
+        '''
+        Computes `state` variable over time [0, self.max_time] with given accuracy `acc
+        for a given age group `age`
+        '''
+        ts, means, stds = [], [], []
+        for t in np.linspace(0.0, sim.max_time, num=acc, endpoint=True):
+            restarts = [np.sum(self.__is_state_at(sim, r, state, t) & (sim.people_age[r] == age))
+                        for r in range(sim.random_repeats)]
             ts.append(t/TO_HOURS)
             means.append(np.mean(restarts))
             stds.append(np.std(restarts))
@@ -357,11 +384,11 @@ class Plotter(object):
                     elinewidth=0.8, errorevery=errorevery, capsize=3.0)
 
         # filling
-        ax.fill_between(ts, line_xaxis, line_iasy, alpha=self.filling_alpha, label='Asymptomatic',
+        ax.fill_between(ts, line_xaxis, line_iasy, alpha=0.5, label='Asymptomatic',
                         edgecolor=self.color_iasy, facecolor=self.color_iasy, linewidth=0, zorder=0)
-        ax.fill_between(ts, line_iasy, line_ipre, alpha=self.filling_alpha, label='Pre-symptomatic',
+        ax.fill_between(ts, line_iasy, line_ipre, alpha=0.5, label='Pre-symptomatic',
                         edgecolor=self.color_ipre, facecolor=self.color_ipre, linewidth=0, zorder=0)
-        ax.fill_between(ts, line_ipre, line_isym, alpha=self.filling_alpha, label='Symptomatic',
+        ax.fill_between(ts, line_ipre, line_isym, alpha=0.5, label='Symptomatic',
                         edgecolor=self.color_isym, facecolor=self.color_isym, linewidth=0, zorder=0)
 
         # limits
@@ -442,15 +469,15 @@ class Plotter(object):
         T = posi_mu.shape[0]
 
         # lines
-        ax.errorbar(ts, posi_mu, yerr=posi_sig, elinewidth=0.8, errorevery=errorevery,
-                c='black', linestyle='-')
-        ax.errorbar(ts, nega_mu, yerr=nega_sig, elinewidth=0.8, errorevery=errorevery,
+        ax.errorbar(ts, line_posi, yerr=posi_sig, elinewidth=0.8, errorevery=errorevery,
+                c='black', linestyle='dotted')
+        ax.errorbar(ts, line_nega, yerr=nega_sig, elinewidth=0.8, errorevery=errorevery,
                 c='black', linestyle='-')
 
         # filling
-        ax.fill_between(ts, line_xaxis, posi_mu, alpha=self.filling_alpha, label=r'Positive tests',
+        ax.fill_between(ts, line_xaxis, line_posi, alpha=0.5, label=r'Positive tests',
                         edgecolor=self.color_posi, facecolor=self.color_posi, linewidth=0, zorder=0)
-        ax.fill_between(ts, posi_mu, nega_mu, alpha=self.filling_alpha, label=r'Negative tests',
+        ax.fill_between(ts, line_posi, line_nega, alpha=0.5, label=r'Negative tests',
                         edgecolor=self.color_nega, facecolor=self.color_nega, linewidth=0, zorder=0)
         # axis
         ax.set_xlim((0, np.max(ts)))
@@ -459,7 +486,7 @@ class Plotter(object):
         ax.set_ylim((0, ymax))
 
         ax.set_xlabel(r'$t$ [days]')
-        ax.set_ylabel(r'[people]')
+        ax.set_ylabel(r'Tests')
 
         # Hide the right and top spines
         ax.spines['right'].set_visible(False)
@@ -571,10 +598,11 @@ class Plotter(object):
         return
 
     def compare_total_infections(self, sims, titles, figtitle='Title',
-        filename='compare_inf_0', figsize=(10, 10), errorevery=20, acc=1000, ymax=None,
-        lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None,
-        show_positives=False, show_legend=True, legendYoffset=0.0, legend_is_left=False,
-        subplot_adjust=None, start_date='1970-01-01', first_one_dashed=False):
+        filename='compare_inf_0', figsize=(10, 10), errorevery=20, acc=500, ymax=None, x_axis_dates=True,
+        lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, conditional_measures=None,
+        show_positives=False, show_legend=True, legendYoffset=0.0, legend_is_left=False, legendXoffset=0.0,
+        subplot_adjust=None, start_date='1970-01-01', x_label_interval=2, first_one_dashed=False,
+        show_single_runs=False, which_single_runs=None):
 
         ''''
         Plots total infections for each simulation, named as provided by `titles`
@@ -584,35 +612,90 @@ class Plotter(object):
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
 
-        for i in range(len(sims)):
-            if acc > sims[i].max_time:
-                acc = sims[i].max_time
-
-            ts, iasy_mu, iasy_sig = self.__comp_state_over_time(sims[i], 'iasy', acc)
-            _,  ipre_mu, ipre_sig = self.__comp_state_over_time(sims[i], 'ipre', acc)
-            _,  isym_mu, isym_sig = self.__comp_state_over_time(sims[i], 'isym', acc)
-            _,  posi_mu, posi_sig = self.__comp_state_over_time(sims[i], 'posi', acc)
-
-            # Convert x-axis into posix timestamps and use pandas to plot as dates
-            ts = days_to_datetime(ts, start_date=start_date)
-
-            line_xaxis = np.zeros(ts.shape)
-            line_infected = iasy_mu + ipre_mu + isym_mu
-            error_infected = np.sqrt(np.square(iasy_sig) + np.square(ipre_sig) + np.square(isym_sig))
-
-            # lines
-            if show_positives:
-                ax.errorbar(ts, line_infected, yerr=error_infected, label='[Infected] ' + titles[i], errorevery=errorevery,
-                           c=self.color_different_scenarios[i], linestyle='-')
-
-                T = posi_mu.shape[0]
-                ax.errorbar(ts, posi_mu, yerr=posi_sig, label='[Tested positive]', errorevery=errorevery,
-                            c=self.color_different_scenarios[i], linestyle='--', elinewidth=0.8)
+        for i, sim in enumerate(sims):
+            if isinstance(sim, str):
+                is_conditional = True if i == conditional_measures else False
+                try:
+                    data = load_extracted_data(sim, acc)
+                except FileNotFoundError:
+                    acc = extract_data_from_summary(sim, acc=acc, conditional_measures=is_conditional)
+                    data = load_extracted_data(sim, acc)
+                acc = data['acc']
+                ts = data['ts']
+                iasy_mu = data['iasy_mu']
+                iasy_sig = data['iasy_sig']
+                ipre_mu = data['ipre_mu']
+                ipre_sig = data['ipre_sig']
+                isym_mu = data['isym_mu']
+                isym_sig = data['isym_sig']
+                posi_mu = data['posi_mu']
+                posi_sig = data['posi_sig']
+                lockdown_at = data['lockdowns'] if is_conditional else lockdown_at
+                loaded_extracted_data = True
             else:
+                loaded_extracted_data = False
 
+            if not show_single_runs:
+                if not loaded_extracted_data:
+                    if acc > sim.max_time:
+                        acc = int(sim.max_time)
 
-                ax.errorbar(ts, line_infected, yerr=error_infected, label=titles[i], errorevery=errorevery, elinewidth=0.8,
-                    capsize=3.0, c=self.color_different_scenarios[i], linestyle='--' if i == 0 and first_one_dashed else '-')
+                    ts, iasy_mu, iasy_sig = self.__comp_state_over_time(sim, 'iasy', acc)
+                    _,  ipre_mu, ipre_sig = self.__comp_state_over_time(sim, 'ipre', acc)
+                    _,  isym_mu, isym_sig = self.__comp_state_over_time(sim, 'isym', acc)
+                    _,  posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
+
+                if x_axis_dates:
+                    # Convert x-axis into posix timestamps and use pandas to plot as dates
+                    ts = days_to_datetime(ts, start_date=start_date)
+
+                line_xaxis = np.zeros(ts.shape)
+                line_infected = iasy_mu + ipre_mu + isym_mu
+                error_infected = np.sqrt(np.square(iasy_sig) + np.square(ipre_sig) + np.square(isym_sig))
+
+                # lines
+                ax.plot(ts, line_infected, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
+                ax.fill_between(ts, np.maximum(line_infected - 2 * error_infected, 0), line_infected + 2 * error_infected,
+                                color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
+            
+            else:
+                if not loaded_extracted_data:
+                    if acc > sim.max_time:
+                        acc = int(sim.max_time)
+
+                    ts, iasy, iasy_sig = self.__comp_state_over_time(sim, 'iasy', acc, return_single_runs=True)
+                    _,  ipre, ipre_sig = self.__comp_state_over_time(sim, 'ipre', acc, return_single_runs=True)
+                    _,  isym, isym_sig = self.__comp_state_over_time(sim, 'isym', acc, return_single_runs=True)
+                else:
+                    iasy = data['iasy']
+                    ipre = data['ipre']
+                    isym = data['isym']
+
+                if x_axis_dates:
+                    # Convert x-axis into posix timestamps and use pandas to plot as dates
+                    ts = days_to_datetime(ts, start_date=start_date)
+
+                line_xaxis = np.zeros(ts.shape)
+                lines_infected = iasy + ipre + isym
+
+                # lines
+                runs = [which_single_runs] if which_single_runs else range(min(show_single_runs, sim.random_repeats))
+                for k, r in enumerate(runs):
+                    ax.plot(ts, lines_infected[:, r], linestyle='-', label=titles[i] if k == 0 else None,
+                            c=self.color_different_scenarios[i])
+
+                    # For conditional measures only
+                    if lockdown_at:
+                        for lockdown in lockdown_at[r]:
+                            start_lockdown = lockdown[0] / TO_HOURS
+                            end_lockdown = lockdown[1] / TO_HOURS
+                            lockdown_widget(start_lockdown, 0.0,
+                                            lockdown_label_y, ymax,
+                                            None, ax)
+                            lockdown_widget(end_lockdown, 0.0,
+                                            lockdown_label_y, ymax,
+                                            None, ax, ls='-')
+
 
 
         # axis
@@ -622,12 +705,17 @@ class Plotter(object):
         ax.set_ylim((0, ymax))
 
         # ax.set_xlabel('Days')
+        if not x_axis_dates:
+            ax.set_xlabel(r'$t$ [days]')
         ax.set_ylabel('People')
 
-        if lockdown_at is not None:
-            lockdown_widget(lockdown_at, start_date,
-                            lockdown_label_y, ymax,
-                            lockdown_label, ax, xshift=0.5)
+        if not isinstance(lockdown_at, list):
+            if lockdown_at is not None:
+                if x_axis_dates:
+                    xshift = 2.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
+                lockdown_widget(lockdown_at, start_date,
+                                lockdown_label_y, ymax,
+                                lockdown_label, ax, xshift=xshift)
 
         # Hide the right and top spines
         ax.spines['right'].set_visible(False)
@@ -637,12 +725,14 @@ class Plotter(object):
         ax.yaxis.set_ticks_position('left')
         ax.xaxis.set_ticks_position('bottom')
 
-        #set ticks every week
-        # ax.xaxis.set_major_locator(mdates.WeekdayLocator())
-        ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
-        #set major ticks format
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
-        fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
+        if x_axis_dates:
+            # fig.autofmt_xdate()
+            #set ticks every week
+            # ax.xaxis.set_major_locator(mdates.WeekdayLocator())
+            ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=x_label_interval))
+            #set major ticks format
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+            fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
 
         if show_legend:
             # legend
@@ -659,6 +749,15 @@ class Plotter(object):
                 bb.y0 += legendYoffset
                 bb.y1 += legendYoffset
                 leg.set_bbox_to_anchor(bb, transform = ax.transAxes)
+            
+            if legendXoffset != 0.0:
+                # Get the bounding box of the original legend
+                bb = leg.get_bbox_to_anchor().inverse_transformed(ax.transAxes)
+
+                # Change to location of the legend.
+                bb.x0 += legendXoffset
+                bb.x1 += legendXoffset
+                leg.set_bbox_to_anchor(bb, transform=ax.transAxes)
 
         subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         plt.subplots_adjust(**subplot_adjust)
@@ -670,9 +769,13 @@ class Plotter(object):
             plt.close()
         return
 
-    def compare_total_fatalities_and_hospitalizations(self, sims, titles, figtitle=r'Hospitalizations and Fatalities',
-                                 filename='compare_inf_0', figsize=(10, 10), errorevery=20, acc=1000, ymax=None, lockdown_at=None,
-                                subplot_adjust=None, start_date='1970-01-01', first_one_dashed=False):
+    def compare_total_fatalities_and_hospitalizations(self, sims, titles, mode='show_both',
+        figtitle=r'Hospitalizations and Fatalities',
+        lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None,
+        filename='compare_inf_0', figsize=(10, 10), errorevery=20, acc=1000, ymax=None, 
+        show_legend=True, legendYoffset=0.0, legend_is_left=False, legendXoffset=0.0,
+        subplot_adjust=None, start_date='1970-01-01', first_one_dashed=False):
+
         ''''
         Plots total fatalities and hospitalizations for each simulation, named as provided by `titles`
         to compare different measures/interventions taken. Colors taken as defined in __init__, and
@@ -682,38 +785,70 @@ class Plotter(object):
         ax = fig.add_subplot(111)
 
         # hospitalizations
-        for i in range(len(sims)):
-            if acc > sims[i].max_time:
-                acc = sims[i].max_time
+        for i, sim in enumerate(sims):
+            if isinstance(sim, str):
+                try:
+                    data = load_extracted_data(sim, acc=acc)
+                except FileNotFoundError:
+                    acc = extract_data_from_summary(sim, acc=acc)
+                    data = load_extracted_data(sim, acc=acc)
 
-            ts, hosp_mu, hosp_sig = self.__comp_state_over_time(
-                sims[i], 'hosp', acc)
+                acc = data['acc']
+                ts = data['ts']
+                hosp_mu = data['hosp_mu']
+                hosp_sig = data['hosp_sig']
+                dead_mu = data['dead_mu']
+                dead_sig = data['dead_sig']
+                loaded_extracted_data = True
+            else:
+                loaded_extracted_data = False
 
-            ts, dead_mu, dead_sig = self.__comp_state_over_time(
-                sims[i], 'dead', acc)
+            if not loaded_extracted_data:
+                if acc > sim.max_time:
+                    acc = int(sim.max_time)
+
+                ts, hosp_mu, hosp_sig = self.__comp_state_over_time(sim, 'hosp', acc)
+                ts, dead_mu, dead_sig = self.__comp_state_over_time(sim, 'dead', acc)
 
             # Convert x-axis into posix timestamps and use pandas to plot as dates
             ts = days_to_datetime(ts, start_date=start_date)
 
             # lines
-            ax.errorbar(ts, hosp_mu, yerr=hosp_sig, label=titles[i], errorevery=errorevery,
-                        c=self.color_different_scenarios[i], linestyle='-', elinewidth=0.8, capsize=3.0)
+            # ax.errorbar(ts, hosp_mu, yerr=2*hosp_sig, label=titles[i], errorevery=errorevery,
+            #             c=self.color_different_scenarios[i], linestyle='-', elinewidth=0.8, capsize=3.0)
 
-            ax.errorbar(ts, dead_mu, yerr=dead_sig, errorevery=errorevery,
-                        c=self.color_different_scenarios[i], linestyle='--', elinewidth=0.8, capsize=3.0)
+            # ax.errorbar(ts, dead_mu, yerr=2*dead_sig, errorevery=errorevery,
+            #             c=self.color_different_scenarios[i], linestyle='dotted', elinewidth=0.8, capsize=3.0)
+            if mode == 'show_both' or mode == 'show_hosp_only':
+                ax.plot(ts, hosp_mu, linestyle='-',
+                        label=titles[i], c=self.color_different_scenarios[i])
+                ax.fill_between(ts, hosp_mu - 2 * hosp_sig, hosp_mu + 2 * hosp_sig,
+                                color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
+
+            if mode == 'show_both' or mode == 'show_dead_only':
+                linestyle = '-' if mode == 'show_dead_only' else 'dotted'
+                labels = titles[i] if mode == 'show_dead_only' else None
+                ax.plot(ts, dead_mu, linestyle=linestyle,
+                        label=labels, c=self.color_different_scenarios[i])
+                ax.fill_between(ts, dead_mu - 2 * dead_sig, dead_mu + 2 * dead_sig,
+                                color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
+
+
 
         # axis
         if ymax is None:
-            ymax = 1.5 * np.max(iasy_mu + ipre_mu + isym_mu)
+            ymax = 1.5 * np.max(hosp_mu + hosp_sig)
         ax.set_ylim((0, ymax))
 
         # ax.set_xlabel('Days')
         ax.set_ylabel('People')
 
-
-        if lockdown_at is not None:
-            ax.plot(lockdown_at * np.ones(acc), np.linspace(0, ymax, num=acc),
-                    linewidth=1, linestyle='--', color='black', zorder=10)
+        if not isinstance(lockdown_at, dict):
+            if lockdown_at is not None:
+                xshift = 3.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
+                lockdown_widget(lockdown_at, start_date,
+                                lockdown_label_y, ymax,
+                                lockdown_label, ax, xshift=xshift)
 
         # Hide the right and top spines
         ax.spines['right'].set_visible(False)
@@ -731,8 +866,30 @@ class Plotter(object):
         fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
 
         # legend
-        # ax.legend(loc='upper right', borderaxespad=0.5)
-        ax.legend(loc='upper left', borderaxespad=0.5)
+        if show_legend:
+            # legend
+            if legend_is_left:
+                leg = ax.legend(loc='upper left', borderaxespad=0.5)
+            else:
+                leg = ax.legend(loc='upper right', borderaxespad=0.5)
+
+            if legendYoffset != 0.0:
+                # Get the bounding box of the original legend
+                bb = leg.get_bbox_to_anchor().inverse_transformed(ax.transAxes)
+
+                # Change to location of the legend.
+                bb.y0 += legendYoffset
+                bb.y1 += legendYoffset
+                leg.set_bbox_to_anchor(bb, transform=ax.transAxes)
+
+            if legendXoffset != 0.0:
+                # Get the bounding box of the original legend
+                bb = leg.get_bbox_to_anchor().inverse_transformed(ax.transAxes)
+
+                # Change to location of the legend.
+                bb.x0 += legendXoffset
+                bb.x1 += legendXoffset
+                leg.set_bbox_to_anchor(bb, transform=ax.transAxes)
 
         subplot_adjust = subplot_adjust or {
             'bottom': 0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
@@ -828,7 +985,7 @@ class Plotter(object):
         return
 
     def compare_hospitalizations_over_time(self, sims, titles, figtitle='Hospitalizations', filename='compare_hosp_0',
-        capacity_line_at=20, figsize=(10, 10), errorevery=20, acc=1000, ymax=None):
+        capacity_line_at=20, figsize=(10, 10), errorevery=20, acc=500, ymax=None):
         ''''
         Plots total hospitalizations for each simulation, named as provided by `titles`
         to compare different measures/interventions taken. Colors taken as defined in __init__, and
@@ -840,7 +997,7 @@ class Plotter(object):
 
         for i in range(len(sims)):
             if acc > sims[i].max_time:
-                acc = sims[i].max_time
+                acc = int(sims[i].max_time)
 
             ts, line_hosp, error_sig = self.__comp_state_over_time(
                 sims[i], 'hosp', acc)
@@ -888,34 +1045,50 @@ class Plotter(object):
             plt.close()
         return
 
-    def plot_positives_vs_target(self, sim, targets, title='Example',
+    def plot_positives_vs_target(self, sims, titles, targets, title='Example',
         filename='inference_0', figsize=(6, 5), errorevery=1, acc=17, ymax=None,
         start_date='1970-01-01', lockdown_label='Lockdown', lockdown_at=None,
-        lockdown_label_y=None, subplot_adjust=None):
+        lockdown_label_y=None, subplot_adjust=None, n_age_groups=None, small_figure=False):
         ''''
         Plots daily tested averaged over random restarts, using error bars for std-dev
         together with targets from inference
         '''
 
-        if acc > sim.max_time:
-            acc = int(sim.max_time)
-
         fig, ax = plt.subplots(figsize=figsize)
 
-        # inference
-        # automatically shifted by `test_lag` in the function
-        ts, posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
+        for i, sim in enumerate(sims):
+            if isinstance(sim, str):
+                try:
+                    data = load_extracted_data(sim, acc)
+                except FileNotFoundError:
+                    acc = extract_data_from_summary(sim, acc=acc, n_age_groups=n_age_groups)
+                    data = load_extracted_data(sim, acc=acc)
+                acc = data['acc']
+                ts = data['ts']
+                posi_mu = data['posi_mu']
+                posi_sig = data['posi_sig']
+            else:
+                if acc > sim.max_time:
+                    acc = int(sim.max_time)
+                ts, posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
+                
+            plain_ts = ts
 
-        T = posi_mu.shape[0]
-    
-        xx = days_to_datetime(ts, start_date=start_date)
-        ax.plot(xx, posi_mu, c='k', linestyle='-',
-                label='COVID-19 simulated case data')
-        ax.fill_between(xx, posi_mu - posi_sig, posi_mu + posi_sig,
-                        color='grey', alpha=0.1, linewidth=0.0)
+            # Convert x-axis into posix timestamps and use pandas to plot as dates
+            ts = days_to_datetime(ts, start_date=start_date)
+
+            # lines
+            ax.plot(ts, posi_mu, linestyle='-',
+                    label=titles[i], c=self.color_different_scenarios[i])
+            ax.fill_between(ts, posi_mu - 2 * posi_sig, posi_mu + 2 * posi_sig,
+                            color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
 
         # target
-        target_widget(targets, start_date, ax)
+        if small_figure:
+            target_widget(targets, start_date, ax, label='Real cases', ms=3)
+        else:
+            target_widget(targets, start_date, ax, label='Real cases')
+
 
         # axis
         #ax.set_xlim((0, np.max(ts)))
@@ -924,12 +1097,18 @@ class Plotter(object):
         ax.set_ylim((0, ymax))
 
         # ax.set_xlabel('Days')
-        ax.set_ylabel('Positive cases')
+        ax.set_ylabel(r'Positive cases')
 
         if lockdown_at is not None:
+            if small_figure:
+                xshift = 3.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
+                text_off = True
+            else:
+                xshift = 2.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
+                text_off = True
             lockdown_widget(lockdown_at, start_date,
                             lockdown_label_y, ymax,
-                            lockdown_label, ax)
+                            lockdown_label, ax, xshift=xshift, text_off=text_off)
 
         # Hide the right and top spines
         ax.spines['right'].set_visible(False)
@@ -939,13 +1118,23 @@ class Plotter(object):
         ax.yaxis.set_ticks_position('left')
 
         #set ticks every week
-        ax.xaxis.set_major_locator(mdates.WeekdayLocator())
+        if small_figure:
+            ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=2, interval=4))
+        else:
+            ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
         #set major ticks format
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
         fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
 
         # legend
-        ax.legend(loc='upper left', borderaxespad=0.5)
+        if small_figure:
+            ax.legend(loc='upper left', borderaxespad=0.5, prop={'size': 16})
+            plt.rcParams.update({'xtick.labelsize': 'large',
+                                 'ytick.labelsize': 'large',
+                                 'axes.labelsize': 'large'
+                                 })
+        else:
+            ax.legend(loc='upper left', borderaxespad=0.5)
 
         subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         plt.subplots_adjust(**subplot_adjust)
@@ -953,18 +1142,123 @@ class Plotter(object):
         plt.draw()
 
         plt.savefig('plots/' + filename + '.png', format='png', facecolor=None,
-                    dpi=DPI)#, bbox_inches='tight')
+                    dpi=DPI, bbox_inches='tight')
+
+        if NO_PLOT:
+            plt.close()
+
+        return plain_ts, posi_mu
+
+
+    def plot_age_group_positives_vs_target(self, sim, targets, ytitle=None,
+                                 filename='inference_0', figsize=(6, 5), errorevery=1, acc=17, ymax=None,
+                                 start_date='1970-01-01', lockdown_label='Lockdown', lockdown_at=None,
+                                 lockdown_label_y=None, subplot_adjust=None):
+        
+        ''''
+        Plots daily tested averaged over random restarts, using error bars for std-dev
+        together with targets from inference
+        '''
+
+        n_age_groups = targets.shape[1]
+        if n_age_groups == 6:
+            age_groups = ['0-4', '5-15', '15-34', '35-59', '60-79', '80+']
+        else:
+            age_groups = ['0-9', '10-19', '20-29', '30-39', '40-49', '50-59', '60-69', '70-79', '80+']
+
+        if isinstance(sim, str):
+            try:
+                data = load_extracted_data(sim, acc=acc)
+            except FileNotFoundError:
+                acc = extract_data_from_summary(sim, acc=acc, n_age_groups=n_age_groups)
+                data = load_extracted_data(sim, acc=acc)
+        else:
+            if acc > sim.max_time:
+                acc = int(sim.max_time)
+
+        fig, axs = plt.subplots(1, n_age_groups, figsize=figsize)
+
+        for i, age in enumerate(range(n_age_groups)):
+
+            if isinstance(sim, str):
+                ts = data['ts']
+                posi_mu = data['posi_mu_age'][i]
+                posi_sig = data['posi_sig_age'][i]
+            else:
+                # automatically shifted by `test_lag` in the function
+                ts, posi_mu, posi_sig = self.__comp_state_over_time_per_age(sim, 'posi', acc, age)
+
+            T = posi_mu.shape[0]
+
+            xx = days_to_datetime(ts, start_date=start_date)
+            axs[age].plot(xx, posi_mu, c=self.color_different_scenarios[0], linestyle='-',
+                    label='COVID-19 simulated case data')
+            axs[age].fill_between(xx, posi_mu - 2 * posi_sig, posi_mu + 2 * posi_sig,
+                            color=self.color_different_scenarios[0], alpha=0.1, linewidth=0.0)
+
+            # target
+            target_widget(targets[:, age], start_date, axs[age], ms=4)
+
+            # axis
+            #ax.set_xlim((0, np.max(ts)))
+            if ymax is None:
+                ymax = 1.5 * np.max(posi_mu)
+            axs[age].set_ylim((0, ymax))
+
+            # ax.set_xlabel('Days')
+            if age == 0:
+                if ytitle is not None:
+                    axs[age].set_ylabel(ytitle)
+
+            axs[age].set_title(f'{age_groups[age]} years')
+
+            if lockdown_at is not None:
+                xshift = 2.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
+                lockdown_widget(lockdown_at, start_date,
+                                lockdown_label_y, ymax,
+                                lockdown_label, axs[age], xshift=xshift)
+
+            # Hide the right and top spines
+            axs[age].spines['right'].set_visible(False)
+            axs[age].spines['top'].set_visible(False)
+            axs[age].spines['left'].set_visible(False)
+            axs[age].spines['bottom'].set_visible(False)
+            axs[age].get_xaxis().set_ticks([])
+
+            axs[age].set_xlabel(r'$t$')
+            # axs[age].set_ylabel(r'Cases')
+
+            # Only show ticks on the left and bottom spines
+            # axs[age].yaxis.set_ticks_position('left')
+
+            #set ticks every week
+            # axs[age].xaxis.set_major_locator(mdates.WeekdayLocator())
+            #set major ticks format
+            # axs[age].xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+            # fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
+
+        # legend
+        # axs[age].legend(loc='upper left', borderaxespad=0.5)
+
+        subplot_adjust = subplot_adjust or {
+            'bottom': 0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
+        plt.subplots_adjust(**subplot_adjust)
+        plt.tight_layout()
+        plt.draw()
+
+        plt.savefig('plots/' + filename + '.png', format='png', facecolor=None,
+                    dpi=DPI)  # , bbox_inches='tight')
 
         if NO_PLOT:
             plt.close()
         return
 
-    def plot_daily_rts(self, sims, filename, start_date, titles=None, sigma=None,
+    def plot_daily_rts(self, sims, filename, start_date='1970-01-01', x_axis_dates=True, titles=None, sigma=None,
                        r_t_range=R_T_RANGE, window=3, figsize=(6, 5),
                        subplot_adjust=None, lockdown_label='Lockdown',
                        lockdown_at=None, lockdown_label_y=None, ymax=None,
                        colors=['grey'], fill_between=True, draw_dots=True,
-                       errorevery=1, show_legend=False, xtick_interval=1, ci=0.9):
+                       errorevery=1, show_legend=False, xtick_interval=2, ci=0.9):
 
         # If a single summary is provided
         if not isinstance(sims, list):
@@ -972,7 +1266,7 @@ class Plotter(object):
             sigma = [sigma]
 
         results = list()
-        for i, sim in enumerate(sims):
+        for i, sim in enumerate([sims[0]]):
             res = compute_daily_rts(sim, start_date, sigma[i], r_t_range, window, ci)
             results.append(res)
 
@@ -992,7 +1286,10 @@ class Plotter(object):
         ax = fig.add_subplot(111)
 
         for i, result in enumerate(results):
-            index = result['ML'].index
+            if x_axis_dates:
+                index = result['ML'].index
+            else:
+                index = np.arange(0, len(result['ML'].index))
             values = result['ML'].values
 
             # Plot dots and line
@@ -1004,13 +1301,24 @@ class Plotter(object):
                            edgecolors='k', zorder=2)
 
             # Aesthetically, extrapolate credible interval by 1 day either side
-            lowfn = interp1d(date2num(index), result[f'Low_{ci*100:.0f}'].values,
-                            bounds_error=False, fill_value='extrapolate')
-            highfn = interp1d(date2num(index), result[f'High_{ci*100:.0f}'].values,
-                            bounds_error=False, fill_value='extrapolate')
-            extended = pd.date_range(start=index[0], end=index[-1])
-            error_low = lowfn(date2num(extended))
-            error_high =  highfn(date2num(extended))
+            if x_axis_dates:
+                lowfn = interp1d(date2num(index), result[f'Low_{ci*100:.0f}'].values,
+                                bounds_error=False, fill_value='extrapolate')
+                highfn = interp1d(date2num(index), result[f'High_{ci*100:.0f}'].values,
+                                bounds_error=False, fill_value='extrapolate')
+
+                extended = pd.date_range(start=index[0], end=index[-1])
+                error_low = lowfn(date2num(extended))
+                error_high = highfn(date2num(extended))
+            else:
+                lowfn = interp1d(index, result[f'Low_{ci * 100:.0f}'].values,
+                                 bounds_error=False, fill_value='extrapolate')
+                highfn = interp1d(index, result[f'High_{ci * 100:.0f}'].values,
+                                  bounds_error=False, fill_value='extrapolate')
+
+                extended = index
+                error_low = lowfn(extended)
+                error_high = highfn(extended)
 
             if fill_between:
                 ax.fill_between(extended, error_low, error_high,
@@ -1037,9 +1345,10 @@ class Plotter(object):
 
         # extra
         if lockdown_at is not None:
+            xshift = 2.5 * pd.to_timedelta(pd.to_datetime(index[-1]) - pd.to_datetime(start_date), 'd') / 54
             lockdown_widget(lockdown_at, start_date,
                             lockdown_label_y, ymax,
-                            lockdown_label, ax, zorder=-200)
+                            lockdown_label, ax, zorder=-200, xshift=xshift)
 
         # Hide the right and top spines
         ax.spines['right'].set_visible(False)
@@ -1051,12 +1360,14 @@ class Plotter(object):
 
         # Set label
         ax.set_ylabel(r'$R_t$')
-
-        #set ticks every week
-        ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=xtick_interval))
-        #set major ticks format
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
-        fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
+        if x_axis_dates:
+            #set ticks every week
+            ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=xtick_interval))
+            #set major ticks format
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+            fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
+        else:
+            ax.set_xlabel(r'$t$ [days]')
 
         subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         plt.subplots_adjust(**subplot_adjust)
@@ -1066,3 +1377,104 @@ class Plotter(object):
 
         if NO_PLOT:
             plt.close()
+
+
+def extract_data_from_summary(summary_path, acc=500, conditional_measures=False, n_age_groups=None):
+    print(f'Extracting data from summary: {summary_path}')
+    result = load_summary(summary_path)
+    sim = result[1]
+
+    if acc > sim.max_time:
+        acc = int(sim.max_time)
+        print(f'Requested accuracy not attainable, using maximal acc={acc} ...')
+
+    plotter = Plotter()
+    comp_state_over_time = plotter._Plotter__comp_state_over_time
+    ts, iasy_mu, iasy_sig = comp_state_over_time(sim, 'iasy', acc)
+    _, ipre_mu, ipre_sig = comp_state_over_time(sim, 'ipre', acc)
+    _, isym_mu, isym_sig = comp_state_over_time(sim, 'isym', acc)
+    _, posi_mu, posi_sig = comp_state_over_time(sim, 'posi', acc)
+    _, hosp_mu, hosp_sig = comp_state_over_time(sim, 'hosp', acc)
+    _, dead_mu, dead_sig = comp_state_over_time(sim, 'dead', acc)
+    _, posi_mu, posi_sig = comp_state_over_time(sim, 'posi', acc)
+    _, nega_mu, nega_sig = comp_state_over_time(sim, 'nega', acc)
+    _, iasy, _ = comp_state_over_time(sim, 'iasy', acc, return_single_runs=True)
+    _, ipre, _ = comp_state_over_time(sim, 'ipre', acc, return_single_runs=True)
+    _, isym, _ = comp_state_over_time(sim, 'isym', acc, return_single_runs=True)
+
+    lockdowns = None
+    mean_lockdown_time = 0
+    if conditional_measures:
+        lockdowns, mean_lockdown_time = get_lockdown_times(sim)
+
+    posi_mu_age, posi_sig_age = [], []
+    if n_age_groups:
+        for age in range(n_age_groups):
+            _, posi_mean, posi_std = plotter._Plotter__comp_state_over_time_per_age(sim, 'posi', acc, age)
+            posi_mu_age.append(posi_mean)
+            posi_sig_age.append(posi_std)
+
+    data = {'acc': acc,
+            'max_time': sim.max_time,
+            'ts': ts,
+            'iasy': iasy, 'iasy_mu': iasy_mu, 'iasy_sig': iasy_sig,
+            'ipre': ipre, 'ipre_mu': ipre_mu, 'ipre_sig': ipre_sig,
+            'isym': isym, 'isym_mu': isym_mu, 'isym_sig': isym_sig,
+            'hosp_mu': hosp_mu, 'hosp_sig': hosp_sig,
+            'dead_mu': dead_mu, 'dead_sig': dead_sig,
+            'posi_mu': posi_mu, 'posi_sig': posi_sig,
+            'nega_mu': nega_mu, 'nega_sig': nega_sig,
+            'lockdowns': lockdowns,
+            'mean_lockdown_time': mean_lockdown_time,
+            'posi_mu_age': posi_mu_age,
+            'posi_sig_age': posi_sig_age,
+            }
+
+    filepath = os.path.join('summaries', 'condensed_summaries', summary_path[:-3]+f'_extracted_data_acc={acc}.pk')
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    with open(filepath, 'wb') as fp:
+        pickle.dump(data, fp)
+    print(f'Data extraction successful.')
+    return acc
+
+
+def load_extracted_data(summary_path, acc=500):
+    with open(os.path.join('summaries', 'condensed_summaries', summary_path[:-3]+f'_extracted_data_acc={acc}.pk'), 'rb') as fp:
+        data = pickle.load(fp)
+    print('Loaded previously extracted data.')
+    return data
+
+
+def get_lockdown_times(summary):
+    interventions = []
+    for ml in summary.measure_list:
+        hist, t = None, 1
+        while hist is None:
+            # Search for active measure if conditional measure was not active initially
+            hist = list(ml.find(UpperBoundCasesBetaMultiplier, t=t).intervention_history)
+            t += TO_HOURS
+        try:
+            lockdowns = [hist[0][:2]]
+        except IndexError:
+            lockdowns = None
+        j = 0
+        for k in range(len(hist)):
+            if k > j:
+                # If the time between two lock down periods is less than 2 days we count it as one lockdown\n",
+                if hist[k][0] - lockdowns[j][1] < 2 * TO_HOURS:
+                    lockdowns[j] = (lockdowns[j][0], hist[k][1])
+                else:
+                    lockdowns.append(hist[k][0:2])
+                    j += 1
+        interventions.append(lockdowns)
+
+    lockdown_times = []
+    for run in interventions:
+        lockdown_time = 0
+        if run is not None:
+            for lockdown in run:
+                if lockdown is not None:
+                    lockdown_time += lockdown[1] - lockdown[0]
+            lockdown_times.append(lockdown_time)
+    mean_lockdown_time = np.mean(lockdown_times)
+    return interventions, mean_lockdown_time

@@ -103,41 +103,59 @@ class SocialDistancingForAllMeasure(Measure):
             return self.p_stay_home
         return 0.0
 
+    def exit_run(self):
+        """ Deletes bernoulli array. """
+        if self._is_init:
+            del self.bernoulli_stay_home
+            self._is_init = False
+
 
 class UpperBoundCasesSocialDistancing(SocialDistancingForAllMeasure):
 
-    def __init__(self, t_window, p_stay_home, max_pos_tests_per_week=50, intervention_times=None):
+    def __init__(self, t_window, p_stay_home, max_pos_tests_per_week_per_100k, intervention_times=None, init_active=False):
         """
         Additional parameters:
         ----------------------
         max_pos_test_per_week : int
             If the number of positive tests per week exceeds this number the measure becomes active
         intervention_times : list of floats
-            List of points in time at which interventions can be changed. If 'None' interventions can be changed at any time
+            List of points in time at which measures can become active. If 'None' measures can be changed at any time
         """
 
         super().__init__(t_window, p_stay_home)
-        self.max_pos_tests_per_week = max_pos_tests_per_week
-        self.intervention_history = []
-        if intervention_times is not None:
-            self.intervention_times = np.asarray(intervention_times)
+        self.max_pos_tests_per_week_per_100k = max_pos_tests_per_week_per_100k
+        self.intervention_times = intervention_times
+        self.intervention_history = InterLap()
+        if init_active:
+            self.intervention_history.update([(t_window.left, t_window.left + 7 * 24 - EPS, True)])
+
+    def init_run(self, n_people, n_visits):
+        super().init_run(n_people, n_visits)
+        self.scaled_test_threshold = self.max_pos_tests_per_week_per_100k / 100000 * n_people
+
+    def _is_measure_active(self, t, t_pos_tests):
+        # If measures can only become active at 'intervention_times'
+        if self.intervention_times is not None:
+            # Find largest 'time' in intervention_times s.t. t > time
+            intervention_times = np.asarray(self.intervention_times)
+            idx = np.where(t - intervention_times > 0, t - intervention_times, np.inf).argmin()
+            t = intervention_times[idx]
+
+        t_in_history = list(self.intervention_history.find((t, t)))
+        if t_in_history:
+            is_active = t_in_history[0][2]
         else:
-            self.intervention_times = None
+            is_active = self._are_cases_above_threshold(t, t_pos_tests)
+            if is_active:
+                self.intervention_history.update([(t, t + 7 * 24 - EPS, True)])
+        return is_active
 
     def _are_cases_above_threshold(self, t, t_pos_tests):
-        # If measures can be changed continuously
-        if self.intervention_times is None:
-            t_intervention = t
-        else:  # If measures can be changed at intervention times
-            # Find largest time in intervention_times s.t. t > time
-            t_intervention = np.where(t - self.intervention_times > 0, t - self.intervention_times, np.inf).min()
-
         # Count positive tests in last 7 days from last intervention time
-        tmin = t_intervention - 7 * 24
-        num_pos_tests = np.sum(np.greater(t_pos_tests, tmin) * np.less(t_pos_tests, t_intervention))
-        is_measure_active = num_pos_tests > self.max_pos_tests_per_week
-        self.intervention_history.append((t, is_measure_active))
-        return is_measure_active
+        tmin = t - 7 * 24
+        num_pos_tests = np.sum(np.greater(t_pos_tests, tmin) * np.less(t_pos_tests, t))
+        is_above_threshold = num_pos_tests > self.scaled_test_threshold
+        return is_above_threshold
 
     @enforce_init_run
     def is_contained(self, *, j, j_visit_id, t, t_pos_tests):
@@ -147,7 +165,7 @@ class UpperBoundCasesSocialDistancing(SocialDistancingForAllMeasure):
             return False
 
         is_home_now = self.bernoulli_stay_home[j, j_visit_id]
-        return is_home_now and self._are_cases_above_threshold(t, t_pos_tests)
+        return is_home_now and self._is_measure_active(t, t_pos_tests)
 
     @enforce_init_run
     def is_contained_prob(self, *, j, t, t_pos_tests):
@@ -156,7 +174,7 @@ class UpperBoundCasesSocialDistancing(SocialDistancingForAllMeasure):
         if not self._in_window(t):
             return 0.0
 
-        if self._are_cases_above_threshold(t, t_pos_tests):
+        if self._is_measure_active(t, t_pos_tests):
             return self.p_stay_home
         return 0.0
 
@@ -195,13 +213,14 @@ class SocialDistancingPerStateMeasure(SocialDistancingForAllMeasure):
         """
         is_home_now = self.bernoulli_stay_home[j, j_visit_id]
         # only isolate at home while at state `state`
-        return is_home_now and state_dict[state_label][j] and self._in_window(t)
+        return is_home_now and state_dict[self.state_label][j] and self._in_window(t)
     
     @enforce_init_run
     def is_contained_prob(self, *, j, t, state_started_at_dict, state_ended_at_dict):
         """Returns probability of containment for individual `j` at time `t`
         """
-        if (self._in_window(t) and t >= state_started_at_dict[state_label][j] and t<=state_ended_at_dict[state_label][j]):
+        if self._in_window(t) and state_started_at_dict[self.state_label][j] <= t <= \
+                state_ended_at_dict[self.state_label][j]:
             return self.p_stay_home
         return 0.0
 
@@ -299,8 +318,9 @@ class SocialDistancingForPositiveMeasureHousehold(Measure):
         if (self._in_window(t) and 
             t >= state_posi_started_at[j] and t <= state_posi_ended_at[j] and # positive
             t < state_resi_started_at[j] and t < state_dead_started_at[j]): # not resistant or dead
-            return p_isolate
+            return self.p_isolate
         return 0.0
+            
             
 class SocialDistancingByAgeMeasure(Measure):
     """
@@ -361,16 +381,23 @@ class SocialDistancingByAgeMeasure(Measure):
             return self.p_stay_home[age]
         return 0.0
 
+    def exit_run(self):
+        """ Deletes bernoulli array. """
+        if self._is_init:
+            del self.bernoulli_stay_home
+            self._is_init = False
+
+
 class SocialDistancingForSmartTracing(Measure):
     """
     Social distancing measure. Only the population who intersected with positive cases 
-    for ``test_smart_duration``. Each visit of each individual respects the measure with 
+    for ``smart_tracing_isolation_duration``. Each visit of each individual respects the measure with 
     some probability.
 
     NOTE: This is the same as a SocialDistancingForAllMeasure but `is_contained` query also checks that the state 'posi' of individual j is True
     """
 
-    def __init__(self, t_window, p_stay_home, test_smart_duration):
+    def __init__(self, t_window, p_stay_home, smart_tracing_isolation_duration):
         """
 
         Parameters
@@ -387,7 +414,7 @@ class SocialDistancingForSmartTracing(Measure):
         if (not isinstance(p_stay_home, float)) or (p_stay_home < 0):
             raise ValueError("`p_stay_home` should be a non-negative float")
         self.p_stay_home = p_stay_home
-        self.test_smart_duration = test_smart_duration
+        self.smart_tracing_isolation_duration = smart_tracing_isolation_duration
 
     def init_run(self, n_people, n_visits):
         """Init the measure for this run by sampling the outcome of each visit
@@ -405,30 +432,244 @@ class SocialDistancingForSmartTracing(Measure):
             1, self.p_stay_home, size=(n_people, n_visits))
         self.intervals_stay_home = [InterLap() for _ in range(n_people)]
         self._is_init = True
-        
+
     @enforce_init_run
-    def is_contained(self, *, j, j_visit_id, t):
+    def is_contained(self, *, j, j_visit_id, state_nega_started_at, state_nega_ended_at, t):
         """Indicate if individual `j` respects measure for visit `j_visit_id`
+        Negatively tested are not isolated
         """
-        if self._in_window(t) and self.bernoulli_stay_home[j, j_visit_id]:
+        is_not_nega_now = not (state_nega_started_at[j] <= t and t < state_nega_ended_at[j])
+
+        if self._in_window(t) and self.bernoulli_stay_home[j, j_visit_id] and is_not_nega_now:
             for interval in self.intervals_stay_home[j].find((t, t)):
                 return True
         return False
 
     @enforce_init_run
     def start_containment(self, *, j, t):
-        self.intervals_stay_home[j].update([(t, t + self.test_smart_duration)])
+        self.intervals_stay_home[j].update([(t, t + self.smart_tracing_isolation_duration)])
         return
-    
+
     @enforce_init_run
-    def is_contained_prob(self, *, j, t):
+    def is_contained_prob(self, *, j, state_nega_started_at, state_nega_ended_at, t):
         """Returns probability of containment for individual `j` at time `t`
         """
-        if self._in_window(t):
+        is_not_nega_now = not (state_nega_started_at[j] <= t and t < state_nega_ended_at[j])
+
+        if self._in_window(t) and is_not_nega_now:
             for interval in self.intervals_stay_home[j].find((t, t)):
                 return self.p_stay_home
         return 0.0
 
+    def exit_run(self):
+        """ Deletes bernoulli array. """
+        if self._is_init:
+            del self.bernoulli_stay_home
+            self._is_init = False
+
+
+class SocialDistancingSymptomaticAfterSmartTracing(Measure):
+    """
+    Social distancing measure. If an individual develops symptoms after they were identified
+    and isolated by contact tracing, the individual isolates until symptoms disappear.
+    """
+
+    def __init__(self, t_window, p_stay_home, smart_tracing_isolation_duration):
+        """
+
+        Parameters
+        ----------
+        t_window : Interval
+            Time window during which the measure is active
+        p_stay_home : float
+            Probability of respecting the measure, should be in [0,1]
+        """
+        # Init time window
+        super().__init__(t_window)
+
+        # Init probability of respecting measure
+        if (not isinstance(p_stay_home, float)) or (p_stay_home < 0):
+            raise ValueError("`p_stay_home` should be a non-negative float")
+        self.p_stay_home = p_stay_home
+        self.smart_tracing_isolation_duration = smart_tracing_isolation_duration
+
+    def init_run(self, n_people):
+        """Init the measure for this run by sampling the outcome of each visit
+        for each individual
+
+        Parameters
+        ----------
+        n_people : int
+            Number of people in the population
+        n_visits : int
+            Maximum number of visits of an individual
+        """
+        # Sample the outcome of the measure for each visit of each individual
+        self.bernoulli_stay_home = np.random.binomial(1, self.p_stay_home, size=n_people)
+        self.got_contained = np.zeros(n_people, dtype='bool')
+        self._is_init = True
+
+    @enforce_init_run
+    def is_contained(self, *, j, state_isym_started_at, state_isym_ended_at, state_nega_started_at, state_nega_ended_at, t):
+        """Indicate if individual `j` respects measure
+        Negatively tested are not isolated.
+        """
+        is_not_nega_now = not (state_nega_started_at[j] <= t and t < state_nega_ended_at[j])
+        is_isym_now = (state_isym_started_at[j] <= t and t < state_isym_ended_at[j])
+
+        return self._in_window(t) and self.bernoulli_stay_home[j] and is_isym_now and is_not_nega_now and self.got_contained[j]
+
+    @enforce_init_run
+    def start_containment(self, *, j, t):
+        self.got_contained[j] = True
+        return
+
+    @enforce_init_run
+    def is_contained_prob(self, *, j, state_isym_started_at, state_isym_ended_at, state_nega_started_at, state_nega_ended_at, t):
+        """Returns probability of containment for individual `j` at time `t`
+        """
+        is_not_nega_now = not (state_nega_started_at[j] <= t and t < state_nega_ended_at[j])
+        is_isym_now = (state_isym_started_at[j] <= t and t < state_isym_ended_at[j])
+
+        if self._in_window(t) and is_isym_now and self.got_contained[j] and is_not_nega_now:
+            return self.p_stay_home
+        return 0.0
+
+    def exit_run(self):
+        """ Deletes bernoulli array. """
+        if self._is_init:
+            del self.bernoulli_stay_home
+            del self.got_contained
+            self._is_init = False
+
+class SocialDistancingForSmartTracingHousehold(Measure):
+    """
+    Social distancing measure. Isolate traced individuals cases from household members. 
+    Only the population who intersected with positive cases for ``smart_tracing_isolation_duration``. 
+    Each visit of each individual respects the measure with some probability.
+    """
+
+    def __init__(self, t_window, p_isolate, smart_tracing_isolation_duration):
+        """
+        Parameters
+        ----------
+        t_window : Interval
+            Time window during which the measure is active
+        p_isolate : float
+            Probability of respecting the measure, should be in [0,1]
+        """
+
+        # Init time window
+        super().__init__(t_window)
+
+        # Init probability of respecting measure
+        if (not isinstance(p_isolate, float)) or (p_isolate < 0):
+            raise ValueError("`p_isolate` should be a non-negative float")
+        self.p_isolate = p_isolate
+        self.smart_tracing_isolation_duration = smart_tracing_isolation_duration
+
+    def init_run(self, n_people):
+        """Init the measure for this run. Sampling of Bernoulli of respecting the measure done online."""
+        self.intervals_isolated = [InterLap() for _ in range(n_people)]
+        self._is_init = True
+
+    @enforce_init_run
+    def is_contained(self, *, j, state_nega_started_at, state_nega_ended_at, t):
+        """Indicate if individual `j` respects measure at time `t`
+        """
+        is_not_nega_now = not (state_nega_started_at[j] <= t and t < state_nega_ended_at[j])
+        is_isolated = np.random.binomial(1, self.p_isolate)
+        if self._in_window(t) and is_isolated and is_not_nega_now:
+            for interval in self.intervals_isolated[j].find((t, t)):
+                return True
+        return False
+
+    @enforce_init_run
+    def start_containment(self, *, j, t):
+        self.intervals_isolated[j].update([(t, t + self.smart_tracing_isolation_duration)])
+        return
+
+    @enforce_init_run
+    def is_contained_prob(self, *, j, state_nega_started_at, state_nega_ended_at, t):
+        """Returns probability of containment for individual `j` at time `t`
+        """
+        is_not_nega_now = not (state_nega_started_at[j] <= t and t < state_nega_ended_at[j])
+
+        if self._in_window(t) and is_not_nega_now:
+            for interval in self.intervals_isolated[j].find((t, t)):
+                return self.p_isolate
+        return 0.0
+
+    def exit_run(self):
+        """ Deletes bernoulli array. """
+        if self._is_init:
+            self._is_init = False
+
+
+class SocialDistancingSymptomaticAfterSmartTracingHousehold(Measure):
+
+    """
+    Social distancing measure. If an individual develops symptoms after they were identified
+    and isolated by contact tracing, the individual isolates from household members
+    until symptoms disappear.
+    """
+
+    def __init__(self, t_window, p_isolate, smart_tracing_isolation_duration):
+        """
+        Parameters
+        ----------
+        t_window : Interval
+            Time window during which the measure is active
+        p_isolate : float
+            Probability of respecting the measure, should be in [0,1]
+        """
+
+        # Init time window
+        super().__init__(t_window)
+
+        # Init probability of respecting measure
+        if (not isinstance(p_isolate, float)) or (p_isolate < 0):
+            raise ValueError("`p_isolate` should be a non-negative float")
+        self.p_isolate = p_isolate
+        self.smart_tracing_isolation_duration = smart_tracing_isolation_duration
+
+    def init_run(self, n_people):
+        """Init the measure for this run. Sampling of Bernoulli of respecting the measure done online."""
+        # Sample the outcome of the measure for each visit of each individual
+        self.got_contained = np.zeros(n_people, dtype='bool')
+        self._is_init = True
+
+    @enforce_init_run
+    def is_contained(self, *, j, state_isym_started_at, state_isym_ended_at, state_nega_started_at, state_nega_ended_at, t):
+        """Indicate if individual `j` respects measure
+        """
+        is_isolated = np.random.binomial(1, self.p_isolate)
+        is_isym_now = (state_isym_started_at[j] <= t and t < state_isym_ended_at[j])
+        is_not_nega_now = not (state_nega_started_at[j] <= t and t < state_nega_ended_at[j])
+
+        return self._in_window(t) and is_isolated and is_isym_now and self.got_contained[j] and is_not_nega_now
+
+    @enforce_init_run
+    def start_containment(self, *, j, t):
+        self.got_contained[j] = True
+        return
+
+    @enforce_init_run
+    def is_contained_prob(self, *, j, state_isym_started_at, state_isym_ended_at, state_nega_started_at, state_nega_ended_at, t):
+        """Returns probability of containment for individual `j` at time `t`
+        """
+        is_isym_now = (state_isym_started_at[j] <= t and t < state_isym_ended_at[j])
+        is_not_nega_now = not (state_nega_started_at[j] <= t and t < state_nega_ended_at[j])
+
+        if self._in_window(t) and is_isym_now and self.got_contained[j] and is_not_nega_now:
+            return self.p_isolate
+        return 0.0
+
+    def exit_run(self):
+        """ Deletes bernoulli array. """
+        if self._is_init:
+            del self.got_contained
+            self._is_init = False
 
 class SocialDistancingForKGroups(Measure):
     """
@@ -524,7 +765,7 @@ class BetaMultiplierMeasureByType(BetaMultiplierMeasure):
 
 class UpperBoundCasesBetaMultiplier(BetaMultiplierMeasure):
 
-    def __init__(self, t_window, beta_multiplier, max_pos_tests_per_week=50, intervention_times=None):
+    def __init__(self, t_window, beta_multiplier, max_pos_tests_per_week_per_100k, intervention_times=None, init_active=False):
         """
         Additional parameters:
         ----------------------
@@ -532,31 +773,48 @@ class UpperBoundCasesBetaMultiplier(BetaMultiplierMeasure):
             If the number of positive tests per week exceeds this number the measure becomes active
         intervention_times : list of floats
             List of points in time at which interventions can be changed. If 'None' interventions can be changed at any time
+        init_active : bool
+            If true measure is active in the first week of the simulation when there are no test counts yet
         """
 
         super().__init__(t_window, beta_multiplier)
-        self.max_pos_tests_per_week = max_pos_tests_per_week
-        self.intervention_history = []
-        if intervention_times is not None:
-            self.intervention_times = np.asarray(intervention_times)
+        self.max_pos_tests_per_week_per_100k = max_pos_tests_per_week_per_100k
+        self.intervention_times = intervention_times
+        self.intervention_history = InterLap()
+        if init_active:
+            self.intervention_history.update([(t_window.left, t_window.left + 7 * 24 - EPS, True)])
+
+    def init_run(self, n_people, n_visits):
+        self.scaled_test_threshold = self.max_pos_tests_per_week_per_100k / 100000 * n_people
+        self._is_init = True
+
+    @enforce_init_run
+    def _is_measure_active(self, t, t_pos_tests):
+        # If measures can only become active at 'intervention_times'
+        if self.intervention_times is not None:
+            # Find largest 'time' in intervention_times s.t. t > time
+            intervention_times = np.asarray(self.intervention_times)
+            idx = np.where(t - intervention_times > 0, t - intervention_times, np.inf).argmin()
+            t = intervention_times[idx]
+
+        t_in_history = list(self.intervention_history.find((t, t)))
+        if t_in_history:
+            is_active = t_in_history[0][2]
         else:
-            self.intervention_times = None
+            is_active = self._are_cases_above_threshold(t, t_pos_tests)
+            if is_active:
+                self.intervention_history.update([(t, t+7*24 - EPS, True)])
+        return is_active
 
+    @enforce_init_run
     def _are_cases_above_threshold(self, t, t_pos_tests):
-        # If measures can be changed continuously
-        if self.intervention_times is None:
-            t_intervention = t
-        else:  # If measures can be changed at intervention times
-            # Find largest time in intervention_times s.t. t > time
-            t_intervention = np.where(t - self.intervention_times > 0, t - self.intervention_times, np.inf).min()
-
         # Count positive tests in last 7 days from last intervention time
-        tmin = t_intervention - 7 * 24
-        num_pos_tests = np.sum(np.greater(t_pos_tests, tmin) * np.less(t_pos_tests, t_intervention))
-        is_measure_active = num_pos_tests > self.max_pos_tests_per_week
-        self.intervention_history.append((t, is_measure_active))
-        return is_measure_active
+        tmin = t - 7 * 24
+        num_pos_tests = np.sum(np.greater(t_pos_tests, tmin) * np.less(t_pos_tests, t))
+        is_above_threshold = num_pos_tests > self.scaled_test_threshold
+        return is_above_threshold
 
+    @enforce_init_run
     def beta_factor(self, *, typ, t, t_pos_tests):
         """Returns the multiplicative factor for site type `typ` at time `t`. The
         factor is one if `t` is not in the active time window of the measure.
@@ -564,7 +822,7 @@ class UpperBoundCasesBetaMultiplier(BetaMultiplierMeasure):
         if not self._in_window(t):
             return 1.0
 
-        is_measure_active = self._are_cases_above_threshold(t, t_pos_tests)
+        is_measure_active = self._is_measure_active(t, t_pos_tests)
         return self.beta_multiplier[typ] if is_measure_active else 1.0
 
 
@@ -621,7 +879,12 @@ class ComplianceForAllMeasure(Measure):
         if self._in_window(t):
             return self.p_compliance
         return 0.0
-    
+
+    def exit_run(self):
+        """ Deletes bernoulli array. """
+        if self._is_init:
+            del self.bernoulli_compliant
+            self._is_init = False
     
 
 """
@@ -661,6 +924,17 @@ class MeasureList:
         for _, _, m in self.measure_dict[measure_type]:
             m.init_run(**kwargs)
 
+    def exit_run(self):
+        """
+        Call exit_run for all measures that use bernoulli arrays to delete those in order to save memory.
+        """
+        for measure_type in self.measure_dict.keys():
+            for _, _, m in self.measure_dict[measure_type]:
+                try:
+                    m.exit_run()
+                except AttributeError:
+                    pass
+
     def find(self, measure_type, t):
         """Find, if any, the active measure of `type measure_type` at time `t`
         """
@@ -699,7 +973,7 @@ class MeasureList:
         if m is not None:
             return m.is_contained_prob(t=t, **kwargs)
         return False
-    
+
 if __name__ == "__main__":
 
     # Test SocialDistancingForAllMeasure with p_stay_home=1
