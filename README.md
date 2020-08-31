@@ -1,39 +1,68 @@
-# A Spatiotemporal Epidemic Model to Quantify The Effects of Testing, Contact Tracing and Containment
+# Quantifying the Effects of Contact Tracing, Testing, and Containment
 
-This repository contains scripts and notebooks to run the sampling algorithm of a high resolution spatiotemporal epidemic model, which can be used to predict the spread of COVID-19 under different testing & tracing strategies, social distancing measures and business restrictions in an arbitrary city/town. Details about the relevant theory and methods can be found in the [paper](https://arxiv.org/abs/2004.07641).
+This repository contains the code base to run the sampling algorithm of a high-resolution spatiotemporal epidemic model at large scale, which can be used to predict and analyze the spread of epidemics such as COVID-19 in any real-world city and region. Different testing & tracing strategies, social distancing measures and business restrictions can be employed, amended, and extended arbitrarily in a modular fashion. Details about the relevant theory and methods can be found in our [paper](https://arxiv.org/abs/2004.07641).
 
 ## Project description
 
-We introduce a modeling framework for studying epidemics that is specifically designed to make use of fine-grained spatiotemporal data. Motivated by the availability of data from contact tracing technologies and the current COVID-19 outbreak, our model uses marked temporal point processes to represent individual mobility patterns and the course of the disease for each individual in a population.
+We introduce a modeling framework for studying epidemics that is specifically designed to make use of fine-grained spatiotemporal data. Motivated by the introduction of contact tracing technologies and the  COVID-19 pandemic, our model uses temporal point processes to represent the state of each individual over time with respect to their mobility patterns, health and testing status, and affectedness by containment measures. The model leverages the locations of real-world sites and high-resolution population density data in a heuristic mobility model of a given region, which can be arbitrarily generalized.
 
-The sampling algorithm provided in this repository can be used to predict the spread of COVID-19 under different testing & tracing strategies, social distancing measures and business restrictions, given location or contact histories of individuals. Moreover, it gives a detailed representation of the disease's effect on each individual through time, distinguishing between several known states like asymptomatic, presymptomatic, symptomatic or recovered. For instance, the figures below are an example of the effective reproduction number under the scenario when either no measures are being implemented, or when social distancing and business restriction measures are introduced. 
-
-<p align="center">
-<img width="33%" src="./img/rt_no_lockdown.png">
-<img width="33%" src="./img/rt_lockdown.png">
-</p>
-
-An inference script based on Bayesian Optimization allows to calibrate the exposure risk at various sites to match real case data over time and per age group.
-
-The preliminary results generated using in this repository are focused on real COVID-19 data and mobility patterns from Tübingen, a town in the Southwest of Germany, but can be easily parameterized and used for generating realistic mobility patterns and simulating the spread of a disease for any given city/town. We are currently working on extending results for several towns and cities.
+Bayesian optimization is used to estimate mobility-related exposure parameters by fitting the model to  true observed case counts in a considered area. In our work on COVID-19, we study six regions in Germany and Switzerland, whose models were fit to real case counts over two-month windows before and during the "lockdown":
 
 <p align="center">
-<img width="33%" src="./img/population_distribution.png">
-<img width="33%" src="./img/site_distribution.png">
+<img width="100%" src="./img/modelfit-panel.jpg">
 </p>
 
-## Version of arXiv pre-print results
+Using the estimated parameters of the region-specific models, the sampling algorithm allows for analyses of counterfactual scenarios under various local circumstances, e.g. in urban and rural as well as lightly and severely affected areas. 
 
-As we are in the process of significantly refactoring the code base and extending the experiments, we did not update the notebook used to simulate the paper experiments, as it is now deprecated.
-We release an up-to-date [example notebook](sim/sim-example.ipynb) that shows how to use the code, simulation, and various measures.
+Amongst several other things, this framework allows studying the effects of: compliance with contact tracing (top left), the reproduction rate e.g. during the "lockdown" (top right), narrowcasting the empirical exposure probability to sites (bottom left), or hospitalizations when socially-distancing more vulnerable groups (bottom right) (here: Tübingen, Germany).
 
-__If you would nevertheless like to play with the prior version or reproduce results currently shown in the arXiv pre-print, revert to commit__
-`28b14a1dca53e12573eabf99317b2c7517c81761`
+<p align="center">
+<img width="49%" src="./img/tracing-compliance-GER-TU.png">
+<img width="49%" src="./img/continued-lockdown-GER-TU-Rt.png">
+<img width="49%" src="./img/narrowcasting-GER-TU-crop.png">
+<img width="49%" src="./img/vulnerable-groups-GER-TU-hosp.png">
+</p>
 
+## Organization
+
+The `sim/` directory contains the entire project code, where all simulator-specific code is situated inside `sim/lib/`. The simulator operates using the following main modules and rough purpose descriptions:
+
+| `sim/lib/`                                                   | Description                                                  |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| [dynamics.py](sim/lib/dynamics.py)                           | Simulator core; defines a **DiseaseModel** object for simulating the spread of the epidemic. |
+| [measures.py](sim/lib/measures.py)                           | Containement measures; defines a **Measure** object for implementing intervention policies. |
+| [mobilitysim.py](sim/lib/mobilitysim.py)                     | Mobility patterns; defines a **MobilitySimulator** object for mobility traces of individuals. |
+| [distributions.py](sim/lib/distributions.py)                 | Epidemiology; contains COVID-19 constants and distribution sampling functions. |
+| [calibrationFunctions.py](sim/lib/calibrationFunctions.py); [calibrationParser.py](sim/lib/calibrationParser.py); [calibrationSettings.py](sim/lib/calibrationSettings.py) | Parameter Estimation; defines **Bayesian Optimization pipeline** for estimating region-specific exposure parameters |
+| [experiment.py](sim/lib/experiment.py)                       | Analysis; defines an **Experiment** object for structured analysis and plotting of scenarios |
+| [plot.py](sim/lib/plot.py)                                   | Plotting; defines a **Plotter** object for generating plots. |
+
+The `sim/` directory itself containts several scripts of the form `sim-*.py`, which run experiments and simulations as reported in our [paper](https://arxiv.org/abs/2004.07641) parallelized across CPUs. To execute a specific experiment script for an already fitted region, simply execute e.g. `sim-*.py --country GER --area TU` (here: Tübingen, Germany). 
+
+To apply the entire framework for a new region in experiments as defined in `sim-*.py`, the following two major steps need to be performed in order beforehand and **only once**:
+
+1. Create a new mobility file using the `sim/town-generator.ipynb` notebook, which fixes the region-specific metadata for simulation and stores it inside `sim/lib/mobility`. A downsampling factor for population and sites can be used to speed-up the simulation initially or for parameter estimation. The directory already contains all mobility metadata files we used in our simulations. 
+2. Estimate the region-specific exposure parameters by executing `calibrate.py`. Before doing so, add the mobility file path, a region-specific code (e.g. `GER` and `TU`), and other details from above to `sim/lib/calibrationSettings.py`, following the structure for the existing regions. Hyperparameters for parameter estimation can be set using the command line arguments specified in `sim/lib/calibrationParser.py`, for example as listed in `sim/lib/settings/estimation.md`. The estimated parameters are saved and logged inside `sim/logs`. Depending on the size of the model, this step represents the major computational (yet one-time) cost. 
+
+Thus, the region metadata file in `sim/lib/mobility` and the parameter estimation log in `sim/logs` represents the fixed state of a corresponding region, starting point for simulating scenarios and running counterfactual analyses. 
+
+The results of a set of simulations such as `sim-*.py` are stored inside `sim/summaries/` and can be visualized using `sim/sim-plot.ipynb`. 
+
+
+## Citation
+
+If you use parts of the code in this repository for your own research purposes, please consider citing:
+
+    @article{lorch2020quantifying,
+    		title={Quantifying the Effects of Contact Tracing, Testing, and Containment},
+        author={Lars Lorch and Heiner Kremer and William Trouleau and Stratis Tsirtsis and Aron Szanto and Bernhard Sch\"olkopf and Manuel Gomez-Rodriguez},
+        journal={arXiv preprint arXiv:2004.07641},
+        year={2020}
+    }
 
 ## Dependencies
 
-All the experiments were executed using Python 3. In order to create a virtual environment and install the project dependencies you can run the following commands:
+This project uses Python 3. To create a virtual environment and install the project dependencies, you can run the following commands:
 
 ```bash
 python3 -m venv env
@@ -41,41 +70,3 @@ source env/bin/activate
 pip install -r requirements.txt
 ```
 
-## Code organization
-
-In the following tables, short descriptions of notebooks and main scripts are given. The notebooks are self-explanatory and execution details can be found within them.
-
-| Notebook              | Description                                                   |
-|-----------------------|---------------------------------------------------------------|
-| [town-generator.ipynb](sim/town-generator.ipynb)  | Generates population, site and mobility data for a given town. |
-| [sim-example.ipynb](sim/sim-example.ipynb)     | Example experiment on the spread of the disease under testing, contact tracing and/or containment measures. |
-
-| Scripts              | Description                                                   |
-|-----------------------|---------------------------------------------------------------|
-| [calibrate.py](sim/calibrate.py)  | Calibrates the model based on real case data. Run `calibrate.py --help` for help. |
-
-
-| Modules                | Description                                                   |
-|-----------------------|---------------------------------------------------------------|
-| [distributions.py](sim/lib/distributions.py) | Contains COVID-19 constants and distribution sampling functions. |
-| [town_data.py](sim/lib/town_data.py)  | Contains functions for population and site generation. |
-| [data.py](sim/lib/data.py)   | Contains functions for COVID-19 data collection. |
-| [mobilitysim.py](sim/lib/mobilitysim.py) | Produces a **MobilitySimulator** object for generating mobility traces. |
-| [dynamics.py](sim/lib/dynamics.py) | Produces a **DiseaseModel** object for simulating the spread of the disease. |
-| [parallel.py](sim/lib/parallel.py) | Contains functions used for simulations on parallel threads. |
-| [measures.py](sim/lib/measures.py) | Produces a **Measure** object for implementing intervention policies. |
-| [inference.py](sim/lib/inference.py) | Contains functions used for Bayesian optimization. |
-| [plot.py](sim/lib/plot.py) | Produces a **Plotter** object for generating plots. |
-| [town_maps.py](sim/lib/plot.py) | Produces a **MapIllustrator** object for generating interactive maps. |
-
-
-## Citation
-
-If you use parts of the code in this repository for your own research purposes, please consider citing:
-
-    @article{lorch2020spatiotemporal,
-        title={A Spatiotemporal Epidemic Model to Quantify the Effects of Contact Tracing, Testing, and Containment},
-        author={Lars Lorch and William Trouleau and Stratis Tsirtsis and Aron Szanto and Bernhard Sch\"{o}lkopf and Manuel Gomez-Rodriguez},
-        journal={arXiv preprint arXiv:2004.07641},
-        year={2020}
-    }

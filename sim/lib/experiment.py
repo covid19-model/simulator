@@ -129,10 +129,12 @@ def process_command_line(return_parser=False):
         calibration_state_strg = calibration_states[country][area]
         if not os.path.isfile(calibration_states[country][area]):
             raise FileNotFoundError
-    except KeyError or FileNotFoundError:
+    except KeyError:
+        print(f'{country}-{area} is unknown country-area combination.')
+        exit(1)
+    except FileNotFoundError:
         print(f'{country}-{area} calibration not found.')
         exit(1)
-
     return args
 
 
