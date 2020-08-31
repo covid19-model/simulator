@@ -54,7 +54,7 @@ The results of a set of simulations such as `sim-*.py` are stored inside `sim/su
 If you use parts of the code in this repository for your own research purposes, please consider citing:
 
     @article{lorch2020quantifying,
-    	title={Quantifying the Effects of Contact Tracing, Testing, and Containment},
+        title={Quantifying the Effects of Contact Tracing, Testing, and Containment},
         author={Lars Lorch and Heiner Kremer and William Trouleau and Stratis Tsirtsis and Aron Szanto and Bernhard Sch\"olkopf and Manuel Gomez-Rodriguez},
         journal={arXiv preprint arXiv:2004.07641},
         year={2020}
