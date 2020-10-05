@@ -57,7 +57,8 @@ def generate_population(bbox, population_per_age_group, density_file=None, tile_
             pops = pd.read_csv(density_file)
         
         except FileNotFoundError:
-            raise FileNotFoundError(density_file + ' not found. \nThe file can be downloaded from https://data.humdata.org/organization/facebook ')
+            raise FileNotFoundError(density_file + ' not found. \nThe file can be downloaded from https://data.humdata.org/organization/facebook \n' 
+                                    'Unpack the `.zip` and move the `.csv` file to `sim/lib/data/population` ')
 
         # discard records out of the bounding box
         pops = pops.loc[(pops['Lat'] >= bbox[0]) & (pops['Lat'] <= bbox[1]) & (pops['Lon'] >= bbox[2]) & (pops['Lon'] <= bbox[3])]
