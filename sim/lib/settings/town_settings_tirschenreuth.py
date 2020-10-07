@@ -23,7 +23,7 @@ population_per_age_group = np.array([
     25655,  # 35-59
     16323,  # 60-79
     5831    # 80+
-    ])
+    ], dtype=np.int32)
 
 
 region_population = population_per_age_group.sum()
@@ -31,7 +31,7 @@ town_population = region_population
 
 
 # Roughly 100k in total in Germany: https://www.rki.de/DE/Content/Infekt/EpidBull/Archiv/2020/Ausgaben/15_20.pdf?__blob=publicationFile
-daily_tests_unscaled = int(100000 * town_population / 83000000)
+daily_tests_unscaled = int(100000 * (town_population / 83000000))
 
 # Information about household structure (set to None if not available)
 # Source for Germany: https://www.destatis.de/EN/Themes/Society-Environment/Population/Households-Families/Tables/lrbev05.html 
