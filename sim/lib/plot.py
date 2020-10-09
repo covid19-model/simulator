@@ -1,5 +1,6 @@
 import time
 import bisect
+import itertools
 import numpy as np
 import pandas as pd
 import networkx as nx
@@ -13,6 +14,7 @@ from datetime import datetime
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from matplotlib import ticker
 from matplotlib.dates import date2num, num2date
 
 from lib.measures import (MeasureList, BetaMultiplierMeasureBySite,
@@ -20,6 +22,7 @@ from lib.measures import (MeasureList, BetaMultiplierMeasureBySite,
                           SocialDistancingForPositiveMeasure, SocialDistancingByAgeMeasure,
                           SocialDistancingForSmartTracing, ComplianceForAllMeasure, UpperBoundCasesBetaMultiplier)
 from lib.rt import compute_daily_rts, R_T_RANGE
+import lib.rt_nbinom
 from lib.experiment import load_summary
 import pickle
 
@@ -451,7 +454,7 @@ class Plotter(object):
 
         if acc > sim.max_time:
             acc = int(sim.max_time)
-        
+
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
 
@@ -657,7 +660,7 @@ class Plotter(object):
                 ax.plot(ts, line_infected, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
                 ax.fill_between(ts, np.maximum(line_infected - 2 * error_infected, 0), line_infected + 2 * error_infected,
                                 color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
-            
+
             else:
                 if not loaded_extracted_data:
                     if acc > sim.max_time:
@@ -749,7 +752,7 @@ class Plotter(object):
                 bb.y0 += legendYoffset
                 bb.y1 += legendYoffset
                 leg.set_bbox_to_anchor(bb, transform = ax.transAxes)
-            
+
             if legendXoffset != 0.0:
                 # Get the bounding box of the original legend
                 bb = leg.get_bbox_to_anchor().inverse_transformed(ax.transAxes)
@@ -762,7 +765,7 @@ class Plotter(object):
         subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         plt.subplots_adjust(**subplot_adjust)
 
-        plt.savefig('plots/' + filename + '.png', format='png', facecolor=None,
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
                     dpi=DPI, bbox_inches='tight')
 
         if NO_PLOT:
@@ -772,7 +775,7 @@ class Plotter(object):
     def compare_total_fatalities_and_hospitalizations(self, sims, titles, mode='show_both',
         figtitle=r'Hospitalizations and Fatalities',
         lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None,
-        filename='compare_inf_0', figsize=(10, 10), errorevery=20, acc=1000, ymax=None, 
+        filename='compare_inf_0', figsize=(10, 10), errorevery=20, acc=1000, ymax=None,
         show_legend=True, legendYoffset=0.0, legend_is_left=False, legendXoffset=0.0,
         subplot_adjust=None, start_date='1970-01-01', first_one_dashed=False):
 
@@ -1048,7 +1051,7 @@ class Plotter(object):
     def plot_positives_vs_target(self, sims, titles, targets, title='Example',
         filename='inference_0', figsize=(6, 5), errorevery=1, acc=17, ymax=None,
         start_date='1970-01-01', lockdown_label='Lockdown', lockdown_at=None,
-        lockdown_label_y=None, subplot_adjust=None, n_age_groups=None, small_figure=False):
+        lockdown_label_y=None, subplot_adjust=None, n_age_groups=None, small_figure=False, show_legend=True):
         ''''
         Plots daily tested averaged over random restarts, using error bars for std-dev
         together with targets from inference
@@ -1071,7 +1074,7 @@ class Plotter(object):
                 if acc > sim.max_time:
                     acc = int(sim.max_time)
                 ts, posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
-                
+
             plain_ts = ts
 
             # Convert x-axis into posix timestamps and use pandas to plot as dates
@@ -1116,6 +1119,11 @@ class Plotter(object):
 
         # Only show ticks on the left and bottom spines
         ax.yaxis.set_ticks_position('left')
+        if small_figure:
+            if ymax > 700:
+                ax.yaxis.set_major_locator(ticker.MultipleLocator(500))
+            else:
+                ax.yaxis.set_major_locator(ticker.MultipleLocator(250))
 
         #set ticks every week
         if small_figure:
@@ -1127,21 +1135,22 @@ class Plotter(object):
         fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
 
         # legend
-        if small_figure:
-            ax.legend(loc='upper left', borderaxespad=0.5, prop={'size': 16})
-            plt.rcParams.update({'xtick.labelsize': 'large',
-                                 'ytick.labelsize': 'large',
-                                 'axes.labelsize': 'large'
-                                 })
-        else:
-            ax.legend(loc='upper left', borderaxespad=0.5)
+        if show_legend:
+            if small_figure:
+                ax.legend(loc='upper left', borderaxespad=0.5, prop={'size': 16})
+                plt.rcParams.update({'xtick.labelsize': 'large',
+                                    'ytick.labelsize': 'large',
+                                    'axes.labelsize': 'large'
+                                    })
+            else:
+                ax.legend(loc='upper left', borderaxespad=0.5)
 
         subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         plt.subplots_adjust(**subplot_adjust)
 
         plt.draw()
 
-        plt.savefig('plots/' + filename + '.png', format='png', facecolor=None,
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
                     dpi=DPI, bbox_inches='tight')
 
         if NO_PLOT:
@@ -1149,12 +1158,11 @@ class Plotter(object):
 
         return plain_ts, posi_mu
 
-
     def plot_age_group_positives_vs_target(self, sim, targets, ytitle=None,
                                  filename='inference_0', figsize=(6, 5), errorevery=1, acc=17, ymax=None,
                                  start_date='1970-01-01', lockdown_label='Lockdown', lockdown_at=None,
                                  lockdown_label_y=None, subplot_adjust=None):
-        
+
         ''''
         Plots daily tested averaged over random restarts, using error bars for std-dev
         together with targets from inference
@@ -1377,6 +1385,116 @@ class Plotter(object):
 
         if NO_PLOT:
             plt.close()
+
+    def _estimate_daily_nbinom_rts(self, result, slider_size, window_size, end_cutoff):
+        # Extract summary from result
+        sim = result.summary
+        # Build the range of time interval to estimate for
+        t0_range = np.arange(0.0, sim.max_time - window_size - end_cutoff, slider_size)
+        t1_range = t0_range + window_size
+        interval_range = list(zip(t0_range, t1_range))
+        # Run the estimation
+        res_data = []
+        rand_rep_range = range(result.metadata.random_repeats)
+        for r, (t0, t1) in itertools.product(rand_rep_range, interval_range):
+            data = lib.rt_nbinom.get_sec_cases_in_window(sim, r, t0, t1)
+            fitter = lib.rt_nbinom.NegativeBinomialFitter()
+            fitter.fit(data)
+            res_data.append({'r': r, 't0': t0, 't1': t1,
+                         'Rt': fitter.r_, 'kt': fitter.k_,
+                         'num_sec_cases': data})
+        # Format the results
+        df = pd.DataFrame(res_data)
+        return df
+
+    def plot_daily_nbinom_rts(self, result=None, filename='', df=None,
+                              slider_size=24.0, window_size=24.*7, end_cutoff=24.*10,
+                              figsize=(6, 5), subplot_adjust=None, ymax=None,
+                              lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None,
+                              x_axis_dates=True, xtick_interval=2, xlim=None):
+        if df is None:
+            df = self._estimate_daily_nbinom_rts(result, slider_size, window_size, end_cutoff)
+        # Ignore simulations with not enough data for fitting
+        df['len_data'] = df['num_sec_cases'].apply(len)
+        df['sum_data'] = df['num_sec_cases'].apply(sum)
+        df.loc[(df['len_data'] < 10) + (df['sum_data'] < 10),'kt'] = np.nan
+        df.loc[(df['len_data'] == 0),'Rt'] = 0.0  # if no cases observed
+        if x_axis_dates:
+            # Cast time of end of interval to datetime
+            df['date_end'] = days_to_datetime(
+                df['t1'] / 24, start_date=result.metadata.start_date)
+            # Aggregate results by date
+            df_agg = df.groupby('date_end').agg({'Rt': ['mean', 'std'],
+                                                'kt': ['mean', 'std']})
+        else:
+            df['time'] = df['t1'] / 24
+            df_agg = df.groupby('time').agg({'Rt': ['mean', 'std'],
+                                             'kt': ['mean', 'std']})
+        # Build dot colormap: black to white to red
+        ABOVE = [1,0,0]
+        MIDDLE = [1,1,1]
+        BELOW = [0,0,0]
+        cmap_raw = ListedColormap(np.r_[
+            np.linspace(BELOW,MIDDLE,25),
+            np.linspace(MIDDLE,ABOVE,25)
+        ])
+        def cmap_clipped(y):
+            return cmap_raw(np.clip(y, .5, 1.5)-.5)
+        # Plot figure
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+        y_m = df_agg.Rt['mean']
+        y_std = df_agg.Rt['std']
+        # Plot estimated mean values
+        plt.plot(df_agg.index, y_m, c='grey')
+        plt.scatter(df_agg.index, y_m, s=40, lw=0.0, c=cmap_clipped(y_m),
+                    edgecolors='k', zorder=2)
+        # Fill plus/minus std
+        plt.fill_between(df_agg.index, y_m - y_std, y_m + y_std,
+                        color='grey', alpha=0.1, linewidth=0.0)
+        # Horizotal line at R_t = 1.0
+        plt.axhline(1.0, c='k', lw=1, alpha=.25);
+        # extra
+        if lockdown_at is not None:
+            xshift = (2.5 * pd.to_timedelta(pd.to_datetime(df_agg.index[-1])
+                      - pd.to_datetime(result.metadata.start_date), 'd') / 54)
+            ax.axvline(pd.to_datetime(lockdown_at), c='black', ls='--', lw=2.5,
+                       label='_nolegend_', zorder=-200)
+            ax.text(x=lockdown_at + pd.Timedelta(0.9, unit='d'),
+                    y=lockdown_label_y, s=lockdown_label,
+                    rotation=90, fontdict={'fontsize': 18})
+        # Hide the right and top spines
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        # Only show ticks on the left and bottom spines
+        ax.yaxis.set_ticks_position('left')
+        ax.xaxis.set_ticks_position('bottom')
+        if x_axis_dates:
+            # set xticks every week
+            ax.xaxis.set_minor_locator(mdates.WeekdayLocator(byweekday=1, interval=1))
+            ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=1, interval=2))
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+            fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
+        else:
+            ax.xaxis.set_major_locator(ticker.MultipleLocator(25))
+            ax.set_xlabel(r'$t$ [days]')
+        # set yticks to units
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+        # Set labels
+        ax.set_ylabel(r'$R_t$')
+        # Set limits
+        ax.set_ylim(bottom=0.0, top=ymax)
+        if xlim:
+            ax.set_xlim(*xlim)
+        # Adjust margins
+        subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98,
+                                            'left': 0.12, 'right': 0.96}
+        plt.subplots_adjust(**subplot_adjust)
+        # Save plot
+        plt.savefig('plots/' + filename + '.pdf', format='pdf',
+                    facecolor=None, dpi=DPI)
+        if NO_PLOT:
+            plt.close()
+
 
 
 def extract_data_from_summary(summary_path, acc=500, conditional_measures=False, n_age_groups=None):
