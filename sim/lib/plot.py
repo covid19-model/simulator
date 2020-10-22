@@ -31,9 +31,18 @@ TEST_LAG = 48.0 # hours
 
 LINE_WIDTH = 7.0
 COL_WIDTH = 3.333
+
 FIG_SIZE_TRIPLE = (COL_WIDTH / 3, COL_WIDTH / 3 * 4/6)
+FIG_SIZE_TRIPLE_TALL = (COL_WIDTH / 3, COL_WIDTH / 3 * 5/6)
+
 FIG_SIZE_DOUBLE = (COL_WIDTH / 2, COL_WIDTH / 2 * 4/6)
 FIG_SIZE_DOUBLE_TALL = (COL_WIDTH / 2, COL_WIDTH / 2 * 5/6)
+
+CUSTOM_FIG_SIZE_FULL_PAGE_TRIPLE = (LINE_WIDTH / 3, COL_WIDTH / 2 * 5/6)
+
+FIG_SIZE_FULL_PAGE_TRIPLE = (LINE_WIDTH / 3, LINE_WIDTH / 3 * 4/6)
+FIG_SIZE_FULL_PAGE_TRIPLE_TALL = (LINE_WIDTH / 3, LINE_WIDTH / 3 * 5/6)
+CUSTOM_FIG_SIZE_FULL_PAGE_QUAD = (LINE_WIDTH / 4, COL_WIDTH / 2 * 5/6)
 
 SIGCONF_RCPARAMS_DOUBLE = {
     # Fig params
@@ -60,7 +69,7 @@ SIGCONF_RCPARAMS_DOUBLE = {
     "lines.linewidth": 0.8,              # Width of lines
     "lines.markeredgewidth": 0.3,
     # Legend params
-    "legend.fontsize": 7,        # Make the legend/label fonts a little smaller
+    "legend.fontsize": 8.5,        # Make the legend/label fonts a little smaller
     "legend.frameon": True,              # Remove the black frame around the legend
     "legend.handletextpad": 0.3,
     "legend.borderaxespad": 0.2,
@@ -70,7 +79,7 @@ SIGCONF_RCPARAMS_DOUBLE = {
     "text.usetex": True,                 # use LaTeX to write all text
     "font.family": "serif",              # use serif rather than sans-serif
     "font.serif": "Linux Libertine O",   # use "Linux Libertine" as the standard font
-    "font.size": 7,
+    "font.size": 9,
     "axes.titlesize": 8,          # LaTeX default is 10pt font.
     "axes.labelsize": 8,          # LaTeX default is 10pt font.
     "xtick.labelsize": 6,
@@ -112,7 +121,7 @@ SIGCONF_RCPARAMS_TRIPLE = {
     "lines.linewidth": 0.8,              # Width of lines
     "lines.markeredgewidth": 0.3,
     # Legend
-    "legend.fontsize": 4.5,              # Make the legend/label fonts a little smaller
+    "legend.fontsize": 5.5,              # Make the legend/label fonts a little smaller
     "legend.frameon": True,              # Remove the black frame around the legend
     "legend.handletextpad": 0.5,
     "legend.borderaxespad": 0.0,
@@ -122,7 +131,7 @@ SIGCONF_RCPARAMS_TRIPLE = {
     "text.usetex": True,                 # use LaTeX to write all text
     "font.family": "serif",              # use serif rather than sans-serif
     "font.serif": "Linux Libertine O",   # use "Linux Libertine" as the standard font
-    "font.size": 5,
+    "font.size": 6,
     "axes.titlesize": 5,                 # LaTeX default is 10pt font.
     "axes.labelsize": 5,                 # LaTeX default is 10pt font.
     "xtick.labelsize": 5,
@@ -138,6 +147,70 @@ SIGCONF_RCPARAMS_TRIPLE = {
         r'\setmathfont{Linux Libertine O}',
     ]
 }
+
+NEURIPS_LINE_WIDTH = 5.5  # Text width: 5.5in (double figure minus spacing 0.2in).
+FIG_SIZE_NEURIPS_DOUBLE = (NEURIPS_LINE_WIDTH / 2, NEURIPS_LINE_WIDTH / 2 * 4/6)
+FIG_SIZE_NEURIPS_TRIPLE = (NEURIPS_LINE_WIDTH / 3, NEURIPS_LINE_WIDTH / 3 * 4/6)
+FIG_SIZE_NEURIPS_DOUBLE_TALL = (NEURIPS_LINE_WIDTH / 2, NEURIPS_LINE_WIDTH / 2 * 5/6)
+FIG_SIZE_NEURIPS_TRIPLE_TALL = (NEURIPS_LINE_WIDTH / 3, NEURIPS_LINE_WIDTH / 3 * 5/6)
+
+NEURIPS_RCPARAMS = {
+    "figure.autolayout": False,         # Makes sure nothing the feature is neat & tight.
+    "figure.figsize": FIG_SIZE_NEURIPS_DOUBLE,
+    "figure.dpi": 150,                  # Displays figures nicely in notebooks.
+    # Axes params
+    "axes.linewidth": 0.5,              # Matplotlib's current default is 0.8.
+    "xtick.major.width": 0.5,
+    "xtick.minor.width": 0.5,
+    "ytick.major.width": 0.5,
+    "ytick.minor.width": 0.5,
+
+    "hatch.linewidth": 0.3,
+    "xtick.major.width": 0.5,
+    "xtick.minor.width": 0.5,
+    'xtick.major.pad': 1.0,
+    'xtick.major.size': 1.75,
+    'xtick.minor.pad': 1.0,
+    'xtick.minor.size': 1.0,
+
+    'ytick.major.pad': 1.0,
+    'ytick.major.size': 1.75,
+    'ytick.minor.pad': 1.0,
+    'ytick.minor.size': 1.0,
+
+    "axes.labelpad": 0.5,
+    # Grid
+    "grid.linewidth": 0.3,
+    # Plot params
+    "lines.linewidth": 1.0,
+    "lines.markersize": 4,
+    'errorbar.capsize': 3.0,
+    # Font
+    "text.usetex": True,                # use LaTeX to write all text
+    "font.family": "serif",             # use serif rather than sans-serif
+    "font.serif": "Times New Roman",    # use "Times New Roman" as the standard font
+    "font.size": 8.5,
+    "axes.titlesize": 8.5,                # LaTeX default is 10pt font.
+    "axes.labelsize": 8.5,                # LaTeX default is 10pt font.
+    "xtick.labelsize": 8,
+    "ytick.labelsize": 8,
+    # Legend
+    "legend.fontsize": 7,        # Make the legend/label fonts a little smaller
+    "legend.frameon": True,              # Remove the black frame around the legend
+    "legend.handletextpad": 0.3,
+    "legend.borderaxespad": 0.2,
+    "legend.labelspacing": 0.1,
+    "patch.linewidth": 0.5,
+    # PDF
+    "pgf.texsystem": "xelatex",         # use Xelatex which is TTF font aware
+    "pgf.rcfonts": False,               # Use pgf.preamble, ignore standard Matplotlib RC
+    "pgf.preamble": [
+        r'\usepackage{fontspec}',
+        r'\usepackage{unicode-math}',
+        r'\setmainfont{Times New Roman}',
+    ],
+}
+
 
 
 def trans_data_to_axis(ax):
@@ -278,6 +351,8 @@ class Plotter(object):
             plt.rcParams.update(SIGCONF_RCPARAMS_DOUBLE)
         elif format == 'triple':
             plt.rcParams.update(SIGCONF_RCPARAMS_TRIPLE)
+        if format == 'neurips-double':
+            plt.rcParams.update(NEURIPS_RCPARAMS)
         else:
             raise ValueError('Invalid figure format.')
 
@@ -722,7 +797,7 @@ class Plotter(object):
             plt.close()
         return
 
-    def compare_total_infections(self, sims, titles, figtitle='Title',
+    def compare_total_infections(self, sims, titles, figtitle='Title', figformat='double',
         filename='compare_inf_0', figsize=None, errorevery=20, acc=500, ymax=None, x_axis_dates=True,
         lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
         conditional_measures=None,
@@ -735,7 +810,7 @@ class Plotter(object):
         averaged over random restarts, using error bars for std-dev
         '''
         # Set double figure format
-        self._set_matplotlib_params(format='double')
+        self._set_matplotlib_params(format=figformat)
         # Draw figure
         fig, ax = plt.subplots(1, 1, figsize=figsize)
         for i, sim in enumerate(sims):
@@ -855,12 +930,14 @@ class Plotter(object):
                 leg = ax.legend(loc='upper left',
                           bbox_to_anchor=(0.001, 0.999),
                           bbox_transform=ax.transAxes,
-                          prop={'size': 5.6})
+                        #   prop={'size': 5.6}
+                          )
             else:
                 leg = ax.legend(loc='upper right',
                           bbox_to_anchor=(0.999, 0.999),
                           bbox_transform=ax.transAxes,
-                          prop={'size': 5.6})
+                        #   prop={'size': 5.6}
+                          )
 
         subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         plt.subplots_adjust(**subplot_adjust)
@@ -1149,7 +1226,7 @@ class Plotter(object):
         return
 
     def plot_positives_vs_target(self, sims, titles, targets, title='Example',
-        filename='inference_0', figsize=None, errorevery=1, acc=17, ymax=None,
+        filename='inference_0', figsize=None, figformat='triple', errorevery=1, acc=17, ymax=None,
         start_date='1970-01-01', lockdown_label='Lockdown', lockdown_at=None,
         lockdown_label_y=None, subplot_adjust=None, n_age_groups=None, small_figure=False, show_legend=True):
         ''''
@@ -1157,7 +1234,7 @@ class Plotter(object):
         together with targets from inference
         '''
         # Set triple figure format
-        self._set_matplotlib_params(format='triple')
+        self._set_matplotlib_params(format=figformat)
 
         fig, ax = plt.subplots(figsize=figsize)
 
@@ -1472,14 +1549,16 @@ class Plotter(object):
         interval_range = list(zip(t0_range, t1_range))
         # Run the estimation
         res_data = []
-        rand_rep_range = range(result.metadata.random_repeats)
+        rand_rep_range = list(range(result.metadata.random_repeats))
         for r, (t0, t1) in itertools.product(rand_rep_range, interval_range):
+            print(f"\rEstimating r={r+1:2>d}/{len(rand_rep_range)}, interval=[{t0:>6.2f}, {t1:>6.2f}]...", end='')
             data = lib.rt_nbinom.get_sec_cases_in_window(sim, r, t0, t1)
             fitter = lib.rt_nbinom.NegativeBinomialFitter()
             fitter.fit(data)
             res_data.append({'r': r, 't0': t0, 't1': t1,
                          'Rt': fitter.r_, 'kt': fitter.k_,
                          'num_sec_cases': data})
+        print()
         # Format the results
         df = pd.DataFrame(res_data)
         # Ignore simulations with not enough data for fitting
@@ -1491,12 +1570,12 @@ class Plotter(object):
 
     def plot_daily_nbinom_rts(self, result=None, filename='', df=None,
                               slider_size=24.0, window_size=24.*7, end_cutoff=24.*10,
-                              figsize=(6, 5), ymax=None,
+                              figsize=None, figformat='double', ymax=None,
                               cmap_range=(0.5, 1.5),
                               lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
                               x_axis_dates=True, xtick_interval=2, xlim=None):
         # Set this plot with double figures parameters
-        self._set_matplotlib_params(format='double')
+        self._set_matplotlib_params(format=figformat)
         # Compute data if not provided
         if df is None:
             df = self._estimate_daily_nbinom_rts(result, slider_size, window_size, end_cutoff)
@@ -1586,7 +1665,7 @@ class Plotter(object):
         # Ignore simulations with not enough data for fitting
         df['len_data'] = df['num_sec_cases'].apply(len)
         df['sum_data'] = df['num_sec_cases'].apply(sum)
-        df.loc[(df['len_data'] < 10) + (df['sum_data'] < 10),'kt'] = np.nan
+        df.loc[(df['len_data'] < 5) + (df['sum_data'] < 5),'kt'] = np.nan
         df.loc[(df['len_data'] == 0),'Rt'] = 0.0  # if no cases observed
         # Compute NB parameters
         df['param_n'] = df['kt']
@@ -1596,6 +1675,7 @@ class Plotter(object):
         return df
 
     def plot_nbinom_distributions(self, *, result=None, df=None, x_range=None,
+                                  figsize=FIG_SIZE_TRIPLE_TALL, figformat='triple',
                                   t0_range=[], label_range=[], window_size=10.*24, ymax=None, filename=''):
         """
         Plot the distribution of number of secondary cases along with their Negative-Binomial fits
@@ -1603,17 +1683,17 @@ class Plotter(object):
         A pre-computed dataframe `df` can also be provided
         """
         if df is None:
-            interval_range = [(t0, t0 + 10. * 24) for t0 in t0_range]
+            interval_range = [(t0, t0 + window_size) for t0 in t0_range]
             df = self._compute_nbinom_distributions(result, x_range, interval_range)
         # Aggregate results by time
         df_agg = df.groupby('t0').agg({'nbinom_pmf': list,
                                     'Rt': ['mean', 'std'],
                                     'kt': ['mean', 'std']})
         # Set triple figure params
-        self._set_matplotlib_params(format='triple')
+        self._set_matplotlib_params(format=figformat)
         # Draw figures
         for i, (t0, label) in enumerate(zip(t0_range, label_range)):
-            fig, ax = plt.subplots(1, 1)
+            fig, ax = plt.subplots(1, 1, figsize=figsize)
             # Extract data for the plot
             row_df = df.loc[df.t0 == t0]
             row_df_agg = df_agg.loc[t0]
@@ -1629,11 +1709,11 @@ class Plotter(object):
                     color='k',
                     label='NB')
             # Write estimates in text
-            text_x = 0.25
-            text_y = 0.18
-            plt.text(text_x,       text_y + 0.18, transform=ax.transAxes,
+            text_x = 0.999
+            text_y = 0.28
+            plt.text(text_x, text_y + 0.15, transform=ax.transAxes, horizontalalignment='right',
                     s=r'$R_t ~=~' + f"{row_df_agg['Rt']['mean']:.2f} \pm ({row_df_agg['Rt']['std']:.2f})$")
-            plt.text(text_x + .020, text_y, transform=ax.transAxes,
+            plt.text(text_x, text_y, transform=ax.transAxes, horizontalalignment='right',
                     s=r'$k_t ~=~' + f"{row_df_agg['kt']['mean']:.2f} \pm ({row_df_agg['kt']['std']:.2f})$")
             # Set layout and labels
             plt.ylim(top=ymax)
@@ -1643,6 +1723,7 @@ class Plotter(object):
             plt.legend(loc='upper right')
             # Set default axis style
             self._set_default_axis_settings(ax=ax)
+            plt.subplots_adjust(left=0.22, bottom=0.22, right=0.99, top=0.95)
             # Save figure
             fpath = f"plots/prob-secondaryCases-{filename}-{i}-{label}.pdf"
             print('Save:', fpath)
