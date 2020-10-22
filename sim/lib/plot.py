@@ -42,6 +42,8 @@ CUSTOM_FIG_SIZE_FULL_PAGE_TRIPLE = (LINE_WIDTH / 3, COL_WIDTH / 2 * 5/6)
 
 FIG_SIZE_FULL_PAGE_TRIPLE = (LINE_WIDTH / 3, LINE_WIDTH / 3 * 4/6)
 FIG_SIZE_FULL_PAGE_TRIPLE_TALL = (LINE_WIDTH / 3, LINE_WIDTH / 3 * 5/6)
+FIG_SIZE_FULL_PAGE_TRIPLE_ARXIV = (LINE_WIDTH / 3.3, LINE_WIDTH / 3 * 3.5/6)
+FIG_SIZE_FULL_PAGE_TRIPLE_ARXIV_SMALL = (LINE_WIDTH / 3.5, LINE_WIDTH / 3 * 3/6)
 CUSTOM_FIG_SIZE_FULL_PAGE_QUAD = (LINE_WIDTH / 4, COL_WIDTH / 2 * 5/6)
 
 SIGCONF_RCPARAMS_DOUBLE = {
@@ -952,6 +954,8 @@ class Plotter(object):
     def compare_total_fatalities_and_hospitalizations(self, sims, titles, mode='show_both',
         figtitle=r'Hospitalizations and Fatalities',
         lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None,
+        figformat='neurips-double',
+        xtick_interval=2, lockdown_xshift=0.0,
         filename='compare_inf_0', figsize=(10, 10), errorevery=20, acc=1000, ymax=None,
         show_legend=True, legendYoffset=0.0, legend_is_left=False, legendXoffset=0.0,
         subplot_adjust=None, start_date='1970-01-01', first_one_dashed=False):
@@ -961,6 +965,10 @@ class Plotter(object):
         to compare different measures/interventions taken. Colors taken as defined in __init__, and
         averaged over random restarts, using error bars for std-dev
         '''
+
+        # Set double figure format
+        self._set_matplotlib_params(format=figformat)
+
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
 
@@ -1023,12 +1031,12 @@ class Plotter(object):
         # ax.set_xlabel('Days')
         ax.set_ylabel('People')
 
-        if not isinstance(lockdown_at, dict):
+        if not isinstance(lockdown_at, list):
             if lockdown_at is not None:
-                xshift = 3.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
                 lockdown_widget(ax, lockdown_at, start_date,
                                 lockdown_label_y,
-                                lockdown_label, xshift=xshift)
+                                lockdown_label,
+                                xshift=lockdown_xshift)
 
         # Hide the right and top spines
         ax.spines['right'].set_visible(False)
@@ -1040,7 +1048,9 @@ class Plotter(object):
 
         #set ticks every week
         # ax.xaxis.set_major_locator(mdates.WeekdayLocator())
-        ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
+        # ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
+        ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=1, interval=xtick_interval))
+
         #set major ticks format
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
         fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
@@ -1075,8 +1085,8 @@ class Plotter(object):
             'bottom': 0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         plt.subplots_adjust(**subplot_adjust)
 
-        plt.savefig('plots/' + filename + '.png', format='png', facecolor=None,
-                    dpi=DPI, bbox_inches='tight')
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+            dpi=DPI, bbox_inches='tight')
 
         if NO_PLOT:
             plt.close()
