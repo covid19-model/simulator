@@ -42,8 +42,10 @@ CUSTOM_FIG_SIZE_FULL_PAGE_TRIPLE = (LINE_WIDTH / 3, COL_WIDTH / 2 * 5/6)
 
 FIG_SIZE_FULL_PAGE_TRIPLE = (LINE_WIDTH / 3, LINE_WIDTH / 3 * 4/6)
 FIG_SIZE_FULL_PAGE_TRIPLE_TALL = (LINE_WIDTH / 3, LINE_WIDTH / 3 * 5/6)
-FIG_SIZE_FULL_PAGE_TRIPLE_ARXIV = (LINE_WIDTH / 3.3, LINE_WIDTH / 3 * 3.5/6)
-FIG_SIZE_FULL_PAGE_TRIPLE_ARXIV_SMALL = (LINE_WIDTH / 3.5, LINE_WIDTH / 3 * 3/6)
+FIG_SIZE_FULL_PAGE_DOUBLE_ARXIV = (LINE_WIDTH / 2, LINE_WIDTH / 3 * 4/6) # 2
+FIG_SIZE_FULL_PAGE_DOUBLE_ARXIV_TALL = (LINE_WIDTH / 2, LINE_WIDTH / 3 * 5/6) # 2 tall
+FIG_SIZE_FULL_PAGE_TRIPLE_ARXIV = (LINE_WIDTH / 3.3, LINE_WIDTH / 3 * 3.5/6) # 4x3 full page
+FIG_SIZE_FULL_PAGE_TRIPLE_ARXIV_SMALL = (LINE_WIDTH / 3.7, LINE_WIDTH / 3 * 2.5/6) # 6x4 full page
 CUSTOM_FIG_SIZE_FULL_PAGE_QUAD = (LINE_WIDTH / 4, COL_WIDTH / 2 * 5/6)
 
 SIGCONF_RCPARAMS_DOUBLE = {
@@ -1021,9 +1023,8 @@ class Plotter(object):
                 ax.fill_between(ts, dead_mu - 2 * dead_sig, dead_mu + 2 * dead_sig,
                                 color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
 
-
-
         # axis
+        ax.set_xlim(left=np.min(ts))
         if ymax is None:
             ymax = 1.5 * np.max(hosp_mu + hosp_sig)
         ax.set_ylim((0, ymax))
@@ -1038,22 +1039,15 @@ class Plotter(object):
                                 lockdown_label,
                                 xshift=lockdown_xshift)
 
-        # Hide the right and top spines
-        ax.spines['right'].set_visible(False)
-        ax.spines['top'].set_visible(False)
-
-        # Only show ticks on the left and bottom spines
-        ax.yaxis.set_ticks_position('left')
-        ax.xaxis.set_ticks_position('bottom')
-
-        #set ticks every week
-        # ax.xaxis.set_major_locator(mdates.WeekdayLocator())
-        # ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
+        # ax.xaxis.set_minor_locator(mdates.WeekdayLocator(byweekday=1, interval=1))
         ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=1, interval=xtick_interval))
+       
 
         #set major ticks format
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
         fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
+
+        self._set_default_axis_settings(ax=ax)
 
         # legend
         if show_legend:
@@ -1581,7 +1575,7 @@ class Plotter(object):
     def plot_daily_nbinom_rts(self, result=None, filename='', df=None,
                               slider_size=24.0, window_size=24.*7, end_cutoff=24.*10,
                               figsize=None, figformat='double', ymax=None,
-                              cmap_range=(0.5, 1.5),
+                              cmap_range=(0.5, 1.5), subplots_adjust={'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96},
                               lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
                               x_axis_dates=True, xtick_interval=2, xlim=None):
         # Set this plot with double figures parameters
@@ -1632,7 +1626,9 @@ class Plotter(object):
                        label='_nolegend_', zorder=-200)
             ax.text(x=lockdown_at + pd.Timedelta(lockdown_xshift, unit='d'),
                     y=lockdown_label_y, s=lockdown_label,
-                    rotation=90, fontdict={'fontsize': 5.5})
+                    rotation=90, #fontdict={'fontsize': 5.5}
+                    )
+
         if x_axis_dates:
             # set xticks every week
             ax.xaxis.set_minor_locator(mdates.WeekdayLocator(byweekday=1, interval=1))
@@ -1652,6 +1648,7 @@ class Plotter(object):
             ax.set_xlim(*xlim)
         # Set default axes style
         self._set_default_axis_settings(ax=ax)
+        plt.subplots_adjust(**subplots_adjust)
         # Save plot
         fpath = f"plots/daily-nbinom-rts-{filename}.pdf"
         plt.savefig(fpath, format='pdf')
