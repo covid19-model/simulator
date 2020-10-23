@@ -1,61 +1,227 @@
-import time
-import bisect
+import os
+import itertools
 import numpy as np
 import pandas as pd
-import networkx as nx
-import scipy
-import scipy.optimize
+from scipy import stats as sps
 from scipy.interpolate import interp1d
-import scipy as sp
-import random as rd
-import os, math
 from datetime import datetime
+import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib import ticker
 import matplotlib.dates as mdates
 from matplotlib.dates import date2num, num2date
+from matplotlib.backends.backend_pgf import FigureCanvasPgf
+from matplotlib.colors import ListedColormap
 
 from lib.measures import (MeasureList, BetaMultiplierMeasureBySite,
                           SocialDistancingForAllMeasure, BetaMultiplierMeasureByType,
                           SocialDistancingForPositiveMeasure, SocialDistancingByAgeMeasure,
                           SocialDistancingForSmartTracing, ComplianceForAllMeasure, UpperBoundCasesBetaMultiplier)
 from lib.rt import compute_daily_rts, R_T_RANGE
+import lib.rt_nbinom
 from lib.experiment import load_summary
 import pickle
 
-import numpy as np
-import seaborn as sns
-from matplotlib.colors import ListedColormap
 
 TO_HOURS = 24.0
 DPI = 200
 NO_PLOT = False
 TEST_LAG = 48.0 # hours
 
-matplotlib.rcParams.update({
-    "figure.autolayout": False,
-    "figure.figsize": (6, 4),
-    "figure.dpi": 150,
-    "axes.linewidth": 0.8,
-    "xtick.major.width": 0.8,
-    "xtick.minor.width": 0.8,
-    "ytick.major.width": 0.8,
-    "ytick.minor.width": 0.8,
-    "text.usetex": True,
+LINE_WIDTH = 7.0
+COL_WIDTH = 3.333
+
+FIG_SIZE_TRIPLE = (COL_WIDTH / 3, COL_WIDTH / 3 * 4/6)
+FIG_SIZE_TRIPLE_TALL = (COL_WIDTH / 3, COL_WIDTH / 3 * 5/6)
+
+FIG_SIZE_DOUBLE = (COL_WIDTH / 2, COL_WIDTH / 2 * 4/6)
+FIG_SIZE_DOUBLE_TALL = (COL_WIDTH / 2, COL_WIDTH / 2 * 5/6)
+
+CUSTOM_FIG_SIZE_FULL_PAGE_TRIPLE = (LINE_WIDTH / 3, COL_WIDTH / 2 * 5/6)
+
+FIG_SIZE_FULL_PAGE_TRIPLE = (LINE_WIDTH / 3, LINE_WIDTH / 3 * 4/6)
+FIG_SIZE_FULL_PAGE_TRIPLE_TALL = (LINE_WIDTH / 3, LINE_WIDTH / 3 * 5/6)
+FIG_SIZE_FULL_PAGE_DOUBLE_ARXIV = (LINE_WIDTH / 2, LINE_WIDTH / 3 * 4/6) # 2
+FIG_SIZE_FULL_PAGE_DOUBLE_ARXIV_TALL = (LINE_WIDTH / 2, LINE_WIDTH / 3 * 4.5/6) # 2 tall
+FIG_SIZE_FULL_PAGE_TRIPLE_ARXIV = (LINE_WIDTH / 3.3, LINE_WIDTH / 3 * 3.5/6) # 4x3 full page
+FIG_SIZE_FULL_PAGE_TRIPLE_ARXIV_SMALL = (LINE_WIDTH / 3.7, LINE_WIDTH / 3 * 2.5/6) # 6x4 full page
+CUSTOM_FIG_SIZE_FULL_PAGE_QUAD = (LINE_WIDTH / 4, COL_WIDTH / 2 * 5/6)
+
+SIGCONF_RCPARAMS_DOUBLE = {
+    # Fig params
+    "figure.autolayout": True,          # Makes sure nothing the feature is neat & tight.
+    "figure.figsize": FIG_SIZE_DOUBLE,  # Column width: 3.333 in, space between cols: 0.333 in.
+    "figure.dpi": 150,                  # Displays figures nicely in notebooks.
+    # Axes params
+    "axes.linewidth": 0.5,              # Matplotlib's current default is 0.8.
+    "hatch.linewidth": 0.3,
+    "xtick.major.width": 0.5,
+    "xtick.minor.width": 0.5,
+    'xtick.major.pad': 1.0,
+    'xtick.major.size': 1.75,
+    'xtick.minor.pad': 1.0,
+    'xtick.minor.size': 1.0,
+    "ytick.major.width": 0.5,
+    "ytick.minor.width": 0.5,
+    'ytick.major.pad': 1.0,
+    'ytick.major.size': 1.75,
+    'ytick.minor.pad': 1.0,
+    'ytick.minor.size': 1.0,
+    "axes.labelpad": 0.5,
+    # Plot params
+    "lines.linewidth": 0.8,              # Width of lines
+    "lines.markeredgewidth": 0.3,
+    # Legend params
+    "legend.fontsize": 8.5,        # Make the legend/label fonts a little smaller
+    "legend.frameon": True,              # Remove the black frame around the legend
+    "legend.handletextpad": 0.3,
+    "legend.borderaxespad": 0.2,
+    "legend.labelspacing": 0.1,
+    "patch.linewidth": 0.5,
+    # Font params
+    "text.usetex": True,                 # use LaTeX to write all text
+    "font.family": "serif",              # use serif rather than sans-serif
+    "font.serif": "Linux Libertine O",   # use "Linux Libertine" as the standard font
+    "font.size": 9,
+    "axes.titlesize": 8,          # LaTeX default is 10pt font.
+    "axes.labelsize": 8,          # LaTeX default is 10pt font.
+    "xtick.labelsize": 6,
+    "ytick.labelsize": 6,
+    # PDF settings
+    "pgf.texsystem": "xelatex",         # Use Xelatex which is TTF font aware
+    "pgf.rcfonts": False,               # Use pgf.preamble, ignore standard Matplotlib RC
+    "pgf.preamble": [
+        r'\usepackage{fontspec}',
+        r'\usepackage{unicode-math}',
+        r'\usepackage{libertine}',
+        r'\setmainfont{Linux Libertine O}',
+        r'\setmathfont{Linux Libertine O}',
+    ]
+}
+
+SIGCONF_RCPARAMS_TRIPLE = {
+    # Fig params
+    "figure.autolayout": True,          # Makes sure nothing the feature is neat & tight.
+    "figure.figsize": FIG_SIZE_TRIPLE,  # Column width: 3.333 in, space between cols: 0.333 in.
+    "figure.dpi": 150,                  # Displays figures nicely in notebooks.
+    # Axes params
+    "axes.linewidth": 0.4,              # Matplotlib's current default is 0.8.
+    "hatch.linewidth": 0.3,
+    "xtick.major.width": 0.4,
+    "xtick.minor.width": 0.4,
+    'xtick.major.pad': 1.0,
+    'xtick.major.size': 1.75,
+    'xtick.minor.pad': 1.0,
+    'xtick.minor.size': 1.0,
+    "ytick.major.width": 0.4,
+    "ytick.minor.width": 0.4,
+    'ytick.major.pad': 1.0,
+    'ytick.major.size': 1.75,
+    'ytick.minor.pad': 1.0,
+    'ytick.minor.size': 1.0,
+    "axes.labelpad": 0.5,
+    # Plot params
+    "lines.linewidth": 0.8,              # Width of lines
+    "lines.markeredgewidth": 0.3,
+    # Legend
+    "legend.fontsize": 5.5,              # Make the legend/label fonts a little smaller
+    "legend.frameon": True,              # Remove the black frame around the legend
+    "legend.handletextpad": 0.5,
+    "legend.borderaxespad": 0.0,
+    "legend.labelspacing": 0.05,
+    "patch.linewidth": 0.3,
+    # Font params
+    "text.usetex": True,                 # use LaTeX to write all text
+    "font.family": "serif",              # use serif rather than sans-serif
+    "font.serif": "Linux Libertine O",   # use "Linux Libertine" as the standard font
+    "font.size": 6,
+    "axes.titlesize": 5,                 # LaTeX default is 10pt font.
+    "axes.labelsize": 5,                 # LaTeX default is 10pt font.
+    "xtick.labelsize": 5,
+    "ytick.labelsize": 5,
+    # PDF settings
+    "pgf.texsystem": "xelatex",          # Use Xelatex which is TTF font aware
+    "pgf.rcfonts": False,                # Use pgf.preamble, ignore standard Matplotlib RC
+    "pgf.preamble": [
+        r'\usepackage{fontspec}',
+        r'\usepackage{unicode-math}',
+        r'\usepackage{libertine}',
+        r'\setmainfont{Linux Libertine O}',
+        r'\setmathfont{Linux Libertine O}',
+    ]
+}
+
+NEURIPS_LINE_WIDTH = 5.5  # Text width: 5.5in (double figure minus spacing 0.2in).
+FIG_SIZE_NEURIPS_DOUBLE = (NEURIPS_LINE_WIDTH / 2, NEURIPS_LINE_WIDTH / 2 * 4/6)
+FIG_SIZE_NEURIPS_TRIPLE = (NEURIPS_LINE_WIDTH / 3, NEURIPS_LINE_WIDTH / 3 * 4/6)
+FIG_SIZE_NEURIPS_DOUBLE_TALL = (NEURIPS_LINE_WIDTH / 2, NEURIPS_LINE_WIDTH / 2 * 5/6)
+FIG_SIZE_NEURIPS_TRIPLE_TALL = (NEURIPS_LINE_WIDTH / 3, NEURIPS_LINE_WIDTH / 3 * 5/6)
+
+NEURIPS_RCPARAMS = {
+    "figure.autolayout": False,         # Makes sure nothing the feature is neat & tight.
+    "figure.figsize": FIG_SIZE_NEURIPS_DOUBLE,
+    "figure.dpi": 150,                  # Displays figures nicely in notebooks.
+    # Axes params
+    "axes.linewidth": 0.5,              # Matplotlib's current default is 0.8.
+    "xtick.major.width": 0.5,
+    "xtick.minor.width": 0.5,
+    "ytick.major.width": 0.5,
+    "ytick.minor.width": 0.5,
+
+    "hatch.linewidth": 0.3,
+    "xtick.major.width": 0.5,
+    "xtick.minor.width": 0.5,
+    'xtick.major.pad': 1.0,
+    'xtick.major.size': 1.75,
+    'xtick.minor.pad': 1.0,
+    'xtick.minor.size': 1.0,
+
+    'ytick.major.pad': 1.0,
+    'ytick.major.size': 1.75,
+    'ytick.minor.pad': 1.0,
+    'ytick.minor.size': 1.0,
+
+    "axes.labelpad": 0.5,
+    # Grid
+    "grid.linewidth": 0.3,
+    # Plot params
+    "lines.linewidth": 1.0,
+    "lines.markersize": 4,
+    'errorbar.capsize': 3.0,
+    # Font
+    "text.usetex": True,                # use LaTeX to write all text
     "font.family": "serif",             # use serif rather than sans-serif
     "font.serif": "Times New Roman",    # use "Times New Roman" as the standard font
-    "font.size": 16,
-    "axes.titlesize": 16,
-    "axes.labelsize": 16,
-    "legend.fontsize": 14,
-    "legend.frameon": True,
-    "xtick.labelsize": 14,
-    "ytick.labelsize": 14,
-    "lines.linewidth": 2.0,
-    "lines.markersize": 4,
-    "grid.linewidth": 0.4,
-})
+    "font.size": 8.5,
+    "axes.titlesize": 8.5,                # LaTeX default is 10pt font.
+    "axes.labelsize": 8.5,                # LaTeX default is 10pt font.
+    "xtick.labelsize": 8,
+    "ytick.labelsize": 8,
+    # Legend
+    "legend.fontsize": 7,        # Make the legend/label fonts a little smaller
+    "legend.frameon": True,              # Remove the black frame around the legend
+    "legend.handletextpad": 0.3,
+    "legend.borderaxespad": 0.2,
+    "legend.labelspacing": 0.1,
+    "patch.linewidth": 0.5,
+    # PDF
+    "pgf.texsystem": "xelatex",         # use Xelatex which is TTF font aware
+    "pgf.rcfonts": False,               # Use pgf.preamble, ignore standard Matplotlib RC
+    "pgf.preamble": [
+        r'\usepackage{fontspec}',
+        r'\usepackage{unicode-math}',
+        r'\setmainfont{Times New Roman}',
+    ],
+}
 
+
+
+def trans_data_to_axis(ax):
+    """Compute the transform from data to axis coordinate system in axis `ax`"""
+    axis_to_data = ax.transAxes + ax.transData.inverted()
+    data_to_axis = axis_to_data.inverted()
+    return data_to_axis
 
 def days_to_datetime(arr, start_date):
     # timestamps
@@ -63,27 +229,63 @@ def days_to_datetime(arr, start_date):
     return pd.to_datetime(ts, unit='s')
 
 
-def lockdown_widget(lockdown_at, start_date, lockdown_label_y, ymax,
-                    lockdown_label, ax, ls='--', lw=2.5, xshift=0.0, zorder=None, color='black', text_off=False):
-    # Convert x-axis into posix timestamps and use pandas to plot as dates
-    if isinstance(start_date, float):
+def lockdown_widget(ax, lockdown_at, start_date, lockdown_label_y, lockdown_label='Lockdown',
+                    xshift=0.0, zorder=None, ls='--', color='black', text_off=False):
+    """
+    Draw the lockdown widget corresponding to a vertical line at the desired location along with a
+    label. The data can be passed either in `float` or in `datetime` format.
+
+    Parameters
+    ----------
+    ax
+        Axis to draw on
+    lockdown_at
+        Location of vertical lockdown line
+    start_date
+        Value of the origin of the x-axis
+    lockdown_label_y
+        Location of the text label on the y-axis
+    lockdown_label : str (optional, default: 'Lockdown')
+        Text label
+    xshift : float (optional, default: 0.0)
+        Shift in a-axis of the text label
+    zorder : int (optional, default: None)
+        z-order of the widget
+    ls : str (optional, default: '--')
+        Linestyle of the vertical line
+    color : str (optional, default: 'black')
+        color of the vertical line
+    text_off : bool (optional, default: False)
+        Indicate if the text label should be turned off
+    """
+    if isinstance(start_date, float):  # If plot with float x-axis
         lckdn_x = start_date + lockdown_at
-        ax.plot([lckdn_x, lckdn_x], [0, ymax], linewidth=lw, linestyle=ls,
-                color=color, label='_nolegend_', zorder=zorder)
+        ax.axvline(lckdn_x, linestyle=ls, color=color, label='_nolegend_',
+                   zorder=zorder)
     else:
-        lckdn_x = days_to_datetime(lockdown_at, start_date=start_date)
-        ax.plot([lckdn_x, lckdn_x], [0, ymax], linewidth=lw, linestyle=ls,
-                color=color, label='_nolegend_', zorder=zorder)
-        lockdown_label_y = lockdown_label_y or ymax*0.4
+        # If plot with datetime x-axis
+        lckdn_dt = days_to_datetime(lockdown_at, start_date=start_date)  # str to datetime
+        lckdn_x_d = lckdn_dt.toordinal()  # datetime to float in data coordinates
+        ax.axvline(lckdn_x_d, linestyle=ls, color=color, label='_nolegend_',
+                   zorder=zorder)
+        # Display the text label
         if not text_off:
-            ax.text(x=lckdn_x - pd.Timedelta(xshift, unit='d'),
-                    y=lockdown_label_y, s=lockdown_label, rotation=90)
+            if xshift == 0.0:
+                # Automatic shift of the text in the plot (normalized) axis coordinates
+                lckdn_x_a, _ = trans_data_to_axis(ax).transform([lckdn_x_d, 0.0])  # data coordinates to axis coordinates
+                ax.text(x=lckdn_x_a, y=lockdown_label_y, s=lockdown_label,
+                        transform=ax.transAxes, rotation=90,
+                        verticalalignment='bottom',
+                        horizontalalignment='right')
+            else:
+                # NOTE: for backward-compatibility, manual shift of the text, should be removed
+                ax.text(x=lckdn_dt + pd.Timedelta(xshift, unit='d'),
+                        y=lockdown_label_y, s=lockdown_label, rotation=90)
 
-
-def target_widget(show_target,start_date, ax, zorder=None, ms=6, label='COVID-19 case data'):
+def target_widget(show_target,start_date, ax, zorder=None, ms=4.0, label='COVID-19 case data'):
     txx = np.linspace(0, show_target.shape[0] - 1, num=show_target.shape[0])
     txx = days_to_datetime(txx, start_date=start_date)
-    ax.plot(txx, show_target, linewidth=4, linestyle='', marker='X', ms=ms,
+    ax.plot(txx, show_target, ls='', marker='x', ms=ms,
             color='black', label=label, zorder=zorder)
 
 
@@ -135,21 +337,6 @@ class Plotter(object):
             '#253494',
         ]
 
-
-
-        # sequential
-        # self.color_different_scenarios = [
-        #     # '#ffffcc',
-        #     '#c7e9b4',
-        #     '#7fcdbb',
-        #     '#41b6c4',
-        #     '#2c7fb8',
-        #     '#253494',
-        #     '#000000'
-        # ]
-
-
-
         # 2D visualization
         self.density_alpha = 0.7
 
@@ -162,7 +349,24 @@ class Plotter(object):
         self.size_home = 80
         self.size_site = 300
 
+    def _set_matplotlib_params(self, format='dobule'):
+        matplotlib.backend_bases.register_backend('pdf', FigureCanvasPgf)
+        if format == 'double':
+            plt.rcParams.update(SIGCONF_RCPARAMS_DOUBLE)
+        elif format == 'triple':
+            plt.rcParams.update(SIGCONF_RCPARAMS_TRIPLE)
+        if format == 'neurips-double':
+            plt.rcParams.update(NEURIPS_RCPARAMS)
+        else:
+            raise ValueError('Invalid figure format.')
 
+    def _set_default_axis_settings(self, ax):
+        # Hide the right and top spines
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        # Only show ticks on the left and bottom spines
+        ax.yaxis.set_ticks_position('left')
+        ax.xaxis.set_ticks_position('bottom')
 
     def __is_state_at(self, sim, r, state, t):
         if state == 'posi' or state == 'nega':
@@ -307,9 +511,9 @@ class Plotter(object):
 
         # extra
         if lockdown_at is not None:
-            lockdown_widget(lockdown_at, start_date,
-                            lockdown_label_y, ymax,
-                            lockdown_label, ax)
+            lockdown_widget(ax, lockdown_at, start_date,
+                            lockdown_label_y,
+                            lockdown_label)
         if show_target is not None:
             target_widget(show_target, start_date, ax)
 
@@ -401,13 +605,13 @@ class Plotter(object):
 
         # extra
         if lockdown_at is not None:
-            lockdown_widget(lockdown_at, start_date,
-                            lockdown_label_y, ymax,
-                            lockdown_label, ax)
+            lockdown_widget(ax, lockdown_at, start_date,
+                            lockdown_label_y,
+                            lockdown_label)
         if lockdown_end is not None:
-            lockdown_widget(lockdown_at=lockdown_end, start_date=start_date,
-                            lockdown_label_y=lockdown_label_y, ymax=ymax,
-                            lockdown_label='End of lockdown', ax=ax, ls='dotted')
+            lockdown_widget(ax=ax, lockdown_at=lockdown_end, start_date=start_date,
+                            lockdown_label_y=lockdown_label_y,
+                            lockdown_label='End of lockdown', ls='dotted')
         if show_target is not None:
             target_widget(show_target, start_date, ax)
 
@@ -451,7 +655,7 @@ class Plotter(object):
 
         if acc > sim.max_time:
             acc = int(sim.max_time)
-        
+
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
 
@@ -597,21 +801,22 @@ class Plotter(object):
             plt.close()
         return
 
-    def compare_total_infections(self, sims, titles, figtitle='Title',
-        filename='compare_inf_0', figsize=(10, 10), errorevery=20, acc=500, ymax=None, x_axis_dates=True,
-        lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, conditional_measures=None,
-        show_positives=False, show_legend=True, legendYoffset=0.0, legend_is_left=False, legendXoffset=0.0,
-        subplot_adjust=None, start_date='1970-01-01', x_label_interval=2, first_one_dashed=False,
+    def compare_total_infections(self, sims, titles, figtitle='Title', figformat='double',
+        filename='compare_inf_0', figsize=None, errorevery=20, acc=500, ymax=None, x_axis_dates=True,
+        lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
+        conditional_measures=None,
+        show_positives=False, show_legend=True, legend_is_left=False,
+        subplot_adjust=None, start_date='1970-01-01', xtick_interval=2, first_one_dashed=False,
         show_single_runs=False, which_single_runs=None):
-
         ''''
         Plots total infections for each simulation, named as provided by `titles`
         to compare different measures/interventions taken. Colors taken as defined in __init__, and
         averaged over random restarts, using error bars for std-dev
         '''
-        fig = plt.figure(figsize=figsize)
-        ax = fig.add_subplot(111)
-
+        # Set double figure format
+        self._set_matplotlib_params(format=figformat)
+        # Draw figure
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
         for i, sim in enumerate(sims):
             if isinstance(sim, str):
                 is_conditional = True if i == conditional_measures else False
@@ -657,7 +862,7 @@ class Plotter(object):
                 ax.plot(ts, line_infected, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
                 ax.fill_between(ts, np.maximum(line_infected - 2 * error_infected, 0), line_infected + 2 * error_infected,
                                 color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
-            
+
             else:
                 if not loaded_extracted_data:
                     if acc > sim.max_time:
@@ -689,80 +894,59 @@ class Plotter(object):
                         for lockdown in lockdown_at[r]:
                             start_lockdown = lockdown[0] / TO_HOURS
                             end_lockdown = lockdown[1] / TO_HOURS
-                            lockdown_widget(start_lockdown, 0.0,
-                                            lockdown_label_y, ymax,
-                                            None, ax)
-                            lockdown_widget(end_lockdown, 0.0,
-                                            lockdown_label_y, ymax,
-                                            None, ax, ls='-')
-
-
+                            lockdown_widget(ax, start_lockdown, 0.0,
+                                            lockdown_label_y,
+                                            None)
+                            lockdown_widget(ax, end_lockdown, 0.0,
+                                            lockdown_label_y,
+                                            None, ls='-')
 
         # axis
-        # ax.set_xlim((0, np.max(ts)))
+        ax.set_xlim(left=np.min(ts))
         if ymax is None:
             ymax = 1.5 * np.max(iasy_mu + ipre_mu + isym_mu)
         ax.set_ylim((0, ymax))
 
         # ax.set_xlabel('Days')
-        if not x_axis_dates:
+        if x_axis_dates:
+            # set xticks every week
+            ax.xaxis.set_minor_locator(mdates.WeekdayLocator(byweekday=1, interval=1))
+            ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=1, interval=xtick_interval))
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+            fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
+        else:
             ax.set_xlabel(r'$t$ [days]')
         ax.set_ylabel('People')
 
         if not isinstance(lockdown_at, list):
             if lockdown_at is not None:
-                if x_axis_dates:
-                    xshift = 2.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
-                lockdown_widget(lockdown_at, start_date,
-                                lockdown_label_y, ymax,
-                                lockdown_label, ax, xshift=xshift)
+                lockdown_widget(ax, lockdown_at, start_date,
+                                lockdown_label_y,
+                                lockdown_label,
+                                xshift=lockdown_xshift)
 
-        # Hide the right and top spines
-        ax.spines['right'].set_visible(False)
-        ax.spines['top'].set_visible(False)
-
-        # Only show ticks on the left and bottom spines
-        ax.yaxis.set_ticks_position('left')
-        ax.xaxis.set_ticks_position('bottom')
-
-        if x_axis_dates:
-            # fig.autofmt_xdate()
-            #set ticks every week
-            # ax.xaxis.set_major_locator(mdates.WeekdayLocator())
-            ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=x_label_interval))
-            #set major ticks format
-            ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
-            fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
+        # Set default axes style
+        self._set_default_axis_settings(ax=ax)
 
         if show_legend:
             # legend
             if legend_is_left:
-                leg = ax.legend(loc='upper left', borderaxespad=0.5)
+                leg = ax.legend(loc='upper left',
+                          bbox_to_anchor=(0.001, 0.999),
+                          bbox_transform=ax.transAxes,
+                        #   prop={'size': 5.6}
+                          )
             else:
-                leg = ax.legend(loc='upper right', borderaxespad=0.5)
-
-            if legendYoffset != 0.0:
-                # Get the bounding box of the original legend
-                bb = leg.get_bbox_to_anchor().inverse_transformed(ax.transAxes)
-
-                # Change to location of the legend.
-                bb.y0 += legendYoffset
-                bb.y1 += legendYoffset
-                leg.set_bbox_to_anchor(bb, transform = ax.transAxes)
-            
-            if legendXoffset != 0.0:
-                # Get the bounding box of the original legend
-                bb = leg.get_bbox_to_anchor().inverse_transformed(ax.transAxes)
-
-                # Change to location of the legend.
-                bb.x0 += legendXoffset
-                bb.x1 += legendXoffset
-                leg.set_bbox_to_anchor(bb, transform=ax.transAxes)
+                leg = ax.legend(loc='upper right',
+                          bbox_to_anchor=(0.999, 0.999),
+                          bbox_transform=ax.transAxes,
+                        #   prop={'size': 5.6}
+                          )
 
         subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         plt.subplots_adjust(**subplot_adjust)
 
-        plt.savefig('plots/' + filename + '.png', format='png', facecolor=None,
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
                     dpi=DPI, bbox_inches='tight')
 
         if NO_PLOT:
@@ -772,7 +956,9 @@ class Plotter(object):
     def compare_total_fatalities_and_hospitalizations(self, sims, titles, mode='show_both',
         figtitle=r'Hospitalizations and Fatalities',
         lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None,
-        filename='compare_inf_0', figsize=(10, 10), errorevery=20, acc=1000, ymax=None, 
+        figformat='neurips-double',
+        xtick_interval=2, lockdown_xshift=0.0,
+        filename='compare_inf_0', figsize=(10, 10), errorevery=20, acc=1000, ymax=None,
         show_legend=True, legendYoffset=0.0, legend_is_left=False, legendXoffset=0.0,
         subplot_adjust=None, start_date='1970-01-01', first_one_dashed=False):
 
@@ -781,6 +967,10 @@ class Plotter(object):
         to compare different measures/interventions taken. Colors taken as defined in __init__, and
         averaged over random restarts, using error bars for std-dev
         '''
+
+        # Set double figure format
+        self._set_matplotlib_params(format=figformat)
+
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
 
@@ -833,9 +1023,8 @@ class Plotter(object):
                 ax.fill_between(ts, dead_mu - 2 * dead_sig, dead_mu + 2 * dead_sig,
                                 color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
 
-
-
         # axis
+        ax.set_xlim(left=np.min(ts))
         if ymax is None:
             ymax = 1.5 * np.max(hosp_mu + hosp_sig)
         ax.set_ylim((0, ymax))
@@ -843,27 +1032,22 @@ class Plotter(object):
         # ax.set_xlabel('Days')
         ax.set_ylabel('People')
 
-        if not isinstance(lockdown_at, dict):
+        if not isinstance(lockdown_at, list):
             if lockdown_at is not None:
-                xshift = 3.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
-                lockdown_widget(lockdown_at, start_date,
-                                lockdown_label_y, ymax,
-                                lockdown_label, ax, xshift=xshift)
+                lockdown_widget(ax, lockdown_at, start_date,
+                                lockdown_label_y,
+                                lockdown_label,
+                                xshift=lockdown_xshift)
 
-        # Hide the right and top spines
-        ax.spines['right'].set_visible(False)
-        ax.spines['top'].set_visible(False)
+        # ax.xaxis.set_minor_locator(mdates.WeekdayLocator(byweekday=1, interval=1))
+        ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=1, interval=xtick_interval))
+       
 
-        # Only show ticks on the left and bottom spines
-        ax.yaxis.set_ticks_position('left')
-        ax.xaxis.set_ticks_position('bottom')
-
-        #set ticks every week
-        # ax.xaxis.set_major_locator(mdates.WeekdayLocator())
-        ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
         #set major ticks format
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
         fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
+
+        self._set_default_axis_settings(ax=ax)
 
         # legend
         if show_legend:
@@ -895,8 +1079,8 @@ class Plotter(object):
             'bottom': 0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         plt.subplots_adjust(**subplot_adjust)
 
-        plt.savefig('plots/' + filename + '.png', format='png', facecolor=None,
-                    dpi=DPI, bbox_inches='tight')
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+            dpi=DPI, bbox_inches='tight')
 
         if NO_PLOT:
             plt.close()
@@ -1046,13 +1230,15 @@ class Plotter(object):
         return
 
     def plot_positives_vs_target(self, sims, titles, targets, title='Example',
-        filename='inference_0', figsize=(6, 5), errorevery=1, acc=17, ymax=None,
+        filename='inference_0', figsize=None, figformat='triple', errorevery=1, acc=17, ymax=None,
         start_date='1970-01-01', lockdown_label='Lockdown', lockdown_at=None,
-        lockdown_label_y=None, subplot_adjust=None, n_age_groups=None, small_figure=False):
+        lockdown_label_y=None, subplot_adjust=None, n_age_groups=None, small_figure=False, show_legend=True):
         ''''
         Plots daily tested averaged over random restarts, using error bars for std-dev
         together with targets from inference
         '''
+        # Set triple figure format
+        self._set_matplotlib_params(format=figformat)
 
         fig, ax = plt.subplots(figsize=figsize)
 
@@ -1071,34 +1257,24 @@ class Plotter(object):
                 if acc > sim.max_time:
                     acc = int(sim.max_time)
                 ts, posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
-                
             plain_ts = ts
-
             # Convert x-axis into posix timestamps and use pandas to plot as dates
             ts = days_to_datetime(ts, start_date=start_date)
-
             # lines
-            ax.plot(ts, posi_mu, linestyle='-',
-                    label=titles[i], c=self.color_different_scenarios[i])
+            ax.plot(ts, posi_mu, label=titles[i], c=self.color_different_scenarios[i])
             ax.fill_between(ts, posi_mu - 2 * posi_sig, posi_mu + 2 * posi_sig,
-                            color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
-
+                            color=self.color_different_scenarios[i],
+                            alpha=self.filling_alpha, linewidth=0.0)
         # target
         if small_figure:
-            target_widget(targets, start_date, ax, label='Real cases', ms=3)
+            target_widget(targets, start_date, ax, label='Real cases', ms=1.0)
         else:
             target_widget(targets, start_date, ax, label='Real cases')
-
-
-        # axis
-        #ax.set_xlim((0, np.max(ts)))
         if ymax is None:
             ymax = 1.5 * np.max(posi_mu)
         ax.set_ylim((0, ymax))
-
-        # ax.set_xlabel('Days')
         ax.set_ylabel(r'Positive cases')
-
+        # lockdown
         if lockdown_at is not None:
             if small_figure:
                 xshift = 3.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
@@ -1106,18 +1282,18 @@ class Plotter(object):
             else:
                 xshift = 2.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
                 text_off = True
-            lockdown_widget(lockdown_at, start_date,
-                            lockdown_label_y, ymax,
-                            lockdown_label, ax, xshift=xshift, text_off=text_off)
-
-        # Hide the right and top spines
-        ax.spines['right'].set_visible(False)
-        ax.spines['top'].set_visible(False)
-
-        # Only show ticks on the left and bottom spines
-        ax.yaxis.set_ticks_position('left')
-
-        #set ticks every week
+            lockdown_widget(ax, lockdown_at, start_date,
+                            lockdown_label_y,
+                            lockdown_label, xshift=xshift, text_off=text_off)
+        # Default axes style
+        self._set_default_axis_settings(ax=ax)
+        # y-ticks
+        if small_figure:
+            if ymax > 700:
+                ax.yaxis.set_major_locator(ticker.MultipleLocator(500))
+            else:
+                ax.yaxis.set_major_locator(ticker.MultipleLocator(250))
+        # x-ticks
         if small_figure:
             ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=2, interval=4))
         else:
@@ -1125,36 +1301,26 @@ class Plotter(object):
         #set major ticks format
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
         fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
-
         # legend
-        if small_figure:
-            ax.legend(loc='upper left', borderaxespad=0.5, prop={'size': 16})
-            plt.rcParams.update({'xtick.labelsize': 'large',
-                                 'ytick.labelsize': 'large',
-                                 'axes.labelsize': 'large'
-                                 })
-        else:
-            ax.legend(loc='upper left', borderaxespad=0.5)
-
-        subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
-        plt.subplots_adjust(**subplot_adjust)
-
-        plt.draw()
-
-        plt.savefig('plots/' + filename + '.png', format='png', facecolor=None,
+        if show_legend:
+            if small_figure:
+                ax.legend(loc='upper left',
+                          bbox_to_anchor=(0.025, 0.99),
+                          bbox_transform=ax.transAxes,)
+            else:
+                ax.legend(loc='upper left', borderaxespad=0.5)
+        # Save fig
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
                     dpi=DPI, bbox_inches='tight')
-
         if NO_PLOT:
             plt.close()
-
         return plain_ts, posi_mu
-
 
     def plot_age_group_positives_vs_target(self, sim, targets, ytitle=None,
                                  filename='inference_0', figsize=(6, 5), errorevery=1, acc=17, ymax=None,
                                  start_date='1970-01-01', lockdown_label='Lockdown', lockdown_at=None,
                                  lockdown_label_y=None, subplot_adjust=None):
-        
+
         ''''
         Plots daily tested averaged over random restarts, using error bars for std-dev
         together with targets from inference
@@ -1214,9 +1380,9 @@ class Plotter(object):
 
             if lockdown_at is not None:
                 xshift = 2.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
-                lockdown_widget(lockdown_at, start_date,
-                                lockdown_label_y, ymax,
-                                lockdown_label, axs[age], xshift=xshift)
+                lockdown_widget(axs[age], lockdown_at, start_date,
+                                lockdown_label_y,
+                                lockdown_label, xshift=xshift)
 
             # Hide the right and top spines
             axs[age].spines['right'].set_visible(False)
@@ -1346,9 +1512,9 @@ class Plotter(object):
         # extra
         if lockdown_at is not None:
             xshift = 2.5 * pd.to_timedelta(pd.to_datetime(index[-1]) - pd.to_datetime(start_date), 'd') / 54
-            lockdown_widget(lockdown_at, start_date,
-                            lockdown_label_y, ymax,
-                            lockdown_label, ax, zorder=-200, xshift=xshift)
+            lockdown_widget(ax, lockdown_at, start_date,
+                            lockdown_label_y,
+                            lockdown_label, zorder=-200, xshift=xshift)
 
         # Hide the right and top spines
         ax.spines['right'].set_visible(False)
@@ -1377,6 +1543,201 @@ class Plotter(object):
 
         if NO_PLOT:
             plt.close()
+
+    def _estimate_daily_nbinom_rts(self, result, slider_size, window_size, end_cutoff):
+        # Extract summary from result
+        sim = result.summary
+        # Build the range of time interval to estimate for
+        t0_range = np.arange(0.0, sim.max_time - window_size - end_cutoff, slider_size)
+        t1_range = t0_range + window_size
+        interval_range = list(zip(t0_range, t1_range))
+        # Run the estimation
+        res_data = []
+        rand_rep_range = list(range(result.metadata.random_repeats))
+        for r, (t0, t1) in itertools.product(rand_rep_range, interval_range):
+            print(f"\rEstimating r={r+1:2>d}/{len(rand_rep_range)}, interval=[{t0:>6.2f}, {t1:>6.2f}]...", end='')
+            data = lib.rt_nbinom.get_sec_cases_in_window(sim, r, t0, t1)
+            fitter = lib.rt_nbinom.NegativeBinomialFitter()
+            fitter.fit(data)
+            res_data.append({'r': r, 't0': t0, 't1': t1,
+                         'Rt': fitter.r_, 'kt': fitter.k_,
+                         'num_sec_cases': data})
+        print()
+        # Format the results
+        df = pd.DataFrame(res_data)
+        # Ignore simulations with not enough data for fitting
+        df['len_data'] = df['num_sec_cases'].apply(len)
+        df['sum_data'] = df['num_sec_cases'].apply(sum)
+        df.loc[(df['len_data'] < 10) + (df['sum_data'] < 10),'kt'] = np.nan
+        df.loc[(df['len_data'] == 0),'Rt'] = 0.0  # if no cases observed
+        return df
+
+    def plot_daily_nbinom_rts(self, result=None, filename='', df=None,
+                              slider_size=24.0, window_size=24.*7, end_cutoff=24.*10,
+                              figsize=None, figformat='double', ymax=None,
+                              cmap_range=(0.5, 1.5), subplots_adjust={'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96},
+                              lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
+                              x_axis_dates=True, xtick_interval=2, xlim=None):
+        # Set this plot with double figures parameters
+        self._set_matplotlib_params(format=figformat)
+        # Compute data if not provided
+        if df is None:
+            df = self._estimate_daily_nbinom_rts(result, slider_size, window_size, end_cutoff)
+        # Format dates
+        if x_axis_dates:
+            # Cast time of end of interval to datetime
+            df['date_end'] = days_to_datetime(
+                df['t1'] / 24, start_date=result.metadata.start_date)
+            # Aggregate results by date
+            df_agg = df.groupby('date_end').agg({'Rt': ['mean', 'std'],
+                                                'kt': ['mean', 'std']})
+        else:
+            df['time'] = df['t1'] / 24
+            df_agg = df.groupby('time').agg({'Rt': ['mean', 'std'],
+                                             'kt': ['mean', 'std']})
+        # Build dot colormap: black to white to red
+        ABOVE = [1,0,0]
+        MIDDLE = [1,1,1]
+        BELOW = [0,0,0]
+        cmap_raw = ListedColormap(np.r_[
+            np.linspace(BELOW,MIDDLE,25),
+            np.linspace(MIDDLE,ABOVE,25)
+        ])
+        def cmap_clipped(y):
+            vmin, vmax = cmap_range
+            return cmap_raw((np.clip(y, vmin, vmax) - vmin) / (vmax - vmin))
+        # Plot figure
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+        y_m = df_agg.Rt['mean']
+        y_std = df_agg.Rt['std']
+        # Plot estimated mean values (fill +/- std) with colored dots
+        plt.fill_between(df_agg.index, y_m - y_std, y_m + y_std,
+                        color='lightgray', linewidth=0.0, alpha=0.5)
+        plt.plot(df_agg.index, y_m, c='grey')
+        plt.scatter(df_agg.index, y_m, s=4.0, lw=0.0, c=cmap_clipped(y_m),
+                    edgecolors='k', zorder=100)
+        # Horizotal line at R_t = 1.0
+        plt.axhline(1.0, c='lightgray', zorder=-100)
+        # extra
+        if lockdown_at is not None:
+            xshift = (2.5 * pd.to_timedelta(pd.to_datetime(df_agg.index[-1])
+                      - pd.to_datetime(result.metadata.start_date), 'd') / 54)
+            ax.axvline(pd.to_datetime(lockdown_at), c='black', ls='--',
+                       label='_nolegend_', zorder=-200)
+            ax.text(x=lockdown_at + pd.Timedelta(lockdown_xshift, unit='d'),
+                    y=lockdown_label_y, s=lockdown_label,
+                    rotation=90, #fontdict={'fontsize': 5.5}
+                    )
+
+        if x_axis_dates:
+            # set xticks every week
+            ax.xaxis.set_minor_locator(mdates.WeekdayLocator(byweekday=1, interval=1))
+            ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=1, interval=xtick_interval))
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+            fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
+        else:
+            ax.xaxis.set_major_locator(ticker.MultipleLocator(25))
+            ax.set_xlabel(r'$t$ [days]')
+        # set yticks to units
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+        # Set labels
+        ax.set_ylabel(r'$R_t$')
+        # Set limits
+        ax.set_ylim(bottom=0.0, top=ymax)
+        if xlim:
+            ax.set_xlim(*xlim)
+        # Set default axes style
+        self._set_default_axis_settings(ax=ax)
+        plt.subplots_adjust(**subplots_adjust)
+        # Save plot
+        fpath = f"plots/daily-nbinom-rts-{filename}.pdf"
+        plt.savefig(fpath, format='pdf')
+        print("Save:", fpath)
+        if NO_PLOT:
+            plt.close()
+
+    def _compute_nbinom_distributions(self, result, x_range, interval_range):
+        # Fit all intervals for all random repeats
+        rand_rep_range = range(result.metadata.random_repeats)
+        res_data = []
+        for r, (t0, t1) in itertools.product(rand_rep_range, interval_range):
+                data = lib.rt_nbinom.get_sec_cases_in_window(result.summary, r, t0, t1)
+                fitter = lib.rt_nbinom.NegativeBinomialFitter()
+                fitter.fit(data)
+                res_data.append({'r': r, 't0': t0, 't1': t1,
+                                'Rt': fitter.r_, 'kt': fitter.k_,
+                                'num_sec_cases': data})
+        # Format in dataframe
+        df = pd.DataFrame(res_data)
+        # Ignore simulations with not enough data for fitting
+        df['len_data'] = df['num_sec_cases'].apply(len)
+        df['sum_data'] = df['num_sec_cases'].apply(sum)
+        df.loc[(df['len_data'] < 5) + (df['sum_data'] < 5),'kt'] = np.nan
+        df.loc[(df['len_data'] == 0),'Rt'] = 0.0  # if no cases observed
+        # Compute NB parameters
+        df['param_n'] = df['kt']
+        df['param_p'] = df['kt'] / (df['kt'] + df['Rt'])
+        # Computer NB PMF
+        df['nbinom_pmf'] = df.apply(lambda row: sps.nbinom.pmf(x_range, n=row['param_n'], p=row['param_p']), axis=1)
+        return df
+
+    def plot_nbinom_distributions(self, *, result=None, df=None, x_range=None,
+                                  figsize=FIG_SIZE_TRIPLE_TALL, figformat='triple',
+                                  t0_range=[], label_range=[], window_size=10.*24, ymax=None, filename=''):
+        """
+        Plot the distribution of number of secondary cases along with their Negative-Binomial fits
+        for the experiment summary in `result` for several ranges of times.
+        A pre-computed dataframe `df` can also be provided
+        """
+        if df is None:
+            interval_range = [(t0, t0 + window_size) for t0 in t0_range]
+            df = self._compute_nbinom_distributions(result, x_range, interval_range)
+        # Aggregate results by time
+        df_agg = df.groupby('t0').agg({'nbinom_pmf': list,
+                                    'Rt': ['mean', 'std'],
+                                    'kt': ['mean', 'std']})
+        # Set triple figure params
+        self._set_matplotlib_params(format=figformat)
+        # Draw figures
+        for i, (t0, label) in enumerate(zip(t0_range, label_range)):
+            fig, ax = plt.subplots(1, 1, figsize=figsize)
+            # Extract data for the plot
+            row_df = df.loc[df.t0 == t0]
+            row_df_agg = df_agg.loc[t0]
+            y_nbinom = np.nanmean(np.vstack(row_df_agg['nbinom_pmf']), axis=0)
+            # Plot histogram
+            plt.hist(np.hstack(row_df['num_sec_cases']),
+                    bins=x_range, density=True,
+                    color='darkgray',
+                    align='left', width=0.8,
+                    label='Empirical')
+            # Plot NB pmf
+            plt.plot(x_range, y_nbinom,
+                    color='k',
+                    label='NB')
+            # Write estimates in text
+            text_x = 0.999
+            text_y = 0.28
+            plt.text(text_x, text_y + 0.15, transform=ax.transAxes, horizontalalignment='right',
+                    s=r'$R_t ~=~' + f"{row_df_agg['Rt']['mean']:.2f} \pm ({row_df_agg['Rt']['std']:.2f})$")
+            plt.text(text_x, text_y, transform=ax.transAxes, horizontalalignment='right',
+                    s=r'$k_t ~=~' + f"{row_df_agg['kt']['mean']:.2f} \pm ({row_df_agg['kt']['std']:.2f})$")
+            # Set layout and labels
+            plt.ylim(top=ymax)
+            ax.yaxis.set_major_locator(ticker.MultipleLocator(0.2))
+            plt.xlabel('Number of Secondary Cases')
+            plt.ylabel('Probability')
+            plt.legend(loc='upper right')
+            # Set default axis style
+            self._set_default_axis_settings(ax=ax)
+            plt.subplots_adjust(left=0.22, bottom=0.22, right=0.99, top=0.95)
+            # Save figure
+            fpath = f"plots/prob-secondaryCases-{filename}-{i}-{label}.pdf"
+            print('Save:', fpath)
+            plt.savefig(fpath)
+            os.system(f'pdfcrop "${fpath}" tmp.pdf && mv tmp.pdf "${fpath}"')
+            plt.close()
+
 
 
 def extract_data_from_summary(summary_path, acc=500, conditional_measures=False, n_age_groups=None):
