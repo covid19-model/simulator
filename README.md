@@ -16,13 +16,13 @@ Bayesian optimization is used to estimate mobility-related exposure parameters b
 
 Using the estimated parameters of the region-specific models, the sampling algorithm allows for analyses of counterfactual scenarios under various local circumstances, e.g. in urban and rural as well as lightly and severely affected areas. 
 
-Amongst several other things, this framework allows to study the effects of:  the reproduction rate e.g. during the "lockdown" (top left), overdispersion in the number of secondary infections per individual (top middle), compliance with contact tracing (top right), and narrowcasting of the empirical exposure probability to sites (bottom); here: first two for Bern (CH) and second two for Tübingen (GER).
+Amongst several other things, this framework allows to study the effects of:  the effective reproduction number e.g. during a shorter "lockdown" (top left), overdispersion in the number of secondary infections per individual (top middle), compliance with contact tracing (top right), and narrowcasting of the empirical exposure probability to sites (bottom); here: first two for Bern (CH) and second two for Tübingen (GER).
 
 
 
 <p align="center">
-<img width="25%" src="./img/rt-bern-early-ending-lockdown.jpg">
-<img width="25%" src="./img/rt-bern-early-ending-lockdown.jpg">
+<img width="28%" src="./img/r-bern-early-ending-lockdown.jpg">
+<img width="25%" src="./img/k-bern-early-ending-lockdown.jpg">
 <img width="30%" src="./img/tracing-compliance-tubingen.jpg">
 </p>
 
