@@ -1,26 +1,15 @@
-
-import time
-import bisect
 import numpy as np
-import pandas as pd
-import networkx as nx
-import scipy
-import scipy.optimize
-import scipy as sp
-import random as rd
-import os
-import math
-import matplotlib
-import matplotlib.pyplot as plt
 
 TO_HOURS = 24.0
+
 
 class CovidDistributions(object):
     """
     Class to sample from specific distributions for SARS COV2
     """
 
-    def __init__(self, country):
+    # def __init__(self, country):
+    def __init__(self, config):
 
         '''
         Covid-19 specific constants from literature
@@ -47,14 +36,18 @@ class CovidDistributions(object):
         # https://npgeo-corona-npgeo-de.hub.arcgis.com/datasets/dd4580c810204019a7b8eb3e0b329dd6_0
         # https://www.imperial.ac.uk/media/imperial-college/medicine/sph/ide/gida-fellowships/Imperial-College-COVID19-NPI-modelling-16-03-2020.pdf
         # https://www.bag.admin.ch/bag/en/home/krankheiten/ausbrueche-epidemien-pandemien/aktuelle-ausbrueche-epidemien/novel-cov/situation-schweiz-und-international.html 
-        if country == 'GER':
-            self.fatality_rates_by_age = np.array([0.0, 0.0, 0.0, 0.004, 0.073, 0.247])
-            self.p_hospital_by_age = np.array([0.001, 0.002, 0.012, 0.065, 0.205, 0.273])
-        elif country == 'CH':
-            self.fatality_rates_by_age = np.array([0, 0, 0, 0.001, 0.001, 0.005, 0.031, 0.111, 0.265])
-            self.p_hospital_by_age = np.array([0.155, 0.038, 0.028, 0.033, 0.054, 0.089, 0.178, 0.326, 0.29])
-        else:
-            raise NotImplementedError('Invalid country requested.')
+        self.fatality_rates_by_age = config.fatality_rates_by_age
+        self.p_hospital_by_age = config.p_hospital_by_age
+
+
+        # if country == 'GER':
+        #     self.fatality_rates_by_age = np.array([0.0, 0.0, 0.0, 0.004, 0.073, 0.247])
+        #     self.p_hospital_by_age = np.array([0.001, 0.002, 0.012, 0.065, 0.205, 0.273])
+        # elif country == 'CH':
+        #     self.fatality_rates_by_age = np.array([0, 0, 0, 0.001, 0.001, 0.005, 0.031, 0.111, 0.265])
+        #     self.p_hospital_by_age = np.array([0.155, 0.038, 0.028, 0.033, 0.054, 0.089, 0.178, 0.326, 0.29])
+        # else:
+        #     raise NotImplementedError('Invalid country requested.')
         
         # https://www.medrxiv.org/content/10.1101/2020.03.09.20033217v2
         self.gamma = np.log(2.0) / 2.0 # approximately 2 hour half life
@@ -171,8 +164,10 @@ class CovidDistributions(object):
 
 
 if __name__ == '__main__':
-
-    dist = CovidDistributions(country='GER')
+    # dist = CovidDistributions(country='GER')
+    from lib.experiment import  load_config
+    config = load_config(path='lib/settings/tuebingen_config.py')
+    dist = CovidDistributions(config)
 
     print('expo to ipre/iasy (subtracted infectious window before symptoms) : ', 
           dist.normal_to_lognormal(dist.incubation_mean_of_lognormal - dist.median_infectious_without_symptom, dist.incubation_std_of_lognormal))

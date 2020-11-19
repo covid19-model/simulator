@@ -3,42 +3,21 @@ import argparse
 if '..' not in sys.path:
     sys.path.append('..')
 
-import pandas as pd
-import numpy as np
-import networkx as nx
-import copy
-import scipy as sp
-import math
-import seaborn
-import pickle
-import warnings
-import matplotlib
-import re
-import multiprocessing
 import torch
-
 from botorch import fit_gpytorch_model
 from botorch.exceptions import BadInitialCandidatesWarning
-import botorch.utils.transforms as transforms
-from lib.calibrationFunctions import make_bayes_opt_functions, pdict_to_parr, parr_to_pdict, CalibrationLogger, save_state, load_state, gen_initial_seeds
+from lib.calibrationFunctions import make_bayes_opt_functions, parr_to_pdict, CalibrationLogger, save_state, load_state
 from lib.kg import qKnowledgeGradient
-import time, pprint
+import pprint
+from lib.experiment import load_config
 
 import warnings
 warnings.filterwarnings('ignore', category=BadInitialCandidatesWarning)
 warnings.filterwarnings('ignore', category=RuntimeWarning)
 warnings.filterwarnings('ignore', category=UserWarning)
 
-from lib.mobilitysim import MobilitySimulator
-from lib.dynamics import DiseaseModel
-from bayes_opt import BayesianOptimization
 from lib.parallel import *
-from lib.distributions import CovidDistributions
-from lib.plot import Plotter
-from botorch.sampling.samplers import SobolQMCNormalSampler, IIDNormalSampler
-
-
-from lib.mobilitysim import MobilitySimulator
+from botorch.sampling.samplers import SobolQMCNormalSampler
 from lib.calibrationParser import make_calibration_parser
 
 if __name__ == '__main__':
@@ -49,8 +28,9 @@ if __name__ == '__main__':
 
     parser = make_calibration_parser()
     args = parser.parse_args()
+    args.config = load_config(args.config_file)
     seed = args.seed or 0
-    args.filename = args.filename or f'calibration_{seed}'
+    args.filename = args.filename or f'calibration_{args.config.area}'
 
     '''
     Genereate essential functions for Bayesian optimization
@@ -72,10 +52,9 @@ if __name__ == '__main__':
     logger.log_initial_lines(header)
 
     # if specified, load initial training data
-    if args.load:
-
+    if args.from_checkpoint and os.path.isfile('logs/'+args.filename+'_state.pk'):
         # load initial observations 
-        state = load_state(args.load)
+        state = load_state('logs/'+args.filename+'_state.pk')
         loaded_theta = state['train_theta']
         loaded_G = state['train_G']
         loaded_G_sem = state['train_G_sem']

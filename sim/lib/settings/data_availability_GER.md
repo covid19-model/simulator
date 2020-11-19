@@ -1,6 +1,6 @@
 ***************************
 This a list of Landkreis districts in Germany
-Each can be added with identifier to `calibration_settings.py ` to be considered for data retrieval.
+Each can be used as `area_code` in a config file for the corresponding region.
 ***************************
 
 'LK Pinneberg' 'LK Plön' 'LK Rendsburg-Eckernförde'

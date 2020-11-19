@@ -1,6 +1,6 @@
 ***************************
 This a list of Canton districts in Switzerland
-Each can be added with identifier to `calibration_settings.py ` to be considered for data retrieval.
+Each can be used as `area_code` in a config file for the corresponding region.
 ***************************
 
 'ZH' 'Zürich' 

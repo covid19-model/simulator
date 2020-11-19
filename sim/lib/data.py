@@ -1,23 +1,11 @@
 import sys
-import argparse
+import numpy as np
+import pandas as pd
 if '..' not in sys.path:
     sys.path.append('..')
 
-import time
-import bisect
-import numpy as np
-import pandas as pd
-import networkx as nx
-import scipy
-import scipy.optimize
-import scipy as sp
-import os
-import matplotlib.pyplot as plt
-import random
 
 TO_HOURS = 24.0
-
-from lib.calibrationSettings import command_line_area_codes
 
 
 def get_preprocessed_data_germany(landkreis='LK Tübingen', start_date_string='2020-03-10', until=None, end_date_string=None):
@@ -52,7 +40,7 @@ def get_preprocessed_data_germany(landkreis='LK Tübingen', start_date_string='2
         'A80+' : 5,
     }
     df['age_group'] = 0
-    for k,v in agemap.items():
+    for k, v in agemap.items():
         df.loc[df.Altersgruppe == k, 'age_group'] = v
     df.drop(['Altersgruppe'], axis=1, inplace=True)
 
@@ -112,9 +100,9 @@ def get_preprocessed_data_switzerland(canton='ZH', start_date_string='2020-03-10
         df['Datum'], format='%d.%m.%Y')
     # only 4 cases in 2 weeks before that
     start_date = pd.to_datetime(start_date_string)
-    df['days'] = ((df['Datum'] - start_date).dt.days)
+    df['days'] = (df['Datum'] - start_date).dt.days
     df = df[df['days'].notna()] # drop nan dates
-    df.days = df.days.astype(int) # 
+    df.days = df.days.astype(int)
 
     # rename into nicer column name
     df['new'] = df['Anzahl laborbestätigte Fälle']
@@ -131,7 +119,7 @@ def get_preprocessed_data_switzerland(canton='ZH', start_date_string='2020-03-10
     return df
 
 
-def collect_data_from_df(country, area, datatype, start_date_string, until=None, end_date_string=None):
+def collect_data_from_df(config, datatype, start_date_string, until=None, end_date_string=None):
     '''
     Collects data for a country `country` and a specific area `area` 
     either: new, recovered, fatality cases from df 
@@ -152,7 +140,7 @@ def collect_data_from_df(country, area, datatype, start_date_string, until=None,
     else:
         raise ValueError('Need to pass either `until` or `end_date_string`')
    
-    if country == 'GER':
+    if config.country == 'GER':
 
         if datatype == 'new':
             ctr, indic = 'AnzahlFall', 'NeuerFall'
@@ -163,13 +151,8 @@ def collect_data_from_df(country, area, datatype, start_date_string, until=None,
         else:
             raise ValueError('Invalid datatype requested.')
 
-        if area in command_line_area_codes['GER'].keys():
-            landkreis = command_line_area_codes['GER'][area]
-        else:
-            raise ValueError('Invalid Landkreis requested.')
-
         df_tmp = get_preprocessed_data_germany(
-            landkreis=landkreis, start_date_string=start_date_string, until=until, end_date_string=end_date_string)
+            landkreis=config.area_code, start_date_string=start_date_string, until=until, end_date_string=end_date_string)
 
         # check whether the new case counts, i.e. wasn't used in a different publication
         counts_as_new = np.array((df_tmp[indic] == 0) | (df_tmp[indic] == 1), dtype='int')
@@ -185,18 +168,13 @@ def collect_data_from_df(country, area, datatype, start_date_string, until=None,
                            
         return data.astype(int)
 
-    elif country == 'CH':
+    elif config.country == 'CH':
 
         if datatype != 'new':
             return np.zeros([1, 9])
             # raise ValueError('Invalid datatype requested.')
 
-        if area in command_line_area_codes['CH'].keys():
-            canton = command_line_area_codes['CH'][area]
-        else:
-            raise ValueError('Invalid Canton requested.')
-
-        df_tmp = get_preprocessed_data_switzerland(canton=canton, start_date_string=start_date_string, 
+        df_tmp = get_preprocessed_data_switzerland(canton=config.area_code, start_date_string=start_date_string,
                                                    until=until, end_date_string=end_date_string)
 
         # count up each day and them make cumulative

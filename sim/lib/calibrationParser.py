@@ -10,7 +10,7 @@ def make_calibration_parser():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", help="set seed")
-    parser.add_argument("--filename", help="set filename; default is `calibartion_{seed}` ")
+    parser.add_argument("--filename", help="set filename; default is `calibration_{seed}` ")
     parser.add_argument("--not_verbose", action="store_true", help="not verbose; default is verbose")
 
     # BO
@@ -22,8 +22,9 @@ def make_calibration_parser():
         help="update default number of parallel simulation rollouts")
     parser.add_argument("--cpu_count", type=int, default=calibration_simulation['cpu_count'],
         help="update default number of cpus used for parallel simulation rollouts")
-    parser.add_argument("--load", 
-        help="specify path to a BO state to be loaded as initial observations, e.g. 'logs/calibration_0_state.pk'")
+    parser.add_argument("--from_checkpoint", type=bool, default=True,
+        help="if true resumes calibration from previous state if it exists")
+        # help="specify path to a BO state to be loaded as initial observations, e.g. 'logs/calibration_0_state.pk'")
     parser.add_argument("--multi-beta-calibration", action="store_true",
                         help="flag to calibrate an individual beta parameter for each site category/type")
     parser.add_argument("--per-age-group-objective", action="store_true",
@@ -32,10 +33,8 @@ def make_calibration_parser():
     # data
     parser.add_argument("--mob", 
         help="update path to mobility settings for trace generation")
-    parser.add_argument("--country", required=True,
-        help="specify country indicator for data import")
-    parser.add_argument("--area",  required=True,
-        help="specify area indicator for data import")
+    parser.add_argument("--config_file", required=True,
+                        help="area specific config file")
     parser.add_argument("--start",
         help="update starting date for which case data is retrieved "
              "e.g. '2020-03-10'")

@@ -9,20 +9,16 @@ from collections import namedtuple, defaultdict
 import botorch.utils.transforms as transforms
 import argparse
 from lib.calibrationFunctions import (
-    pdict_to_parr, parr_to_pdict, save_state, load_state, 
-    get_calibrated_params, gen_initial_seeds, get_test_capacity, downsample_cases)
+    pdict_to_parr, parr_to_pdict, save_state, load_state,
+    get_calibrated_params, gen_initial_seeds, get_test_capacity, downsample_cases, extract_seeds_from_summary)
 from lib.mobilitysim import MobilitySimulator
 from lib.parallel import launch_parallel_simulations
 from lib.distributions import CovidDistributions
 from lib.data import collect_data_from_df
 from lib.measures import *
 from lib.calibrationSettings import (
-    calibration_lockdown_dates, 
-    calibration_states,
-    calibration_lockdown_dates, 
     calibration_testing_params, 
-    calibration_lockdown_beta_multipliers,
-    calibration_mob_paths)
+    calibration_lockdown_beta_multipliers)
 
 TO_HOURS = 24.0
 ROOT = 'summaries'
@@ -68,6 +64,7 @@ Plot = namedtuple('Plot', (
 
 """Helper functions"""
 
+
 def get_properties(objs, property):
     '''Retrieves list of properties for list of namedtuples'''
     out = []
@@ -86,11 +83,13 @@ def save_summary(obj, path):
     with open(os.path.join(ROOT, path), 'wb') as fp:
         pickle.dump(obj, fp)
 
+
 def load_summary(path):
     '''Loads summary file'''
     with open(os.path.join(ROOT, path), 'rb') as fp:
         obj = pickle.load(fp)
     return obj
+
 
 def load_summary_list(paths):
     '''Loads list of several summaries'''
@@ -102,18 +101,23 @@ def load_summary_list(paths):
             print(f'{p} not found.')
     return objs
 
+
 def options_to_str(**options):
     return '-'.join(['{}={}'.format(k, v) for k, v in options.items()])
+
+
+def load_config(path):
+    path = path.replace('/', '.')
+    path = path[:-3]
+    config = __import__(path, fromlist=[''])
+    return config
 
 
 def process_command_line(return_parser=False):
     '''Returns command line parser for experiment configuration'''
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--country", required=True,
-                        help="specify country indicator for experiment")
-    parser.add_argument("--area",  required=True,
-                        help="specify area indicator for experiment")
+    parser.add_argument("--config_file", required=True, help='Area specific config file')
     parser.add_argument("--cpu_count", type=int, default=multiprocessing.cpu_count(),
                         help="update default number of cpus used for parallel simulation rollouts")
 
@@ -121,19 +125,18 @@ def process_command_line(return_parser=False):
         return parser
 
     args = parser.parse_args()
-    country = args.country
-    area = args.area
+    config_file = args.config_file
+    args.config = load_config(config_file)
+    args.country = args.config.country
+    args.area = args.config.area
 
     # check calibration state
     try:
-        calibration_state_strg = calibration_states[country][area]
-        if not os.path.isfile(calibration_states[country][area]):
+        calibration_state_strg = args.config.calibration_states
+        if not os.path.isfile(args.config.calibration_states):
             raise FileNotFoundError
-    except KeyError:
-        print(f'{country}-{area} is unknown country-area combination.')
-        exit(1)
     except FileNotFoundError:
-        print(f'{country}-{area} calibration not found.')
+        print(f'{args.config.country}-{args.config.area} calibration not found.')
         exit(1)
     return args
 
@@ -183,8 +186,7 @@ class Experiment(object):
 
     def add(self, *,
         simulation_info,
-        country,
-        area,        
+        config,
         measure_list,
         lockdown_measures_active=True,
         full_scale=True,
@@ -201,28 +203,28 @@ class Experiment(object):
 
          # extract lockdown period
         lockdown_start_date = pd.to_datetime(
-            calibration_lockdown_dates[country]['start'])
+            config.calibration_lockdown_dates['start'])
         lockdown_end_date = pd.to_datetime(
-            calibration_lockdown_dates[country]['end'])
+            config.calibration_lockdown_dates['end'])
 
         days_until_lockdown_start = (lockdown_start_date - pd.to_datetime(self.start_date)).days
         days_until_lockdown_end = (lockdown_end_date - pd.to_datetime(self.start_date)).days
 
         # Load mob settings        
-        mob_settings_file = calibration_mob_paths[country][area][1 if full_scale else 0]
+        mob_settings_file = config.mobility_settings['full scale' if full_scale else 'downscaled']
         with open(mob_settings_file, 'rb') as fp:
             mob_settings = pickle.load(fp)
 
         # Obtain COVID19 case date for country and area to estimate testing capacity and heuristic seeds if necessary
-        unscaled_area_cases = collect_data_from_df(country=country, area=area, datatype='new',
-                                                start_date_string=self.start_date, end_date_string=self.end_date)
+        unscaled_area_cases = collect_data_from_df(config=config, datatype='new',
+                                                   start_date_string=self.start_date, end_date_string=self.end_date)
         assert(len(unscaled_area_cases.shape) == 2)
 
         # Scale down cases based on number of people in town and region
         sim_cases = downsample_cases(unscaled_area_cases, mob_settings)
 
         # Instantiate correct state transition distributions (estimated from literature)
-        distributions = CovidDistributions(country=country)
+        distributions = CovidDistributions(config=config)
 
         # Expected base rate infections
         if expected_daily_base_expo_per100k > 0.0:
@@ -240,8 +242,7 @@ class Experiment(object):
         if seed_summary_path is None:
 
             # Generate initial seeds based on unscaled case numbers in town
-            initial_seeds = gen_initial_seeds(
-                sim_cases, day=0)
+            initial_seeds = gen_initial_seeds(config, sim_cases, day=0)
 
             if sum(initial_seeds.values()) == 0:
                 print('No states seeded at start time; cannot start simulation.\n'
@@ -261,7 +262,7 @@ class Experiment(object):
 
         # Load calibrated model parameters for this area
         calibrated_params = get_calibrated_params(
-            country=country, area=area, multi_beta_calibration=self.multi_beta_calibration)
+            config=config, multi_beta_calibration=self.multi_beta_calibration)
         if set_calibrated_params_to is not None:
             calibrated_params = set_calibrated_params_to 
             
@@ -313,8 +314,7 @@ class Experiment(object):
         measure_list = MeasureList(measure_list)
 
         # Set testing conditions
-        scaled_test_capacity = get_test_capacity(
-            country, area, mob_settings, end_date_string=self.end_date)
+        scaled_test_capacity = get_test_capacity(config, mob_settings, end_date_string=self.end_date)
         testing_params = copy.deepcopy(calibration_testing_params)
         testing_params['tests_per_batch'] = scaled_test_capacity
         testing_params['testing_t_window'] = [0.0, max_time]
@@ -329,8 +329,8 @@ class Experiment(object):
             start_date=self.start_date,
             end_date=self.end_date,
             sim_days=sim_days,
-            country=country,
-            area=area,
+            country=config.country,
+            area=config.area,
             random_repeats=self.random_repeats,
 
             # Mobility and measures

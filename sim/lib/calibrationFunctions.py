@@ -39,10 +39,6 @@ from lib.calibrationSettings import (
     calibration_model_param_bounds_single, 
     calibration_model_param_bounds_multi, 
     calibration_testing_params,
-    calibration_lockdown_dates,
-    calibration_states,
-    calibration_mob_paths,
-    calibration_start_dates,
     calibration_lockdown_beta_multipliers
 )
 
@@ -276,18 +272,19 @@ def parr_to_pdict(*, parr, multi_beta_calibration):
     return pdict
 
 
-def get_calibrated_params(*, country, area, multi_beta_calibration, maxiters=None):
+# def get_calibrated_params(*, country, area, multi_beta_calibration, maxiters=None):
+def get_calibrated_params(*, config, multi_beta_calibration, maxiters=None):
     """
     Returns calibrated parameters for a `country` and an `area`
     """
 
     if maxiters:
-        param_dict = get_calibrated_params_limited_iters(country, area,
+        param_dict = get_calibrated_params_limited_iters(config=config,
                                                          multi_beta_calibration=multi_beta_calibration,
                                                          maxiters=maxiters,)
         return param_dict
 
-    state = load_state(calibration_states[country][area])
+    state = load_state(config.calibration_states)
     theta = state['train_theta']
     best_observed_idx = state['best_observed_idx']
     norm_params = theta[best_observed_idx]
@@ -302,7 +299,7 @@ def get_calibrated_params(*, country, area, multi_beta_calibration, maxiters=Non
     return param_dict
 
 
-def get_unique_calibration_params(*, country, area, multi_beta_calibration, maxiters=None):
+def get_unique_calibration_params(*, config, multi_beta_calibration, maxiters=None):
     """
     Returns all unique parameter settings that ** improved ** the objective
     during calibration for a `country` and an `area`
@@ -317,20 +314,21 @@ def get_unique_calibration_params(*, country, area, multi_beta_calibration, maxi
         multi_beta_calibration=multi_beta_calibration
     ).T
 
-    state = load_state(calibration_states[country][area])
+    state = load_state(config.calibration_states)
     train_theta = state['train_theta']
     train_G = state['train_G']
     
-    mob_settings = calibration_mob_paths[country][area][0]
+    mob_settings = config.mobility_settings['downscaled']
     with open(mob_settings, 'rb') as fp:
         mob_kwargs = pickle.load(fp)
     mob = MobilitySimulator(**mob_kwargs)
 
-    data_start_date = calibration_start_dates[country][area]
-    data_end_date = calibration_lockdown_dates[country]['end']
+    data_start_date = config.calibration_start_dates
+    data_end_date = config.calibration_end_dates
+    # data_end_date = config.calibration_lockdown_dates['end']
 
-    unscaled_area_cases = collect_data_from_df(country=country, area=area, datatype='new',
-                                            start_date_string=data_start_date, end_date_string=data_end_date)
+    unscaled_area_cases = collect_data_from_df(config=config, datatype='new',
+                                               start_date_string=data_start_date, end_date_string=data_end_date)
     assert (len(unscaled_area_cases.shape) == 2)
 
     # Scale down cases based on number of people in town and region
@@ -369,25 +367,26 @@ def get_unique_calibration_params(*, country, area, multi_beta_calibration, maxi
     return all_params
 
 
-def get_calibrated_params_limited_iters(country, area, multi_beta_calibration,  maxiters):
+def get_calibrated_params_limited_iters(config, multi_beta_calibration,  maxiters):
     """
     Returns calibrated parameters using only the first `maxiters` iterations of BO.
     """
 
-    state = load_state(calibration_states[country][area])
+    state = load_state(config.calibration_states)
     train_G = state['train_G']
     train_G = train_G[:min(maxiters, len(train_G))]
     train_theta = state['train_theta']
 
-    mob_settings = calibration_mob_paths[country][area][0]
+    mob_settings = config.mobility_settings['downscaled']
     with open(mob_settings, 'rb') as fp:
         mob_kwargs = pickle.load(fp)
     mob = MobilitySimulator(**mob_kwargs)
 
-    data_start_date = calibration_start_dates[country][area]
-    data_end_date = calibration_lockdown_dates[country]['end']
+    data_start_date = config.calibration_start_dates
+    data_end_date = config.calibration_end_dates
+    # data_end_date = config.calibration_lockdown_dates['end']
 
-    unscaled_area_cases = collect_data_from_df(country=country, area=area, datatype='new',
+    unscaled_area_cases = collect_data_from_df(config=config, datatype='new',
                                                start_date_string=data_start_date, end_date_string=data_end_date)
     assert (len(unscaled_area_cases.shape) == 2)
 
@@ -429,13 +428,13 @@ def downsample_cases(unscaled_area_cases, mob_settings):
 
     """
 
-    unscaled_sim_cases = np.round(unscaled_area_cases * \
-        (mob_settings['num_people_unscaled'] / mob_settings['region_population']))
+    unscaled_sim_cases = np.round(unscaled_area_cases
+                                  * (mob_settings['num_people_unscaled'] / mob_settings['region_population']))
     
     return unscaled_sim_cases
 
 
-def gen_initial_seeds(unscaled_new_cases, day=0):
+def gen_initial_seeds(config, unscaled_new_cases, day=0):
     """
     Generates initial seed counts based on unscaled case counts `unscaled_new_cases`.
     The 2d np.array `unscaled_new_cases` has to have shape (num_days, num_age_groups). 
@@ -451,7 +450,7 @@ def gen_initial_seeds(unscaled_new_cases, day=0):
     num_days, num_age_groups = unscaled_new_cases.shape
 
     # set initial seed count (approximately based on infection counts on March 10)
-    dists = CovidDistributions(country='GER') # country doesn't matter here
+    dists = CovidDistributions(config=config) # country doesn't matter here
     alpha = dists.alpha
     isym = unscaled_new_cases[day].sum()
     iasy = alpha / (1 - alpha) * isym
@@ -465,7 +464,7 @@ def gen_initial_seeds(unscaled_new_cases, day=0):
     return seed_counts
 
 
-def get_test_capacity(country, area, mob_settings, end_date_string='2021-01-01'):
+def get_test_capacity(config, mob_settings, end_date_string='2021-01-01'):
     '''
     Computes heuristic test capacity in `country` and `area` based
     on true case data by determining the maximum daily increase
@@ -473,7 +472,7 @@ def get_test_capacity(country, area, mob_settings, end_date_string='2021-01-01')
     '''
 
     unscaled_area_cases = collect_data_from_df(
-        country=country, area=area, datatype='new',
+        config=config, datatype='new',
         start_date_string='2020-01-01', end_date_string=end_date_string)
 
     sim_cases = downsample_cases(unscaled_area_cases, mob_settings)
@@ -547,9 +546,7 @@ def make_bayes_opt_functions(args):
     header.append('python ' + ' '.join(sys.argv))
     header.append('=' * 100)
 
-    data_country = args.country
-    data_area = args.area
-    mob_settings = args.mob or calibration_mob_paths[data_country][data_area][0] # 0: downscaled, 1: full scale 
+    mob_settings = args.mob or args.config.mobility_settings['downscaled']     # 0: downscaled, 1: full scale
 
     # initialize mobility object to obtain information (no trace generation yet)
     with open(mob_settings, 'rb') as fp:
@@ -559,8 +556,9 @@ def make_bayes_opt_functions(args):
     # data settings
     verbose = not args.not_verbose
     use_households = not args.no_households
-    data_start_date = args.start or calibration_start_dates[data_country][data_area]
-    data_end_date = args.end or calibration_lockdown_dates[args.country]['end']
+    data_start_date = args.start or args.config.calibration_start_dates
+    data_end_date = args.end or args.config.calibration_end_dates
+    # data_end_date = args.end or args.config.calibration_lockdown_dates['end']
     per_age_group_objective = args.per_age_group_objective
 
     # simulation settings
@@ -569,7 +567,7 @@ def make_bayes_opt_functions(args):
     simulation_roll_outs = args.rollouts
     cpu_count = args.cpu_count
     lazy_contacts = not args.no_lazy_contacts
-    load_observations = args.load
+    load_observations = args.from_checkpoint
 
     # set testing parameters
     testing_params = calibration_testing_params
@@ -587,7 +585,7 @@ def make_bayes_opt_functions(args):
 
     # Import Covid19 data
     # Shape (max_days, num_age_groups)
-    unscaled_area_cases = collect_data_from_df(country=data_country, area=data_area, datatype='new',
+    unscaled_area_cases = collect_data_from_df(config=args.config, datatype='new',
                                                start_date_string=data_start_date, end_date_string=data_end_date)
     assert(len(unscaled_area_cases.shape) == 2)
 
@@ -595,8 +593,7 @@ def make_bayes_opt_functions(args):
     sim_cases = downsample_cases(unscaled_area_cases, mob_kwargs)
 
     # Generate initial seeds based on unscaled case numbers in town
-    initial_seeds = gen_initial_seeds(
-        sim_cases, day=0)
+    initial_seeds = gen_initial_seeds(args.config, sim_cases, day=0)
 
     if sum(initial_seeds.values()) == 0:
         print('No states seeded at start time; cannot start simulation.\n'
@@ -610,9 +607,7 @@ def make_bayes_opt_functions(args):
     header.append('Area population :                 {}'.format(mob.region_population))
     header.append('Initial seed counts :             {}'.format(initial_seeds))
 
-    scaled_test_capacity = get_test_capacity(
-        country=data_country, area=data_area, 
-        mob_settings=mob_kwargs, end_date_string=data_end_date)
+    scaled_test_capacity = get_test_capacity(config=args.config, mob_settings=mob_kwargs, end_date_string=data_end_date)
 
     testing_params['tests_per_batch'] = scaled_test_capacity
 
@@ -634,7 +629,7 @@ def make_bayes_opt_functions(args):
         'Daily test capacity in sim.:         {}'.format(testing_params['tests_per_batch']))
 
     # instantiate correct distributions
-    distributions = CovidDistributions(country=args.country)
+    distributions = CovidDistributions(config=args.config)
 
     # set Bayesian optimization target as positive cases
     n_days, n_age = sim_cases.shape
@@ -654,9 +649,9 @@ def make_bayes_opt_functions(args):
     sim_end_date = sim_start_date + timedelta(days=int(max_time / TO_HOURS))
 
     lockdown_start_date = pd.to_datetime(
-        calibration_lockdown_dates[args.country]['start'])
+        args.config.calibration_lockdown_dates['start'])
     lockdown_end_date = pd.to_datetime(
-        calibration_lockdown_dates[args.country]['end'])
+        args.config.calibration_lockdown_dates['end'])
 
     days_until_lockdown_start = (lockdown_start_date - sim_start_date).days
     days_until_lockdown_end = (lockdown_end_date - sim_start_date).days
@@ -667,6 +662,7 @@ def make_bayes_opt_functions(args):
     header.append(f'             ends at : {lockdown_end_date}')
     header.append(f'Cases compared until : {pd.to_datetime(data_end_date)}')
     header.append(f'            for days : {sim_cases.shape[0]}')
+    header.append(f'Resume from checkpoint : {args.from_checkpoint}')
     
     # create settings dictionary for simulations
     launch_kwargs = dict(
