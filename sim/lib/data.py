@@ -8,7 +8,8 @@ if '..' not in sys.path:
 TO_HOURS = 24.0
 
 
-def get_preprocessed_data_germany(landkreis='LK Tübingen', start_date_string='2020-03-10', until=None, end_date_string=None):
+def get_preprocessed_data_germany(landkreis='LK Tübingen', start_date_string='2020-03-10', until=None,
+                                  end_date_string=None, max_days=None, datatype=None):
     '''
     Preprocesses data for a specific Landkreis in Germany
     Data taken from
@@ -56,10 +57,32 @@ def get_preprocessed_data_germany(landkreis='LK Tübingen', start_date_string='2
     if end_date_string:
         df = df[df['Meldedatum'] <= pd.to_datetime(end_date_string)]
 
-    return df
+    if datatype == 'new':
+        ctr, indic = 'AnzahlFall', 'NeuerFall'
+    elif datatype == 'recovered':
+        ctr, indic = 'AnzahlGenesen', 'NeuGenesen'
+    elif datatype == 'fatality':
+        ctr, indic = 'AnzahlTodesfall', 'NeuerTodesfall'
+    else:
+        raise ValueError('Invalid datatype requested.')
+
+    # check whether the new case counts, i.e. wasn't used in a different publication
+    counts_as_new = np.array((df[indic] == 0) | (df[indic] == 1), dtype='int')
+
+    df['new'] = counts_as_new * df[ctr]
+
+    # count up each day and them make cumulative
+    data = np.zeros((max_days, 6))  # value, agegroup
+    for t in range(max_days):
+        for agegroup in range(6):
+            data[t, agegroup] += df[
+                (df.days <= t) & (df.age_group == agegroup)].new.sum()
+
+    return data
 
 
-def get_preprocessed_data_switzerland(canton='ZH', start_date_string='2020-03-10', until=None, end_date_string=None):
+def get_preprocessed_data_switzerland(canton='ZH', datatype=None, start_date_string='2020-03-10', until=None,
+                                      end_date_string=None, max_days=None):
     '''
     Preprocesses data for a specific Canton district in Switzerland
     Data taken from
@@ -116,7 +139,51 @@ def get_preprocessed_data_switzerland(canton='ZH', start_date_string='2020-03-10
         df = df[df['Datum']
                 <= pd.to_datetime(end_date_string)]
 
-    return df
+    if datatype != 'new':
+        return np.zeros([1, 9])
+        # raise ValueError('Invalid datatype requested.')
+
+    # count up each day and them make cumulative
+    data = np.zeros((max_days, 9))  # value, agegroup
+    for t in range(max_days):
+        for agegroup in range(9):
+            age_group_at_t = (df.days <= t) & (df.age_group == agegroup)
+            data[t, agegroup] += df[age_group_at_t].new.sum()
+
+    return data.astype(int)
+
+
+def get_preprocessed_data_spain(provincia='MA', datatype=None, start_date_string='2020-02-01', until=None,
+                                end_date_string=None, max_days=None):
+    df = pd.read_csv('lib/data/cases/ES_COVID19.csv', header=0, delimiter=',')
+
+    # delete unnecessary
+    df = df[df.provincia_iso == provincia]
+    df['fecha'] = pd.to_datetime(df['fecha'], format='%Y.%m.%d')
+    # only 4 cases in 2 weeks before that
+    start_date = pd.to_datetime(start_date_string)
+    df['days'] = (df['fecha'] - start_date).dt.days
+    df = df[df['days'].notna()]  # drop nan dates
+    df.days = df.days.astype(int)
+
+    # rename into nicer column name
+    df['new'] = df['num_casos']
+
+    if datatype != 'new':
+        return np.zeros([1, 1])
+
+    # filter days
+    if until:
+        df = df[df['days'] <= until]
+
+    if end_date_string:
+        df = df[df['fecha']
+                <= pd.to_datetime(end_date_string)]
+
+    data = np.zeros((max_days, 1))  # value
+    for t in range(max_days):
+        data[t] += df[(df.days <= t)].new.sum()
+    return data.astype(int)
 
 
 def collect_data_from_df(config, datatype, start_date_string, until=None, end_date_string=None):
@@ -140,52 +207,32 @@ def collect_data_from_df(config, datatype, start_date_string, until=None, end_da
     else:
         raise ValueError('Need to pass either `until` or `end_date_string`')
    
-    if config.country == 'GER':
+    if config.country == 'GER' or config.country == 'germany':
+        data = get_preprocessed_data_germany(landkreis=config.area_code,
+                                               datatype=datatype,
+                                               start_date_string=start_date_string,
+                                               until=until,
+                                               end_date_string=end_date_string,
+                                               max_days=max_days)
 
-        if datatype == 'new':
-            ctr, indic = 'AnzahlFall', 'NeuerFall'
-        elif datatype == 'recovered':
-            ctr, indic = 'AnzahlGenesen', 'NeuGenesen'
-        elif datatype == 'fatality':
-            ctr, indic = 'AnzahlTodesfall', 'NeuerTodesfall'
-        else:
-            raise ValueError('Invalid datatype requested.')
+    elif config.country == 'CH' or config.country == 'switzerland':
+        data = get_preprocessed_data_switzerland(canton=config.area_code,
+                                                 datatype=datatype,
+                                                 start_date_string=start_date_string,
+                                                 until=until,
+                                                 end_date_string=end_date_string,
+                                                 max_days=max_days)
 
-        df_tmp = get_preprocessed_data_germany(
-            landkreis=config.area_code, start_date_string=start_date_string, until=until, end_date_string=end_date_string)
-
-        # check whether the new case counts, i.e. wasn't used in a different publication
-        counts_as_new = np.array((df_tmp[indic] == 0) | (df_tmp[indic] == 1), dtype='int')
-
-        df_tmp['new'] = counts_as_new * df_tmp[ctr]
-
-        # count up each day and them make cumulative
-        data = np.zeros((max_days, 6))  # value, agegroup
-        for t in range(max_days):
-            for agegroup in range(6):
-                data[t, agegroup] += df_tmp[
-                    (df_tmp.days <= t) & (df_tmp.age_group == agegroup)].new.sum()
-                           
-        return data.astype(int)
-
-    elif config.country == 'CH':
-
-        if datatype != 'new':
-            return np.zeros([1, 9])
-            # raise ValueError('Invalid datatype requested.')
-
-        df_tmp = get_preprocessed_data_switzerland(canton=config.area_code, start_date_string=start_date_string,
-                                                   until=until, end_date_string=end_date_string)
-
-        # count up each day and them make cumulative
-        data = np.zeros((max_days, 9))  # value, agegroup
-        for t in range(max_days):
-            for agegroup in range(9):
-                age_group_at_t = (df_tmp.days <= t) & (df_tmp.age_group == agegroup)
-                data[t, agegroup] += df_tmp[age_group_at_t].new.sum()
-            
-        return data.astype(int)
+    elif config.country == 'ES' or config.country == 'spain':
+        data = get_preprocessed_data_spain(provincia=config.area_code,
+                                           datatype=datatype,
+                                           start_date_string=start_date_string,
+                                           until=until,
+                                           end_date_string=end_date_string,
+                                           max_days=max_days)
 
     else:
+        data = None
         raise NotImplementedError('Invalid country requested.')
+    return data
 
