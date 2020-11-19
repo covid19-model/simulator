@@ -155,7 +155,16 @@ def get_preprocessed_data_switzerland(canton='ZH', datatype=None, start_date_str
 
 def get_preprocessed_data_spain(provincia='MA', datatype=None, start_date_string='2020-02-01', until=None,
                                 end_date_string=None, max_days=None):
-    df = pd.read_csv('lib/data/cases/ES_COVID19.csv', header=0, delimiter=',')
+    """
+    Download data from https://cnecovid.isciii.es/covid19/resources/datos_provincias.csv and place it in
+    'lib/data/cases/ES_COVID19.csv'.
+    """
+    try:
+        df = pd.read_csv('lib/data/cases/ES_COVID19.csv', header=0, delimiter=',')
+    except FileNotFoundError:
+        raise FileNotFoundError('Case data not found. Download data from '
+                                'https://cnecovid.isciii.es/covid19/resources/datos_provincias.csv '
+                                'and place it in "lib/data/cases/ES_COVID19.csv"')
 
     # delete unnecessary
     df = df[df.provincia_iso == provincia]
@@ -170,7 +179,7 @@ def get_preprocessed_data_spain(provincia='MA', datatype=None, start_date_string
     df['new'] = df['num_casos']
 
     if datatype != 'new':
-        return np.zeros([1, 1])
+        return np.zeros([1, 9])
 
     # filter days
     if until:
@@ -180,9 +189,9 @@ def get_preprocessed_data_spain(provincia='MA', datatype=None, start_date_string
         df = df[df['fecha']
                 <= pd.to_datetime(end_date_string)]
 
-    data = np.zeros((max_days, 1))  # value
+    data = np.zeros((max_days, 9))  # value
     for t in range(max_days):
-        data[t] += df[(df.days <= t)].new.sum()
+        data[t, 0] += df[(df.days <= t)].new.sum()
     return data.astype(int)
 
 
