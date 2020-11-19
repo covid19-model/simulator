@@ -1,17 +1,12 @@
 
-import sys, os
+import sys
 if '..' not in sys.path:
     sys.path.append('..')
 
-import numpy as np
 import random as rd
 import pandas as pd
-import pickle
-import multiprocessing
-import argparse
 from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
-from lib.calibrationSettings import calibration_lockdown_dates, calibration_mob_paths, calibration_states
 from lib.calibrationFunctions import get_calibrated_params
 
 TO_HOURS = 24.0
@@ -38,18 +33,17 @@ if __name__ == '__main__':
 
     # command line parsing
     args = process_command_line()
-    country = args.country
-    area = args.area
+    config = args.config
     cpu_count = args.cpu_count
 
     # Load calibrated parameters up to `maxBOiters` iterations of BO
-    maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
-    calibrated_params = get_calibrated_params(country=country, area=area,
+    maxBOiters = 40 if config.area in ['BE', 'JU', 'RH'] else None
+    calibrated_params = get_calibrated_params(config=config,
                                               multi_beta_calibration=False,
                                               maxiters=maxBOiters)
 
     # create experiment object
-    experiment_info = f'{name}-{country}-{area}'
+    experiment_info = f'{name}-{config.country}-{config.area}'
     experiment = Experiment(
         experiment_info=experiment_info,
         start_date=start_date,
@@ -112,8 +106,7 @@ if __name__ == '__main__':
             
         experiment.add(
             simulation_info=simulation_info,
-            country=country,
-            area=area,
+            config=config,
             measure_list=m,
             test_update=test_update,
             seed_summary_path=seed_summary_path,

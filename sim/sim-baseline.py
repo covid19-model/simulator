@@ -4,10 +4,8 @@ if '..' not in sys.path:
     sys.path.append('..')
 
 import random as rd
-import pandas as pd
 from lib.measures import *
-from lib.experiment import Experiment, options_to_str, process_command_line
-from lib.calibrationSettings import calibration_lockdown_dates, calibration_start_dates
+from lib.experiment import Experiment, process_command_line
 from lib.calibrationFunctions import get_calibrated_params
 
 TO_HOURS = 24.0
@@ -31,22 +29,21 @@ if __name__ == '__main__':
 
     # command line parsing
     args = process_command_line()
-    country = args.country
-    area = args.area
+    config = args.config
     cpu_count = args.cpu_count
 
     # Load calibrated parameters up to `maxBOiters` iterations of BO
-    maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
-    calibrated_params = get_calibrated_params(country=country, area=area,
+    maxBOiters = 40 if config.area in ['BE', 'JU', 'RH'] else None
+    calibrated_params = get_calibrated_params(config=config,
                                               multi_beta_calibration=False,
                                               maxiters=maxBOiters)
 
     # set simulation and intervention dates
-    start_date = calibration_start_dates[country][area]
-    end_date = calibration_lockdown_dates[country]['end']
+    start_date = config.calibration_start_dates
+    end_date = config.calibration_end_dates
 
     # create experiment object
-    experiment_info = f'{name}-{country}-{area}'
+    experiment_info = f'{name}-{config.country}-{config.area}'
     experiment = Experiment(
         experiment_info=experiment_info,
         start_date=start_date,
@@ -60,8 +57,7 @@ if __name__ == '__main__':
     # baseline
     experiment.add(
         simulation_info='baseline',
-        country=country,
-        area=area,
+        config=config,
         measure_list=[],
         lockdown_measures_active=False,
         seed_summary_path=seed_summary_path,
