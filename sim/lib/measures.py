@@ -872,13 +872,6 @@ class ComplianceForAllMeasure(Measure):
         """Indicate if individual `j` is compliant 
         """
         return self.bernoulli_compliant[j] and self._in_window(t)
-    
-    def is_compliant_prob(self, *, j, t):
-        """Returns probability of compliance for individual `j` at time `t`
-        """
-        if self._in_window(t):
-            return self.p_compliance
-        return 0.0
 
     def exit_run(self):
         """ Deletes bernoulli array. """
@@ -887,9 +880,9 @@ class ComplianceForAllMeasure(Measure):
             self._is_init = False
     
 
-class ManualTracingComplianceForAllMeasure(Measure):
+class ManualTracingForAllMeasure(Measure):
     """
-    Compliance measure. All the population has a probability of complying with
+    Participation measure. All the population has a probability of participating in
     manual tracing. This influences the ability of smart tracing to track contacts. 
     
     If an individual i complies with this measure, contacts which
@@ -899,15 +892,15 @@ class ManualTracingComplianceForAllMeasure(Measure):
     can be traced, even if i does not comply with contact tracing itself.
     """
 
-    def __init__(self, t_window, p_compliance, p_recall):
+    def __init__(self, t_window, p_participate, p_recall):
         """
 
         Parameters
         ----------
         t_window : Interval
             Time window during which the measure is active
-        p_compliance : float
-            Probability that individual is compliant with manual contact tracing, should be in [0,1]
+        p_participate : float
+            Probability that individual is participating with manual contact tracing, should be in [0,1]
         p_recall : float
             Probability that individual recalls a given visit, should be in [0,1]
         """
@@ -915,11 +908,11 @@ class ManualTracingComplianceForAllMeasure(Measure):
         super().__init__(t_window)
 
         # Init probability of respecting measure
-        if (not isinstance(p_compliance, float)) or (p_compliance < 0):
-            raise ValueError("`compliance` should be a non-negative float")
+        if (not isinstance(p_participate, float)) or (p_participate < 0):
+            raise ValueError("`p_participate` should be a non-negative float")
         if (not isinstance(p_recall, float)) or (p_recall < 0):
-            raise ValueError("`recall` should be a non-negative float")
-        self.p_compliance = p_compliance
+            raise ValueError("`p_recall` should be a non-negative float")
+        self.p_participate = p_participate
         self.p_recall = p_recall
 
     def init_run(self, n_people, n_visits):
@@ -933,14 +926,14 @@ class ManualTracingComplianceForAllMeasure(Measure):
             Maximum number of visits of an individual
         """
         # Sample the comliance outcome of the measure for each individual
-        self.bernoulli_compliant = np.random.binomial(1, self.p_compliance, size=(n_people))
+        self.bernoulli_participate = np.random.binomial(1, self.p_participate, size=(n_people)).astype(np.bool)
 
         # Sample the site recall outcome for each visit of each individual
-        self.bernoulli_recall = np.random.binomial(1, self.p_recall, size=(n_people, n_visits))
+        self.bernoulli_recall = np.random.binomial(1, self.p_recall, size=(n_people, n_visits)).astype(np.bool)
         self._is_init = True
 
     @enforce_init_run
-    def is_compliant(self, *, j, t, j_visit_id):
+    def is_active(self, *, j, t, j_visit_id):
         """
         j : int
             individual
@@ -954,23 +947,15 @@ class ManualTracingComplianceForAllMeasure(Measure):
         else:
             Returns True iff `j` is compliant with manual tracing _and_ recalls visit `j_visit_id`
         """
-        if site is None:
-            return self.bernoulli_compliant[j] and self._in_window(t)
+        if j_visit_id is None:
+            return self.bernoulli_participate[j] and self._in_window(t)
         else:
-            return self.bernoulli_recall[j, j_visit_id] and self.bernoulli_compliant[j] and self._in_window(t)
-
-        
-    def is_compliant_prob(self, *, j, t):
-        """Returns probability of compliance for individual `j` at time `t`
-        """
-        if self._in_window(t):
-            return self.p_compliance * self.p_recall
-        return 0.0
+            return self.bernoulli_recall[j, j_visit_id] and self.bernoulli_participate[j] and self._in_window(t)
 
     def exit_run(self):
         """ Deletes bernoulli array. """
         if self._is_init:
-            del self.bernoulli_compliant
+            del self.bernoulli_participate
             del self.bernoulli_recall
             self._is_init = False
     
@@ -1035,6 +1020,9 @@ class MeasureList:
             return active_measures[0][2]
         return None  # No active measure
 
+    '''Containment-type measures (default: FALSE)
+        i.e. if no containment measure found, assume _is not_ contained
+    '''
     def is_contained(self, measure_type, t, **kwargs):
         m = self.find(measure_type, t)
         if m is not None:  # If there is an active measure
@@ -1042,6 +1030,31 @@ class MeasureList:
             return m.is_contained(t=t, **kwargs)
         return False  # No active measure
 
+    def start_containment(self, measure_type, t, **kwargs):
+        m = self.find(measure_type, t)
+        if m is not None:
+            return m.start_containment(t=t, **kwargs)
+        return False
+
+    def is_contained_prob(self, measure_type, t, **kwargs):
+        m = self.find(measure_type, t)
+        if m is not None:
+            return m.is_contained_prob(t=t, **kwargs)
+        return False
+
+    '''Participation-type measures (default: FALSE)
+        i.e. if no participation measure found, assume _is not_ active
+    '''
+    def is_active(self, measure_type, t, **kwargs):
+        m = self.find(measure_type, t)
+        if m is not None:  # If there is an active measure
+            # FIXME: time is checked twice, both filtered in the list, and in the is_valid query, not a big problem though...
+            return m.is_active(t=t, **kwargs)
+        return False  # No active measure
+
+    '''Compliance type measures (default: TRUE)
+        i.e. if no compliance measure found, assume _is_ compliant
+    '''
     def is_compliant(self, measure_type, t, **kwargs):
         m = self.find(measure_type, t)
         # If there is an active compliance measure, 
@@ -1050,17 +1063,6 @@ class MeasureList:
             return m.is_compliant(t=t, **kwargs)
         return True  # No active compliance measure
     
-    def start_containment(self, measure_type, t, **kwargs):
-        m = self.find(measure_type, t)
-        if m is not None:
-            return m.start_containment(t=t, **kwargs)
-        return False
-    
-    def is_contained_prob(self, measure_type, t, **kwargs):
-        m = self.find(measure_type, t)
-        if m is not None:
-            return m.is_contained_prob(t=t, **kwargs)
-        return False
 
 if __name__ == "__main__":
 

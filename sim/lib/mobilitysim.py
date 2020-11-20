@@ -760,8 +760,9 @@ class MobilitySimulator:
                 yield Interval(visit.t_from, visit.t_to)
 
     def is_in_contact(self, *, indiv_i, indiv_j, t, site=None):
-        """Indicate if individuals `indiv_i` is within `delta` time to
-        make contact with `indiv_j` at time `t` in site `site`, and return contact if possible
+        """Indicate if individual `indiv_i` is within `delta` time (i.e. at most `delta` later than `indiv_j`)
+        to make contact with `indiv_j` at time `t` in site `site`, and return contact if possible
+        In this query, `indiv_j` is usually an infector.
         """
         try:
             # Find contact matching time and check site
@@ -779,9 +780,7 @@ class MobilitySimulator:
         # Search future contacts
         for c in contacts_ij.find((t, np.inf)):
             # Check site
-            if site is None:
-                return True
-            elif (site is None) or (c.site == site):
+            if (site is None) or (c.site == site):
                 return True
 
         return False

@@ -57,17 +57,14 @@ if __name__ == '__main__':
     # for debugging purposes
     if args.smoke_test:
         start_date = '2021-01-01'
-        end_date = '2021-01-05'
-        random_repeats = 2
+        # end_date = '2021-01-15'
+        random_repeats = 1
         full_scale = False
         ps_adoption = [0.5]
-        ps_recall = [0.6]
+        ps_recall = [1.0]
         beacon_config = dict(
-            mode='random',
-            p=0.5,
+            mode='all',
         )
-
-
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -90,9 +87,9 @@ if __name__ == '__main__':
 
             m = [
                 # beacon measures
-                ManualTracingComplianceForAllMeasure(
+                ManualTracingForAllMeasure(
                     t_window=Interval(0.0, TO_HOURS * max_days),
-                    p_compliance=1.0,
+                    p_participate=.5,
                     p_recall=p_recall),
 
                 # standard tracing measures
