@@ -271,7 +271,7 @@ class MobilitySimulator:
                 mob_rate_per_age_per_type=None, dur_mean_per_type=None, home_tile=None,
                 tile_site_dist=None, variety_per_type=None, people_household=None, downsample=None,
                 num_people=None, num_people_unscaled=None, num_sites=None, mob_rate_per_type=None,
-                dur_mean=None, num_age_groups=None, seed=None, verbose=False):
+                dur_mean=None, num_age_groups=None, seed=None, beacons_proportion=0, verbose=False):
         """
         delta : float
             Time delta to extend contacts
@@ -430,6 +430,30 @@ class MobilitySimulator:
             self.site_dict = site_dict
         self.delta = delta
         self.verbose = verbose
+
+        self.beacons_proportion = beacons_proportion
+        self.site_has_beacon = self.place_beacons(rollouts=3, max_time=60)
+
+    def compute_site_ranks(self, rollouts, max_time):
+        time_at_site = np.zeros(self.num_sites)
+        for _ in range(rollouts):
+            self.simulate(max_time=max_time, lazy_contacts=True)
+            for v in self.all_mob_traces:
+                time_at_site[v.site] += v.duration
+        temp = time_at_site.argsort()
+        site_ranks = np.empty_like(temp)
+        site_ranks[temp] = np.arange(len(time_at_site))
+        return site_ranks
+
+    def place_beacons(self, rollouts, max_time):
+        site_has_beacon = np.zeros(self.num_sites, dtype=bool)
+        if self.beacons_proportion == 0 or self.beacons_proportion is None:
+            return site_has_beacon
+        site_ranks = self.compute_site_ranks(rollouts, max_time)
+        for k in range(len(site_has_beacon)):
+            if site_ranks[k] > max(site_ranks) * (1 - self.beacons_proportion):
+                site_has_beacon[k] = True
+        return site_has_beacon
 
     @staticmethod
     def from_pickle(path):
