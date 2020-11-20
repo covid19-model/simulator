@@ -116,7 +116,8 @@ def process_command_line(return_parser=False):
                         help="specify area indicator for experiment")
     parser.add_argument("--cpu_count", type=int, default=multiprocessing.cpu_count(),
                         help="update default number of cpus used for parallel simulation rollouts")
-
+    parser.add_argument("--smoke_test", action="store_true",
+                        help="flag to quickly finish runs to see if something breaks")
     if return_parser:
         return parser
 
@@ -193,6 +194,7 @@ class Experiment(object):
         set_calibrated_params_to=None,
         set_initial_seeds_to=None,
         expected_daily_base_expo_per100k=0,
+        beacons_proportion=1.0,
         store_mob=False):
 
         # Set time window based on experiment start and end date
@@ -212,6 +214,9 @@ class Experiment(object):
         mob_settings_file = calibration_mob_paths[country][area][1 if full_scale else 0]
         with open(mob_settings_file, 'rb') as fp:
             mob_settings = pickle.load(fp)
+        
+        # If desired, add beacons
+        mob_settings.beacons_proportion = beacons_proportion
 
         # Obtain COVID19 case date for country and area to estimate testing capacity and heuristic seeds if necessary
         unscaled_area_cases = collect_data_from_df(country=country, area=area, datatype='new',

@@ -43,6 +43,8 @@ class DiseaseModel(object):
         self.d = distributions
         self.lazy_contacts = lazy_contacts
 
+        print('beacons', self.mob.site_has_beacon)
+
         # parse distributions object
         self.lambda_0 = self.d.lambda_0
         self.gamma = self.d.gamma

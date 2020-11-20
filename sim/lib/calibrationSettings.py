@@ -164,3 +164,9 @@ calibration_lockdown_beta_multipliers = {
     'bus_stop': 1.0, 
     'office': 0.5, 
     'supermarket': 1.0}
+
+# contact tracing adoption 
+contact_tracing_adoption = {
+    'GER': 0.27,  # as of Nov 12, 2020
+    'CH' : 0.22,  # as of Nov 20, 2020
+}

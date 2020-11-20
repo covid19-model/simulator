@@ -887,6 +887,94 @@ class ComplianceForAllMeasure(Measure):
             self._is_init = False
     
 
+class ManualTracingComplianceForAllMeasure(Measure):
+    """
+    Compliance measure. All the population has a probability of complying with
+    manual tracing. This influences the ability of smart tracing to track contacts. 
+    
+    If an individual i complies with this measure, contacts which
+    i)   happen at sites that i recalls with probability `p_recall`
+    ii)  happen at sites that have a Bluetooth beacon
+
+    can be traced, even if i does not comply with contact tracing itself.
+    """
+
+    def __init__(self, t_window, p_compliance, p_recall):
+        """
+
+        Parameters
+        ----------
+        t_window : Interval
+            Time window during which the measure is active
+        p_compliance : float
+            Probability that individual is compliant with manual contact tracing, should be in [0,1]
+        p_recall : float
+            Probability that individual recalls a given visit, should be in [0,1]
+        """
+        # Init time window
+        super().__init__(t_window)
+
+        # Init probability of respecting measure
+        if (not isinstance(p_compliance, float)) or (p_compliance < 0):
+            raise ValueError("`compliance` should be a non-negative float")
+        if (not isinstance(p_recall, float)) or (p_recall < 0):
+            raise ValueError("`recall` should be a non-negative float")
+        self.p_compliance = p_compliance
+        self.p_recall = p_recall
+
+    def init_run(self, n_people, n_visits):
+        """Init the measure for this run by sampling the compliance of each individual
+
+        Parameters
+        ----------
+        n_people : int
+            Number of people in the population
+        n_visits : int
+            Maximum number of visits of an individual
+        """
+        # Sample the comliance outcome of the measure for each individual
+        self.bernoulli_compliant = np.random.binomial(1, self.p_compliance, size=(n_people))
+
+        # Sample the site recall outcome for each visit of each individual
+        self.bernoulli_recall = np.random.binomial(1, self.p_recall, size=(n_people, n_visits))
+        self._is_init = True
+
+    @enforce_init_run
+    def is_compliant(self, *, j, t, j_visit_id):
+        """
+        j : int
+            individual
+        t : float
+            time
+        j_visit_id : int (optional)
+            visit id
+
+        If j_visit_id == None:
+            Returns True iff `j` is compliant with manual tracing
+        else:
+            Returns True iff `j` is compliant with manual tracing _and_ recalls visit `j_visit_id`
+        """
+        if site is None:
+            return self.bernoulli_compliant[j] and self._in_window(t)
+        else:
+            return self.bernoulli_recall[j, j_visit_id] and self.bernoulli_compliant[j] and self._in_window(t)
+
+        
+    def is_compliant_prob(self, *, j, t):
+        """Returns probability of compliance for individual `j` at time `t`
+        """
+        if self._in_window(t):
+            return self.p_compliance * self.p_recall
+        return 0.0
+
+    def exit_run(self):
+        """ Deletes bernoulli array. """
+        if self._is_init:
+            del self.bernoulli_compliant
+            del self.bernoulli_recall
+            self._is_init = False
+    
+
 """
 =========================== OTHERS ===========================
 """
