@@ -27,7 +27,9 @@ if __name__ == '__main__':
     seed_summary_path = None
     set_initial_seeds_to = {}
     expected_daily_base_expo_per100k = 5 / 7
-    beacon_proportion = 1.0
+    beacon_config = dict(
+        mode='all',
+    )
 
     # contact tracing experiment parameters
     ps_adoption = [1.0, 0.75, 0.65, 0.5]
@@ -58,6 +60,14 @@ if __name__ == '__main__':
         end_date = '2021-01-05'
         random_repeats = 2
         full_scale = False
+        ps_adoption = [0.5]
+        ps_recall = [0.6]
+        beacon_config = dict(
+            mode='random',
+            p=0.5,
+        )
+
+
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -135,7 +145,7 @@ if __name__ == '__main__':
                 country=country,
                 area=area,
                 measure_list=m,
-                beacons_proportion=beacons_proportion,
+                beacon_config=beacon_config,
                 test_update=test_update,
                 seed_summary_path=seed_summary_path,
                 set_initial_seeds_to=set_initial_seeds_to,

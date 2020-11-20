@@ -147,11 +147,14 @@ def pp_launch(r, kwargs, distributions, params, initial_counts, testing_params, 
 
 def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu_count, params, 
     initial_seeds, testing_params, measure_list, max_time, num_people, num_sites, site_loc, home_loc,
-                                lazy_contacts=True, verbose=True, synthetic=False, summary_options=None,
-                                store_mob=False, store_measure_bernoullis=False):
+    beacon_config=None, lazy_contacts=True, verbose=True, synthetic=False, summary_options=None,
+    store_mob=False, store_measure_bernoullis=False):
 
     with open(mob_settings, 'rb') as fp:
         kwargs = pickle.load(fp)
+
+        # test-time mobility simulator additions and modifications
+        kwargs['beacon_config'] = beacon_config
 
     mob_setting_list = [copy.deepcopy(kwargs) for _ in range(random_repeats)]
     distributions_list = [copy.deepcopy(distributions) for _ in range(random_repeats)]

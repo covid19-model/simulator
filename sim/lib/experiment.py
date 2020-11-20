@@ -53,7 +53,12 @@ Simulation = namedtuple('Simulation', (
     'distributions',            # Transition distributions
     'initial_seeds',            # Simulation seeds
 
-))
+    ## default arguments
+    'beacon_config',            # dictionary containing information regarding beacon implementation
+
+), defaults=(None, )) # NOTE: `defaults` iterable is applied from back to front, i.e. just `beacon_config` has a default
+
+
 
 Result = namedtuple('Result', (
     'metadata',    # metadata of simulation that was run, here a `Simulation` namedtuple
@@ -194,7 +199,7 @@ class Experiment(object):
         set_calibrated_params_to=None,
         set_initial_seeds_to=None,
         expected_daily_base_expo_per100k=0,
-        beacons_proportion=1.0,
+        beacon_config=None,
         store_mob=False):
 
         # Set time window based on experiment start and end date
@@ -215,9 +220,6 @@ class Experiment(object):
         with open(mob_settings_file, 'rb') as fp:
             mob_settings = pickle.load(fp)
         
-        # If desired, add beacons
-        mob_settings.beacons_proportion = beacons_proportion
-
         # Obtain COVID19 case date for country and area to estimate testing capacity and heuristic seeds if necessary
         unscaled_area_cases = collect_data_from_df(country=country, area=area, datatype='new',
                                                 start_date_string=self.start_date, end_date_string=self.end_date)
@@ -327,7 +329,7 @@ class Experiment(object):
             testing_params = test_update(testing_params)
 
         # store simulation
-        self.sims.append(Simulation(
+        sim_kwargs = dict(
             # Generic information
             experiment_info=self.experiment_info,
             simulation_info=simulation_info,
@@ -349,7 +351,15 @@ class Experiment(object):
             model_params=model_params,
             distributions=distributions,
             initial_seeds=initial_seeds,
-        ))
+        )
+
+        # Beacon 
+        # fields are added here (even though defaulting to `None`) to double check backwards compatibility
+        # with stored `Result` objects prior to implementing beacon functionality
+        if beacon_config is not None:
+            sim_kwargs['beacon_config'] = beacon_config
+
+        self.sims.append(Simulation(**sim_kwargs))
 
         if self.verbose:
             print(f'[Added Sim] {self.get_sim_path(self.sims[-1])}')
@@ -387,6 +397,7 @@ class Experiment(object):
                 num_people=len(mob_settings['home_loc']),
                 site_loc=mob_settings['site_loc'],
                 num_sites=len(mob_settings['site_loc']),
+                beacon_config=sim.beacon_config,
                 store_mob=sim.store_mob,
                 store_measure_bernoullis=sim.store_mob,
                 lazy_contacts=True,

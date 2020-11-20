@@ -271,7 +271,7 @@ class MobilitySimulator:
                 mob_rate_per_age_per_type=None, dur_mean_per_type=None, home_tile=None,
                 tile_site_dist=None, variety_per_type=None, people_household=None, downsample=None,
                 num_people=None, num_people_unscaled=None, num_sites=None, mob_rate_per_type=None,
-                dur_mean=None, num_age_groups=None, seed=None, beacons_proportion=0, verbose=False):
+                dur_mean=None, num_age_groups=None, seed=None, beacon_config=None, verbose=False):
         """
         delta : float
             Time delta to extend contacts
@@ -319,6 +319,8 @@ class MobilitySimulator:
             Mean duration of a visit
         num_age_groups : int
             Number of age groups
+        beacon_config: dict
+            Beacons implementation configuration
         verbose : bool (optional, default: False)
             Verbosity level
         """
@@ -431,29 +433,57 @@ class MobilitySimulator:
         self.delta = delta
         self.verbose = verbose
 
-        self.beacons_proportion = beacons_proportion
-        self.site_has_beacon = self.place_beacons(rollouts=3, max_time=60)
+        self.beacon_config = beacon_config
+        self.site_has_beacon = self.place_beacons(
+            beacon_config=beacon_config, rollouts=3, max_time=60)
 
-    def compute_site_ranks(self, rollouts, max_time):
+    '''Beacon information computed at test time'''
+
+    def compute_site_priority_by_frequency(self, rollouts, max_time):
         time_at_site = np.zeros(self.num_sites)
         for _ in range(rollouts):
             self.simulate(max_time=max_time, lazy_contacts=True)
             for v in self.all_mob_traces:
                 time_at_site[v.site] += v.duration
         temp = time_at_site.argsort()
-        site_ranks = np.empty_like(temp)
-        site_ranks[temp] = np.arange(len(time_at_site))
-        return site_ranks
+        site_priority = np.empty_like(temp)
+        site_priority[temp] = np.arange(len(time_at_site))
+        return site_priority
 
-    def place_beacons(self, rollouts, max_time):
-        site_has_beacon = np.zeros(self.num_sites, dtype=bool)
-        if self.beacons_proportion == 0 or self.beacons_proportion is None:
+    def place_beacons(self, *, beacon_config, rollouts, max_time):
+        '''
+        Computes whether or not a given site has a beacon installed
+        '''
+
+        if beacon_config is None:
+            return np.zeros(self.num_sites, dtype=bool)
+        
+        elif beacon_config['mode'] == 'all':
+            return np.ones(self.num_sites, dtype=bool)
+        
+        elif beacon_config['mode'] == 'random':
+            # extract mode specific information
+            p = beacon_config['p']
+            
+            # compute beacon locations
+            return np.random.binomial(1, p, size=self.num_sites).astype(np.bool)
+            
+        elif beacon_config['mode'] == 'visit_freq':
+            # extract mode specific information
+            proportion_with_beacon = beacon_config['proportion_with_beacon']
+            
+            # compute beacon locations
+            site_has_beacon = np.zeros(self.num_sites, dtype=bool)
+            site_priority = self.compute_site_priority_by_frequency(rollouts, max_time)
+            for k in range(len(site_has_beacon)):
+                if site_priority[k] > max(site_priority) * (1 - proportion_with_beacon):
+                    site_has_beacon[k] = True
             return site_has_beacon
-        site_ranks = self.compute_site_ranks(rollouts, max_time)
-        for k in range(len(site_has_beacon)):
-            if site_ranks[k] > max(site_ranks) * (1 - self.beacons_proportion):
-                site_has_beacon[k] = True
-        return site_has_beacon
+        
+        else:
+            raise ValueError('Invalid `beacon_config` mode.')
+
+    '''Class methods'''
 
     @staticmethod
     def from_pickle(path):
