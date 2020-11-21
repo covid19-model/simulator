@@ -449,7 +449,7 @@ class SocialDistancingForSmartTracing(Measure):
     @enforce_init_run
     def start_containment(self, *, j, t):
         self.intervals_stay_home[j].update([(t, t + self.smart_tracing_isolation_duration)])
-        self.got_contained[j, :].append([t, t + self.smart_tracing_isolation_duration])
+        self.got_contained[j].append([t, t + self.smart_tracing_isolation_duration])
         return
 
     @enforce_init_run

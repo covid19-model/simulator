@@ -1221,7 +1221,7 @@ class DiseaseModel(object):
             for contact in infectors_contacts:
                 if not self.state['dead'][contact.indiv_i]:
                     valid_contacts.add(contact)
-                    # This didn't do anything before but causes bugs know because the contacts for tracing are different
+                    # This didn't do anything before but causes bugs now because the contacts for tracing are different
                     # if contact not in self.mob.contacts[contact.indiv_i][i]:
                     #    self.mob.contacts[contact.indiv_i][i].update([contact])
 
