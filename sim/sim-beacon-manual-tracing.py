@@ -20,7 +20,7 @@ if __name__ == '__main__':
 
     name = 'beacon-manual-tracing'
     start_date = '2021-01-01'
-    end_date = '2021-05-01'
+    end_date = '2021-01-25'
     random_repeats = 48
     full_scale = True
     verbose = True
@@ -128,6 +128,11 @@ if __name__ == '__main__':
                 # testing
                 d['smart_tracing_policy_test'] = 'basic'
                 d['smart_tracing_tested_contacts'] = 100000
+
+                # if true only contacts at sites with beacons can be traced
+                d['beacons_only'] = False
+                # Visits of i `beacon_cache` hours before and after visits of j get tracked
+                d['beacon_cache'] = 0
 
                 return d
 

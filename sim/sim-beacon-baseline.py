@@ -113,6 +113,11 @@ if __name__ == '__main__':
             d['smart_tracing_policy_test'] = 'basic'
             d['smart_tracing_tested_contacts'] = 100000
 
+            # if true only contacts at sites with beacons can be traced
+            d['beacons_only'] = False
+            # Visits of i `beacon_cache` hours before and after visits of j get tracked
+            d['beacon_cache'] = 0
+
             return d
 
         simulation_info = options_to_str(

@@ -325,6 +325,8 @@ class Experiment(object):
         testing_params = copy.deepcopy(calibration_testing_params)
         testing_params['tests_per_batch'] = scaled_test_capacity
         testing_params['testing_t_window'] = [0.0, max_time]
+        testing_params['beacon_cache'] = 0
+        testing_params['beacons_only'] = 0
         if test_update:
             testing_params = test_update(testing_params)
 
