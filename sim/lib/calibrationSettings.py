@@ -62,9 +62,11 @@ calibration_testing_params = {
     'smart_tracing_policy_isolate': None, # one of None, `basic`, `advanced`
     'smart_tracing_isolated_contacts': 0,
     'smart_tracing_isolation_duration': 14 * TO_HOURS,
+    'smart_tracing_isolation_threshold': 1.0,
 
     'smart_tracing_policy_test': None,  # one of None, `basic`, `advanced`
     'smart_tracing_tested_contacts': 0,
+    'smart_tracing_testing_threshold': 1.0,
 }
 
 # BO acquisition function optimization (Knowledge gradient)

@@ -739,11 +739,6 @@ class BetaMultiplierMeasure(Measure):
                               " non-negative floats"))
         self.beta_multiplier = beta_multiplier
 
-    # def beta_factor(self, *args):
-    #     """Initialize general beta_factor function"""
-    #     raise NotImplementedError(("Must be implemented in child class. If you"
-    #                                " get this error, it's probably a bug."))
-
 
 class BetaMultiplierMeasureBySite(BetaMultiplierMeasure):
 
@@ -761,6 +756,30 @@ class BetaMultiplierMeasureByType(BetaMultiplierMeasure):
         factor is one if `t` is not in the active time window of the measure.
         """
         return self.beta_multiplier[typ] if self._in_window(t) else 1.0
+
+
+class APrioriBetaMultiplierMeasureByType(Measure):
+
+    def __init__(self, beta_multiplier):
+        """
+
+        Parameters
+        ----------
+        beta_multiplier : list of floats
+            List of multiplicative factor to infection rate at each site
+        """
+
+        super().__init__(Interval(0.0, np.inf))
+        if (not isinstance(beta_multiplier, dict)
+                or (min(beta_multiplier.values()) < 0)):
+            raise ValueError(("`beta_multiplier` should be dict of"
+                              " non-negative floats"))
+        self.beta_multiplier = beta_multiplier
+
+    def beta_factor(self, *, typ):
+        """Returns the multiplicative factor for site type `typ` independent of time `t`
+        """
+        return self.beta_multiplier[typ]
 
 
 class UpperBoundCasesBetaMultiplier(BetaMultiplierMeasure):
@@ -1018,6 +1037,15 @@ class MeasureList:
         if len(active_measures) > 0:
              # Extract active measure from interlap tuple
             return active_measures[0][2]
+        return None  # No active measure
+
+    def find_first(self, measure_type):
+        """Find, if any, the first active measure of `type measure_type` 
+        """
+        measures = list(self.measure_dict[measure_type].find((0.0, np.inf)))
+        if len(measures) > 0:
+             # Extract first measure from interlap tuple
+            return measures[0][2]
         return None  # No active measure
 
     '''Containment-type measures (default: FALSE)

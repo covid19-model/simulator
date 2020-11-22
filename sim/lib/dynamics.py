@@ -319,16 +319,38 @@ class DiseaseModel(object):
         self.test_fnr = testing_params['test_fnr']
         
         # smart tracing settings
-        self.smart_tracing_actions            = testing_params['smart_tracing_actions']
-        self.smart_tracing_contact_delta      = testing_params['smart_tracing_contact_delta']
+        self.smart_tracing_actions             = testing_params['smart_tracing_actions']
+        self.smart_tracing_contact_delta       = testing_params['smart_tracing_contact_delta']
 
-        self.smart_tracing_policy_isolate     = testing_params['smart_tracing_policy_isolate']
-        self.smart_tracing_isolation_duration = testing_params['smart_tracing_isolation_duration']
-        self.smart_tracing_isolated_contacts = testing_params['smart_tracing_isolated_contacts']
+        self.smart_tracing_policy_isolate      = testing_params['smart_tracing_policy_isolate']
+        self.smart_tracing_isolation_duration  = testing_params['smart_tracing_isolation_duration']
+        self.smart_tracing_isolated_contacts   = testing_params['smart_tracing_isolated_contacts']
+        self.smart_tracing_isolation_threshold = testing_params['smart_tracing_isolation_threshold']
 
-        self.smart_tracing_policy_test        = testing_params['smart_tracing_policy_test']
-        self.smart_tracing_tested_contacts    = testing_params['smart_tracing_tested_contacts']
+        self.smart_tracing_policy_test         = testing_params['smart_tracing_policy_test']
+        self.smart_tracing_tested_contacts     = testing_params['smart_tracing_tested_contacts']
+        self.smart_tracing_testing_threshold   = testing_params['smart_tracing_testing_threshold']
+
+        if 'isolate' in self.smart_tracing_actions \
+            and self.smart_tracing_isolated_contacts == 0:
+            print('Warning: `smart_tracing_isolated_contacts` is 0 even though '
+                    'the policy ought to isolate traced contacts')
         
+        if 'test' in self.smart_tracing_actions \
+            and self.smart_tracing_tested_contacts == 0:
+            print('Warning: `smart_tracing_isolated_contacts` is 0 even though '
+                    'the policy ought to isolate traced contacts')
+
+        if self.smart_tracing_policy_isolate == 'advanced-threshold' \
+            and self.smart_tracing_isolation_threshold == 1.0:
+            print('Warning: `smart_tracing_isolation_threshold` is 1.0 even though '
+                    'the policy ought to isolate contacts with empirical risk above the threshold')
+        
+        if self.smart_tracing_policy_test == 'advanced-threshold' \
+            and self.smart_tracing_testing_threshold == 1.0:
+            print('Warning: `smart_tracing_testing_threshold` is 1.0 even though '
+                    'the policy ought to test contacts with empirical risk above the threshold')
+
         
         # Set list of measures
         if not isinstance(measure_list, MeasureList):
@@ -383,6 +405,23 @@ class DiseaseModel(object):
                                    n_people=self.n_people)
 
         self.measure_list.init_run(SocialDistancingForKGroups)
+
+        # if specified, scale optimized betas a priori
+        try:
+            apriori_beta = self.measure_list.find_first(APrioriBetaMultiplierMeasureByType)
+            for k in range(self.num_site_types):
+                self.betas[self.site_dict[k]] *= apriori_beta.beta_factor(typ=self.site_dict[k])
+        except:
+            pass
+
+        # for analysis purposes, compute mean of betas weighted by number of times each site type occurs
+        # i.e. mean(rel_occurrence_of_site_type[k] * beta[k])
+        betas_weighted_mean_ = sum([
+            self.betas[self.site_dict[k]] 
+            * np.sum(self.site_type == k) / self.n_sites # relative frequency of site type k
+            for k in range(self.num_site_types)
+        ]) 
+        self.betas_weighted_mean = {k:betas_weighted_mean_ for k in self.betas.keys()}
 
         # init state variables with seeds
         self.__init_run()
@@ -1003,7 +1042,8 @@ class DiseaseModel(object):
 
         # BetaMultiplierMeasures
         beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureBySite, t=t)
-        acceptance_prob *= beta_mult_measure.beta_factor(k=k, t=t) if beta_mult_measure else 1.0
+        acceptance_prob *= beta_mult_measure.beta_factor(k=k, t=t) \
+            if beta_mult_measure else 1.0
 
         beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureByType, t=t)
         acceptance_prob *= beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[k]], t=t) \
@@ -1225,7 +1265,7 @@ class DiseaseModel(object):
                 assert(is_i_participating_in_manual_tracing) 
 
                 # get visit ID for contact
-                _, i_visit_id = contact.id_tup # yes, this is the correct tuple element, I double checked
+                _, i_visit_id = contact.id_tup # this is the correct tuple element, I double checked
 
                 # check if `i` recalls the visit and hence its site
                 i_recalls_visit = self.measure_list.is_active(
@@ -1256,8 +1296,14 @@ class DiseaseModel(object):
                 if 'isolate' in self.smart_tracing_actions:
                     if self.smart_tracing_policy_isolate == 'basic':
                         contacts_isolation.push(j, priority=t)
+
                     elif self.smart_tracing_policy_isolate == 'advanced':
                         contacts_isolation.push(j, priority=self.empirical_survival_probability[j])
+
+                    elif self.smart_tracing_policy_isolate == 'advanced-threshold':
+                        if self.empirical_survival_probability[j] > self.smart_tracing_isolation_threshold:
+                            contacts_isolation.push(j, priority=self.empirical_survival_probability[j])
+
                     else:
                         raise ValueError('Invalid smart tracing policy.')
 
@@ -1267,11 +1313,18 @@ class DiseaseModel(object):
                     if not self.state['posi'][j]:
                         if self.smart_tracing_policy_test == 'basic':
                             contacts_testing.push(j, priority=t)
+
                         elif self.smart_tracing_policy_test == 'advanced':
                             contacts_testing.push(j, priority=self.empirical_survival_probability[j])
+
+                        elif self.smart_tracing_policy_test == 'advanced-threshold':
+                            if self.empirical_survival_probability[j] > self.smart_tracing_testing_threshold:
+                                contacts_testing.push(j, priority=self.empirical_survival_probability[j])
+
                         else:
                             raise ValueError('Invalid smart tracing policy.')
         
+
         # start contact tracing action for ** contacts selected by policy ** 
         if 'isolate' in self.smart_tracing_actions:
             for _ in range(min(self.smart_tracing_isolated_contacts, len(contacts_isolation))):
@@ -1290,7 +1343,8 @@ class DiseaseModel(object):
                 # not relevant when using `fifo` queue
                 if self.smart_tracing_policy_test == 'basic':
                     self.__apply_for_testing(t=t, i=j, priority=1.0)
-                elif self.smart_tracing_policy_test == 'advanced':
+                elif self.smart_tracing_policy_test == 'advanced' \
+                    or self.smart_tracing_policy_test == 'advanced-threshold':
                     self.__apply_for_testing(t=t, i=j, priority=self.empirical_survival_probability[j])
                 else:
                     raise ValueError('Invalid smart tracing policy.')
@@ -1347,34 +1401,49 @@ class DiseaseModel(object):
             # check hospitalization of i
             is_i_contained = is_i_contained or (
                 self.state['hosp'][i] and self.state_started_at['hosp'][i] < start_next_contact)
-                    
-            # BetaMultiplier measures
-            site = contact.site
-            beta_fact = 1.0
-
-            beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureBySite, t=start_next_contact)
-            beta_fact *= beta_mult_measure.beta_factor(k=site, t=start_next_contact) if beta_mult_measure else 1.0
             
-            beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureByType, t=start_next_contact)
-            beta_fact *= (beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[site]], t=start_next_contact) 
-                if beta_mult_measure else 1.0)
-
-            beta_mult_measure = self.measure_list.find(UpperBoundCasesBetaMultiplier, t=t)
-            beta_fact *= (beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[site]],
-                t=t, t_pos_tests=self.t_pos_tests) if beta_mult_measure else 1.0)
-
             # decide if i and j really had overlap
             if (not is_j_contained) and (not is_i_contained):
 
                 need_probability = \
                     ('isolate' in self.smart_tracing_actions and 
-                     self.smart_tracing_policy_isolate == 'advanced') or  \
+                     self.smart_tracing_policy_isolate != 'basic') or  \
                     ('test' in self.smart_tracing_actions and 
-                     self.smart_tracing_policy_test == 'advanced')
+                     self.smart_tracing_policy_test != 'basic')
 
                 if need_probability:
-                    s += (min(end_next_contact, t) - start_next_contact) \
-                         * self.betas[self.site_dict[self.site_type[site]]] * beta_fact
+
+                    # check whether this computation has access to site information
+                    site = contact.site
+                    if self.mob.site_has_beacon[site]:
+
+                        # BetaMultiplier measures
+                        beta_fact = 1.0
+
+                        beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureBySite, t=start_next_contact)
+                        beta_fact *= beta_mult_measure.beta_factor(k=site, t=start_next_contact) if beta_mult_measure else 1.0
+                        
+                        beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureByType, t=start_next_contact)
+                        beta_fact *= (beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[site]], t=start_next_contact) 
+                            if beta_mult_measure else 1.0)
+
+                        beta_mult_measure = self.measure_list.find(UpperBoundCasesBetaMultiplier, t=t)
+                        beta_fact *= (beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[site]],
+                            t=t, t_pos_tests=self.t_pos_tests) if beta_mult_measure else 1.0)
+
+                        # empirical exposure probabiliity
+                        s += (min(end_next_contact, t) - start_next_contact) \
+                            * self.betas[self.site_dict[self.site_type[site]]] * beta_fact
+
+                    # without site information, only weighted mean of betas 
+                    # and no measure-specific info is available
+                    else:
+
+                        # FIXME this includes delta-contact time, which we only know when bluetooth beacons are on
+                        s += (min(end_next_contact, t) - start_next_contact) \
+                            * self.betas_weighted_mean[self.site_dict[self.site_type[site]]] 
+                    
+                    
                     valid_contact = True
                 else:
                     valid_contact = True
