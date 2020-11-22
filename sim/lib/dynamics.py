@@ -184,7 +184,7 @@ class DiseaseModel(object):
                 
                 # inital exposed
                 if state == 'expo':
-                    self.__process_exposure_event(0.0, i, None)
+                    self.__process_exposure_event(t=0.0, i=i, parent=None, contact=None)
 
                 # initial presymptomatic
                 elif state == 'ipre':
@@ -491,12 +491,11 @@ class DiseaseModel(object):
 
             # process event
             if event == 'expo':
-                i_susceptible = ((not self.state['expo'][i])
-                                    and (self.state['susc'][i]))
+                i_susceptible = ((not self.state['expo'][i]) and (self.state['susc'][i]))
 
                 # base rate exposure
                 if (infector is None) and i_susceptible:
-                    self.__process_exposure_event(t, i, None)
+                    self.__process_exposure_event(t=t, i=i, parent=None, contact=None)
 
                 # household exposure
                 if (infector is not None) and i_susceptible and k == -1:
@@ -586,7 +585,7 @@ class DiseaseModel(object):
                         (not away_from_home) and \
                         (not somebody_isolated):
 
-                        self.__process_exposure_event(t, i, infector)
+                        self.__process_exposure_event(t=t, i=i, parent=infector, contact=None)
 
                     # if 2), 3), or 4) were true, i.e. infector not recovered,
                     # a household exposure could happen at a later point, hence sample a new event
@@ -609,9 +608,12 @@ class DiseaseModel(object):
                 # contact exposure
                 if (infector is not None) and i_susceptible and k >= 0:
                     
-                    is_in_contact, contact = self.mob.is_in_contact(indiv_i=i, indiv_j=infector, site=k, t=t)
-                    assert(is_in_contact and (k is not None))
+                    # for contact exposures, `contact` causing the exposure is passed
+                    contact = metadata 
                     i_visit_id, infector_visit_id = contact.id_tup
+
+                    # is_in_contact2, contact2 = self.mob.is_in_contact(indiv_i=i, indiv_j=infector, site=k, t=t)
+                    # assert(is_in_contact2 and (contact == contact2))
 
                     # 1) check whether infector recovered or dead
                     infector_recovered = \
@@ -640,7 +642,7 @@ class DiseaseModel(object):
                         (not i_contained) and \
                         (not site_avoided_infection):
 
-                        self.__process_exposure_event(t, i, infector)
+                        self.__process_exposure_event(t=t, i=i, parent=infector, contact=contact)
 
                     # if any of 2), 3), 4) were true, i.e. infector not recovered,
                     # an exposure could happen at a later point, hence sample a new event 
@@ -697,7 +699,7 @@ class DiseaseModel(object):
         # free memory
         del self.queue
 
-    def __process_exposure_event(self, t, i, parent):
+    def __process_exposure_event(self, *, t, i, parent, contact):
         """
         Mark person `i` as exposed at time `t`
         Push asymptomatic or presymptomatic queue event
@@ -899,17 +901,6 @@ class DiseaseModel(object):
         of person `i` (equivalent to `\mu` in model definition)
         """
 
-        # if not self.lazy_contacts:
-        #     def valid_j():
-        #         '''Generates indices j where `infector` is present
-        #         at least `self.delta` hours before j '''
-        #         for j in range(self.n_people):
-        #             if self.state['susc'][j]:
-        #                 if self.mob.will_be_in_contact(indiv_i=j, indiv_j=infector, t=t, site=None):
-        #                     yield j
-
-        #     valid_contacts = valid_j()
-        # else:
         # compute all delta-contacts of `infector` with any other individual
         infectors_contacts = self.mob.find_contacts_of_indiv(indiv=infector, tmin=t, tmax=tmax)
 
@@ -941,7 +932,7 @@ class DiseaseModel(object):
             
             # check if j could get infected from infector at current `tau`
             # i.e. there is `delta`-contact from infector to j (i.e. non-zero intensity)
-            has_infectious_contact, contact = self.mob.is_in_contact(indiv_i=j, indiv_j=infector, t=tau, site=None)
+            has_infectious_contact, _ = self.mob.is_in_contact(indiv_i=j, indiv_j=infector, t=tau, site=None)
 
             # if yes: do nothing
             if has_infectious_contact:
@@ -985,8 +976,11 @@ class DiseaseModel(object):
             # accept w.prob. lambda(t) / lambda_max
             u = np.random.uniform()
             if u <= p and tau < self.max_time:
+                
                 self.queue.push(
-                    (tau, 'expo', j, infector, site, None), priority=tau)
+                    (tau, 'expo', j, infector, site, 
+                    sampled_at_contact), # meta info: contact causing infection
+                    priority=tau)
                 sampled_event = True
 
     def __push_household_exposure_events(self, *, t, infector, base_rate, tmax):

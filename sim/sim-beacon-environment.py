@@ -97,6 +97,12 @@ if __name__ == '__main__':
                 max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
                 m = [        
+                    # beacon measures
+                    ManualTracingForAllMeasure(
+                        t_window=Interval(0.0, TO_HOURS * max_days),
+                        p_participate=1.0,
+                        p_recall=0.5),
+
                     # beta scaling (direcly scales betas ahead of time, so upscaling is valid_
                     APrioriBetaMultiplierMeasureByType(
                         beta_multiplier=beta_multipliers),       
