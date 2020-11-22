@@ -1380,7 +1380,6 @@ class DiseaseModel(object):
             # if infector `i` not compliant with standard tracing, a contact can still be identified when
             # (i) `i` participates in manual tracing, and 
             # (ii) a bluetooth beacon is at the site
-            assert(is_i_participating_in_manual_tracing) # True by check at beginning of function                
 
             # check if `i` recalls the visit and hence its site
             i_recalls_visit = self.measure_list.is_active(
