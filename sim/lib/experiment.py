@@ -400,7 +400,6 @@ class Experiment(object):
                 beacon_config=sim.beacon_config,
                 store_mob=sim.store_mob,
                 store_measure_bernoullis=sim.store_mob,
-                lazy_contacts=True,
                 verbose=False)
 
             self.save_run(sim, summary)

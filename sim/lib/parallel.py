@@ -34,7 +34,7 @@ class ParallelSummary(object):
     Summary class of several restarts
     """
 
-    def __init__(self, max_time, repeats, n_people, n_sites, site_loc, home_loc, lazy_contacts):
+    def __init__(self, max_time, repeats, n_people, n_sites, site_loc, home_loc, lazy_contacts=True): # lazy_contacts kept here for legacy reasons of old summaries
 
         self.max_time = max_time
         self.random_repeats = repeats
@@ -94,8 +94,7 @@ class ParallelSummary(object):
 
 def create_ParallelSummary_from_DiseaseModel(sim, store_mob=False):
 
-    summary = ParallelSummary(sim.max_time, 1, sim.n_people, sim.mob.num_sites, sim.mob.site_loc, sim.mob.home_loc,
-                              sim.lazy_contacts)
+    summary = ParallelSummary(sim.max_time, 1, sim.n_people, sim.mob.num_sites, sim.mob.site_loc, sim.mob.home_loc)
 
     for code in pp_legal_states:
         summary.state[code][0, :] = sim.state[code]
@@ -114,13 +113,13 @@ def create_ParallelSummary_from_DiseaseModel(sim, store_mob=False):
     return summary
 
 
-def pp_launch(r, kwargs, distributions, params, initial_counts, testing_params, measure_list, max_time, lazy_contacts,
+def pp_launch(r, kwargs, distributions, params, initial_counts, testing_params, measure_list, max_time,
               store_mob):
 
     mob = MobilitySimulator(**kwargs)
-    mob.simulate(max_time=max_time, lazy_contacts=lazy_contacts)
+    mob.simulate(max_time=max_time)
 
-    sim = DiseaseModel(mob, distributions, lazy_contacts=lazy_contacts)
+    sim = DiseaseModel(mob, distributions)
 
     sim.launch_epidemic(
         params=params,
@@ -147,7 +146,7 @@ def pp_launch(r, kwargs, distributions, params, initial_counts, testing_params, 
 
 def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu_count, params, 
     initial_seeds, testing_params, measure_list, max_time, num_people, num_sites, site_loc, home_loc,
-    beacon_config=None, lazy_contacts=True, verbose=True, synthetic=False, summary_options=None,
+    beacon_config=None, verbose=True, synthetic=False, summary_options=None,
     store_mob=False, store_measure_bernoullis=False):
 
     with open(mob_settings, 'rb') as fp:
@@ -163,7 +162,6 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
     initial_seeds_list = [copy.deepcopy(initial_seeds) for _ in range(random_repeats)]
     testing_params_list = [copy.deepcopy(testing_params) for _ in range(random_repeats)]
     max_time_list = [copy.deepcopy(max_time) for _ in range(random_repeats)]
-    lazy_contacts_list = [copy.deepcopy(lazy_contacts) for _ in range(random_repeats)]
     store_mob_list = [copy.deepcopy(store_mob) for _ in range(random_repeats)]
     repeat_ids = list(range(random_repeats))
 
@@ -172,18 +170,18 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
 
     with ProcessPoolExecutor(cpu_count) as ex:
         res = ex.map(pp_launch, repeat_ids, mob_setting_list, distributions_list, params_list,
-                     initial_seeds_list, testing_params_list, measure_list_list, max_time_list, lazy_contacts_list,
+                     initial_seeds_list, testing_params_list, measure_list_list, max_time_list,
                      store_mob_list)
 
     # # DEBUG mode (to see errors printed properly)
     # res = []
     # for r in repeat_ids:
     #     res.append(pp_launch(r, mob_setting_list[r], distributions_list[r], params_list[r],
-    #                  initial_seeds_list[r], testing_params_list[r], measure_list_list[r], max_time_list[r], lazy_contacts_list[r]))
+    #                  initial_seeds_list[r], testing_params_list[r], measure_list_list[r], max_time_list[r]))
 
     
     # collect all result (the fact that mob is still available here is due to the for loop)
-    summary = ParallelSummary(max_time, random_repeats, num_people, num_sites, site_loc, home_loc, lazy_contacts)
+    summary = ParallelSummary(max_time, random_repeats, num_people, num_sites, site_loc, home_loc)
     
     for r, result in enumerate(res):
 

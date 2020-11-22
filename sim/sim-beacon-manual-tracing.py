@@ -20,7 +20,7 @@ if __name__ == '__main__':
 
     name = 'beacon-manual-tracing'
     start_date = '2021-01-01'
-    end_date = '2021-05-01'
+    end_date = '2021-04-01'
     random_repeats = 48
     full_scale = True
     verbose = True
@@ -32,8 +32,11 @@ if __name__ == '__main__':
     )
 
     # contact tracing experiment parameters
-    ps_adoption = [1.0, 0.75, 0.65, 0.5]
-    ps_recall =   [1.0, 0.75, 0.5, 0.25]
+    # ps_adoption = [1.0, 0.75, 0.65, 0.5]
+    ps_adoption = [1.0, 0.75, 0.5, 0.25]
+    ps_recall =   [1.0]#, 0.75, 0.5, 0.25]
+    beacon_cache = 0.0
+    beacons_only = True
 
     # seed
     c = 0
@@ -129,12 +132,18 @@ if __name__ == '__main__':
                 d['smart_tracing_policy_test'] = 'basic'
                 d['smart_tracing_tested_contacts'] = 100000
 
+                # if true only contacts at sites with beacons can be traced
+                d['beacons_only'] = beacons_only
+                # Visits of i `beacon_cache` hours before and after visits of j get tracked
+                d['beacon_cache'] = beacon_cache
+
                 return d
 
 
             simulation_info = options_to_str(
                 p_adoption=p_adoption,
                 p_recall=p_recall,
+                beacon_cache=beacon_cache
             )
                 
             experiment.add(

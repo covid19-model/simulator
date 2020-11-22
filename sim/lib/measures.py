@@ -428,9 +428,10 @@ class SocialDistancingForSmartTracing(Measure):
             Maximum number of visits of an individual
         """
         # Sample the outcome of the measure for each visit of each individual
-        self.bernoulli_stay_home = np.random.binomial(
-            1, self.p_stay_home, size=(n_people, n_visits))
+        self.bernoulli_stay_home = np.random.binomial(1, self.p_stay_home, size=(n_people, n_visits))
         self.intervals_stay_home = [InterLap() for _ in range(n_people)]
+        #self.got_contained = np.zeros([n_people, 2])
+        self.got_contained = [[] for _ in range(n_people)]
         self._is_init = True
 
     @enforce_init_run
@@ -448,6 +449,7 @@ class SocialDistancingForSmartTracing(Measure):
     @enforce_init_run
     def start_containment(self, *, j, t):
         self.intervals_stay_home[j].update([(t, t + self.smart_tracing_isolation_duration)])
+        self.got_contained[j].append([t, t + self.smart_tracing_isolation_duration])
         return
 
     @enforce_init_run
@@ -465,6 +467,7 @@ class SocialDistancingForSmartTracing(Measure):
         """ Deletes bernoulli array. """
         if self._is_init:
             del self.bernoulli_stay_home
+            # del self.got_contained
             self._is_init = False
 
 
@@ -982,19 +985,6 @@ class ManualTracingForAllMeasure(Measure):
 """
 =========================== OTHERS ===========================
 """
-
-
-class TestMeasure(Measure):
-
-    def __init__(self, t_window, tests_per_hour):
-        super().__init__(t_window)
-
-    def iter_batch(self):
-        """Iterator over the next batch of `tests_per_hour` individuals to test
-        according to priority list policy
-        """
-        #TODO: wait for Manuel's smart test feature
-
 
 class MeasureList:
 

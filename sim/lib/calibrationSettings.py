@@ -18,7 +18,6 @@ calibration_simulation = {
     'n_iterations': 80,  # iterations of BO
     'simulation_roll_outs': 96, # roll-outs done in parallel per parameter setting
     'cpu_count':  multiprocessing.cpu_count(), # cpus used for parallel computation
-    'lazy_contacts' : True,
 }
 
 # parameter bounds
@@ -67,6 +66,10 @@ calibration_testing_params = {
     'smart_tracing_policy_test': None,  # one of None, `basic`, `advanced`
     'smart_tracing_tested_contacts': 0,
     'smart_tracing_testing_threshold': 1.0,
+
+    # beacons
+    'beacons_only' : False,  # if True, only contacts at sites with beacons can be traced
+    'beacon_cache' : 0.0, # visits of i `beacon_cache` hours before and after visits of j get tracked
 }
 
 # BO acquisition function optimization (Knowledge gradient)

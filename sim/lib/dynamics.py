@@ -23,7 +23,7 @@ class DiseaseModel(object):
     assumed to be in units of days as usual in epidemiology
     """
 
-    def __init__(self, mob, distributions, lazy_contacts=False):
+    def __init__(self, mob, distributions):
         """
         Init simulation object with parameters
 
@@ -32,16 +32,11 @@ class DiseaseModel(object):
         mob:
             object of class MobilitySimulator providing mobility data
 
-        lazy_contacts: bool
-            If true contacts are computed on-the-fly during launch_epidemic
-            instead of using the previously filled contact array
-
         """ 
 
         # cache settings
         self.mob = mob
         self.d = distributions
-        self.lazy_contacts = lazy_contacts
 
         # parse distributions object
         self.lambda_0 = self.d.lambda_0
@@ -331,6 +326,9 @@ class DiseaseModel(object):
         self.smart_tracing_tested_contacts     = testing_params['smart_tracing_tested_contacts']
         self.smart_tracing_testing_threshold   = testing_params['smart_tracing_testing_threshold']
 
+        self.smart_tracing_beacons_only = testing_params['beacons_only']
+        self.smart_tracing_beacon_cache = testing_params['beacon_cache']
+
         if 'isolate' in self.smart_tracing_actions \
             and self.smart_tracing_isolated_contacts == 0:
             print('Warning: `smart_tracing_isolated_contacts` is 0 even though '
@@ -416,12 +414,11 @@ class DiseaseModel(object):
 
         # for analysis purposes, compute mean of betas weighted by number of times each site type occurs
         # i.e. mean(rel_occurrence_of_site_type[k] * beta[k])
-        betas_weighted_mean_ = sum([
+        self.betas_weighted_mean = sum([
             self.betas[self.site_dict[k]] 
             * np.sum(self.site_type == k) / self.n_sites # relative frequency of site type k
             for k in range(self.num_site_types)
         ]) 
-        self.betas_weighted_mean = {k:betas_weighted_mean_ for k in self.betas.keys()}
 
         # init state variables with seeds
         self.__init_run()
@@ -902,27 +899,27 @@ class DiseaseModel(object):
         of person `i` (equivalent to `\mu` in model definition)
         """
 
-        if not self.lazy_contacts:
-            def valid_j():
-                '''Generates indices j where `infector` is present
-                at least `self.delta` hours before j '''
-                for j in range(self.n_people):
-                    if self.state['susc'][j]:
-                        if self.mob.will_be_in_contact(indiv_i=j, indiv_j=infector, t=t, site=None):
-                            yield j
+        # if not self.lazy_contacts:
+        #     def valid_j():
+        #         '''Generates indices j where `infector` is present
+        #         at least `self.delta` hours before j '''
+        #         for j in range(self.n_people):
+        #             if self.state['susc'][j]:
+        #                 if self.mob.will_be_in_contact(indiv_i=j, indiv_j=infector, t=t, site=None):
+        #                     yield j
 
-            valid_contacts = valid_j()
-        else:
-            # compute all delta-contacts of `infector` with any other individual
-            infectors_contacts = self.mob.find_contacts_of_indiv(indiv=infector, tmin=t, tmax=tmax)
+        #     valid_contacts = valid_j()
+        # else:
+        # compute all delta-contacts of `infector` with any other individual
+        infectors_contacts = self.mob.find_contacts_of_indiv(indiv=infector, tmin=t, tmax=tmax)
 
-            # iterate over contacts and store contact of with each individual `indiv_i` that is still susceptible 
-            valid_contacts = set()
-            for contact in infectors_contacts:
-                if self.state['susc'][contact.indiv_i]:
-                    if contact not in self.mob.contacts[contact.indiv_i][infector]:
-                        self.mob.contacts[contact.indiv_i][infector].update([contact])
-                    valid_contacts.add(contact.indiv_i)
+        # iterate over contacts and store contact of with each individual `indiv_i` that is still susceptible 
+        valid_contacts = set()
+        for contact in infectors_contacts:
+            if self.state['susc'][contact.indiv_i]:
+                if contact not in self.mob.contacts[contact.indiv_i][infector]:
+                    self.mob.contacts[contact.indiv_i][infector].update([contact])
+                valid_contacts.add(contact.indiv_i)
 
         # generate potential exposure event for `j` from contact with `infector`
         for j in valid_contacts:
@@ -1211,7 +1208,7 @@ class DiseaseModel(object):
         Iterates over possible contacts `j`
         '''
 
-        # if i is not compliant: skip
+        # if i is generally not compliant: skip
         is_i_compliant = self.measure_list.is_compliant(
             ComplianceForAllMeasure, t=max(t - self.smart_tracing_contact_delta, 0.0), j=i)
 
@@ -1219,113 +1216,78 @@ class DiseaseModel(object):
             ManualTracingForAllMeasure,
             t=max(t - self.smart_tracing_contact_delta, 0.0),
             j=i,
-            j_visit_id=None)  # `None` indicates "non-visit-specific"
+            j_visit_id=None)  # `None` indicates whether i is generally participating at all i.e. "non-visit-specific"
 
         if not (is_i_compliant or is_i_participating_in_manual_tracing):
             # no information available from `i`
             return 
 
-        # find contacts
-        if not self.lazy_contacts:
-            def valid_j():
-                '''Generate individuals j where `i` was present
-                up to `self.smart_tracing_contact_delta` hours before t 
-                Default is 10 * 24 hours.
-                '''
-                for j in range(self.n_people):
-                    if not self.state['dead'][j]:
-                        c = self.mob.next_contact(indiv_i=j, indiv_j=i, t=t-self.smart_tracing_contact_delta, site=None)
-                        if c is not None:
-                            yield c
-            valid_contacts = valid_j()
+        '''Find valid contacts of infector (excluding delta-contacts)'''
+        infectors_contacts = self.mob.find_beacon_contacts_of_indiv(
+            indiv=i,
+            tmin=t - self.smart_tracing_contact_delta,
+            tmax=t,
+            beacon_cache=self.smart_tracing_beacon_cache)
 
-        else:
-            infectors_contacts = self.mob.find_contacts_of_indiv(indiv=i, tmin=t - self.smart_tracing_contact_delta, tmax=t)
-            valid_contacts = set()
+        # filter which contacts were valid and store by individual
+        valid_contacts_with_j = defaultdict(list)   
+        for contact in infectors_contacts:            
+            if self.__is_tracing_contact_valid(t=t, i=i, contact=contact):
+                j = contact.indiv_i
+                valid_contacts_with_j[j].append(contact)
 
-            for contact in infectors_contacts:
-                if not self.state['dead'][contact.indiv_i]:
-                    if contact not in self.mob.contacts[contact.indiv_i][i]:
-                        self.mob.contacts[contact.indiv_i][i].update([contact])
-                    valid_contacts.add(contact)
-
+        '''Select contacts to be traced based on tracing policy'''
         contacts_isolation = PriorityQueue()
         contacts_testing = PriorityQueue()
-        
-        # determine valid contacts at sites for individual `i`
-        for contact in valid_contacts:
+
+        for j, contacts_j in valid_contacts_with_j.items():
             
-            j = contact.indiv_i            
+            # isolation
+            if 'isolate' in self.smart_tracing_actions:
+                if self.smart_tracing_policy_isolate == 'basic':
+                    contacts_isolation.push(j, priority=t)
 
-            # check compliance of `i`; if not, skip
-            if not is_i_compliant:
-                # if not compliant with standard tracing, a contact can still be identified when
-                # (i) `i` participates in manual tracing, and 
-                # (ii) a bluetooth beacon is at the site
-                assert(is_i_participating_in_manual_tracing) 
+                elif self.smart_tracing_policy_isolate == 'advanced':
+                    self.empirical_survival_probability[j] = \
+                        self.__compute_empirical_survival_probability(
+                            t=t, i=i, j=j, contacts_i_j=contacts_j)
+                    contacts_isolation.push(j, priority=self.empirical_survival_probability[j])
 
-                # get visit ID for contact
-                _, i_visit_id = contact.id_tup # this is the correct tuple element, I double checked
-
-                # check if `i` recalls the visit and hence its site
-                i_recalls_visit = self.measure_list.is_active(
-                    ManualTracingForAllMeasure,
-                    t=contact.t_from, # t not needed for the visit, but only for whether measure is active
-                    j=i,
-                    j_visit_id=i_visit_id)  # `i_visit_id` queries whether `i` recalls this specific visit
-
-                # check if there is a beacon in place
-                has_beacon = self.mob.site_has_beacon[contact.site]
-
-                # skip if one of the two is not satisfied
-                if not (i_recalls_visit and has_beacon):
-                    continue
-
-            # check compliance of overlapping contact; if not, skip
-            is_j_compliant = self.measure_list.is_compliant(
-                ComplianceForAllMeasure, t=max(t - self.smart_tracing_contact_delta, 0.0), j=j)
-            if not is_j_compliant:
-                continue
-
-            valid_contact, s = self.__compute_empirical_survival_probability(t, i, j)
-            if valid_contact:
-
-                self.empirical_survival_probability[j] = s
-
-                # isolation
-                if 'isolate' in self.smart_tracing_actions:
-                    if self.smart_tracing_policy_isolate == 'basic':
-                        contacts_isolation.push(j, priority=t)
-
-                    elif self.smart_tracing_policy_isolate == 'advanced':
+                elif self.smart_tracing_policy_isolate == 'advanced-threshold':
+                    self.empirical_survival_probability[j] = \
+                        self.__compute_empirical_survival_probability(
+                            t=t, i=i, j=j, contacts_i_j=contacts_j)
+                    if self.empirical_survival_probability[j] > self.smart_tracing_isolation_threshold:
                         contacts_isolation.push(j, priority=self.empirical_survival_probability[j])
 
-                    elif self.smart_tracing_policy_isolate == 'advanced-threshold':
-                        if self.empirical_survival_probability[j] > self.smart_tracing_isolation_threshold:
-                            contacts_isolation.push(j, priority=self.empirical_survival_probability[j])
+                else:
+                    raise ValueError('Invalid smart tracing policy.')
+
+            # testing
+            if 'test' in self.smart_tracing_actions:
+                # if contact is positive, skip (don't test positive people twice)
+                if not self.state['posi'][j]:
+                    if self.smart_tracing_policy_test == 'basic':
+                        contacts_testing.push(j, priority=t)
+
+                    elif self.smart_tracing_policy_test == 'advanced':
+                        self.empirical_survival_probability[j] = \
+                            self.__compute_empirical_survival_probability(
+                                t=t, i=i, j=j, contacts_i_j=contacts_j)
+                        contacts_testing.push(j, priority=self.empirical_survival_probability[j])
+
+                    elif self.smart_tracing_policy_test == 'advanced-threshold':
+                        self.empirical_survival_probability[j] = \
+                            self.__compute_empirical_survival_probability(
+                                t=t, i=i, j=j, contacts_i_j=contacts_j)
+                        if self.empirical_survival_probability[j] > self.smart_tracing_testing_threshold:
+                            contacts_testing.push(j, priority=self.empirical_survival_probability[j])
 
                     else:
                         raise ValueError('Invalid smart tracing policy.')
-
-                # testing
-                if 'test' in self.smart_tracing_actions:
-                    # if contact is positive, skip (don't test positive people twice)
-                    if not self.state['posi'][j]:
-                        if self.smart_tracing_policy_test == 'basic':
-                            contacts_testing.push(j, priority=t)
-
-                        elif self.smart_tracing_policy_test == 'advanced':
-                            contacts_testing.push(j, priority=self.empirical_survival_probability[j])
-
-                        elif self.smart_tracing_policy_test == 'advanced-threshold':
-                            if self.empirical_survival_probability[j] > self.smart_tracing_testing_threshold:
-                                contacts_testing.push(j, priority=self.empirical_survival_probability[j])
-
-                        else:
-                            raise ValueError('Invalid smart tracing policy.')
         
 
-        # start contact tracing action for ** contacts selected by policy ** 
+        '''Execute contact tracing actions for selected contacts'''
         if 'isolate' in self.smart_tracing_actions:
             for _ in range(min(self.smart_tracing_isolated_contacts, len(contacts_isolation))):
                 j = contacts_isolation.pop()    
@@ -1348,8 +1310,8 @@ class DiseaseModel(object):
                     self.__apply_for_testing(t=t, i=j, priority=self.empirical_survival_probability[j])
                 else:
                     raise ValueError('Invalid smart tracing policy.')
-
-        # start contact tracing action for compliant *household members*, ignoring individual i
+        
+        '''Execute contact tracing actions for _household members_'''
         for j in self.households[self.people_household[i]]:
             
             # check that contact satisfies conditions
@@ -1366,92 +1328,134 @@ class DiseaseModel(object):
                 self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracingHousehold, t=t, j=j)
 
             if 'test' in self.smart_tracing_actions:
-                # if j is positive and `smart_tracing_actions == test`, 
-                # then skip (don't test positive people twice)
-
+                # don't test positive people twice
                 if not self.state['posi'][j]:
                     # household members always treated as `empirical survival prob. = 0` for `exposure-risk` policy
                     # not relevant for `fifo` queue 
                     self.__apply_for_testing(t=t, i=j, priority=0.0)
 
-    # compute empirical survival probability of individual j due to node i at time t
-    def __compute_empirical_survival_probability(self, t, i, j):
-        s = 0
-        valid_contact = False
-            
-        next_contact_obj = self.mob.next_contact(indiv_i=j, indiv_j=i, t=t - self.smart_tracing_contact_delta, site=None)      
-        while next_contact_obj is not None:
 
-            start_next_contact = next_contact_obj.t_from
-            end_next_contact = next_contact_obj.t_to
+    def __is_tracing_contact_valid(self, *, t, i, contact):
+        """ 
+        Compute whether a contact of individual i at time t is valid
+        This is called with `i` being the infector.
+        """
+
+        start_contact = contact.t_from
+        j = contact.indiv_i
+        site_id = contact.site
+        j_visit_id, i_visit_id = contact.id_tup
+
+        '''Check that site traces contact'''
+        # if "only beacons", then need a beacon at the site
+        if self.smart_tracing_beacons_only:
+            if not self.mob.site_has_beacon[site_id]:
+                return False 
+
+        '''Check status of both individuals'''
+        i_has_valid_status = (
+            # not dead
+            (not (self.state['dead'][i] and self.state_started_at['dead'][i] < start_contact)) and
+
+            # not hospitalized at time of contact
+            (not (self.state['hosp'][i] and self.state_started_at['hosp'][i] < start_contact))
+        )
+
+        j_has_valid_status = (
+            # not dead
+            (not (self.state['dead'][j] and self.state_started_at['dead'][j] < start_contact)) and
+
+            # not hospitalized at time of contact
+            (not (self.state['hosp'][j] and self.state_started_at['hosp'][j] < start_contact))
+        )
+        if (not i_has_valid_status) or (not j_has_valid_status):
+            return False
+        
+        '''Check compliance'''
+        is_i_compliant = self.measure_list.is_compliant(
+            ComplianceForAllMeasure, t=max(t - self.smart_tracing_contact_delta, 0.0), j=i)
+        if is_i_compliant:
+            is_i_compliant_or_recalls = True
+        else:
+            # if infector `i` not compliant with standard tracing, a contact can still be identified when
+            # (i) `i` participates in manual tracing, and 
+            # (ii) a bluetooth beacon is at the site
+            assert(is_i_participating_in_manual_tracing) # True by check at beginning of function                
+
+            # check if `i` recalls the visit and hence its site
+            i_recalls_visit = self.measure_list.is_active(
+                ManualTracingForAllMeasure,
+                t=contact.t_from, # t not needed for the visit, but only for whether measure is active
+                j=i,
+                j_visit_id=i_visit_id)  # `i_visit_id` queries whether `i` recalls this specific visit
+
+            is_i_compliant_or_recalls = i_recalls_visit
+
+        # j can only be traced when complying with the system
+        is_j_compliant = self.measure_list.is_compliant(
+            ComplianceForAllMeasure, t=max(t - self.smart_tracing_contact_delta, 0.0), j=j)
+        
+        if (not is_i_compliant_or_recalls) or (not is_j_compliant):
+            return False
+
+        '''Check SocialDistancing measures'''
+        is_i_contained = self.is_person_home_from_visit_due_to_measure(
+            t=start_contact, i=i, visit_id=i_visit_id)
+        is_j_contained = self.is_person_home_from_visit_due_to_measure(
+            t=start_contact, i=j, visit_id=j_visit_id)
+
+        if is_i_contained or is_j_contained:
+            return False
+
+        # if all of the above checks passed, then contact is valid
+        return True
+
+
+
+    def __compute_empirical_survival_probability(self, *, t, i, j, contacts_i_j):
+        """ Compute empirical survival probability of individual j due to node i at time t"""
+        s = 0
+
+        # loop over all contacts the i had with j and accumulate 
+        # the empirical infection risk (= beta * contact time) in `s`
+        for contact in contacts_i_j:
+
+            start_next_contact = contact.t_from
+            end_next_contact = contact.t_to
+            site = contact.site
 
             # break if next contact is >= t
             if start_next_contact >= t:
                 break
-            
-            # get visit ID for contact
-            is_in_contact, contact = self.mob.is_in_contact(indiv_i=j, indiv_j=i, site=None, t=start_next_contact)
-            assert(is_in_contact)
-            j_visit_id, i_visit_id = contact.id_tup
-                    
-            # Check SocialDistancing measures
-            is_j_contained = self.is_person_home_from_visit_due_to_measure(t=start_next_contact, i=j, visit_id=j_visit_id)  
-            is_i_contained = self.is_person_home_from_visit_due_to_measure(t=start_next_contact, i=i, visit_id=i_visit_id)
+
+            # check whether this computation has access to site information
+            if self.mob.site_has_beacon[site]:
+
+                # BetaMultiplier measures
+                beta_fact = 1.0
+
+                beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureBySite, t=start_next_contact)
+                beta_fact *= beta_mult_measure.beta_factor(k=site, t=start_next_contact) \
+                    if beta_mult_measure else 1.0
                 
-            # check hospitalization of i
-            is_i_contained = is_i_contained or (
-                self.state['hosp'][i] and self.state_started_at['hosp'][i] < start_next_contact)
-            
-            # decide if i and j really had overlap
-            if (not is_j_contained) and (not is_i_contained):
+                beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureByType, t=start_next_contact)
+                beta_fact *= (beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[site]], t=start_next_contact) \
+                    if beta_mult_measure else 1.0)
 
-                need_probability = \
-                    ('isolate' in self.smart_tracing_actions and 
-                     self.smart_tracing_policy_isolate != 'basic') or  \
-                    ('test' in self.smart_tracing_actions and 
-                     self.smart_tracing_policy_test != 'basic')
+                beta_mult_measure = self.measure_list.find(UpperBoundCasesBetaMultiplier, t=t)
+                beta_fact *= (beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[site]], t=t, t_pos_tests=self.t_pos_tests) \
+                    if beta_mult_measure else 1.0)
 
-                if need_probability:
+                # empirical exposure probabiliity
+                s += (min(end_next_contact, t) - start_next_contact) \
+                    * beta_fact * self.betas[self.site_dict[self.site_type[site]]] 
 
-                    # check whether this computation has access to site information
-                    site = contact.site
-                    if self.mob.site_has_beacon[site]:
-
-                        # BetaMultiplier measures
-                        beta_fact = 1.0
-
-                        beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureBySite, t=start_next_contact)
-                        beta_fact *= beta_mult_measure.beta_factor(k=site, t=start_next_contact) if beta_mult_measure else 1.0
-                        
-                        beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureByType, t=start_next_contact)
-                        beta_fact *= (beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[site]], t=start_next_contact) 
-                            if beta_mult_measure else 1.0)
-
-                        beta_mult_measure = self.measure_list.find(UpperBoundCasesBetaMultiplier, t=t)
-                        beta_fact *= (beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[site]],
-                            t=t, t_pos_tests=self.t_pos_tests) if beta_mult_measure else 1.0)
-
-                        # empirical exposure probabiliity
-                        s += (min(end_next_contact, t) - start_next_contact) \
-                            * self.betas[self.site_dict[self.site_type[site]]] * beta_fact
-
-                    # without site information, only weighted mean of betas 
-                    # and no measure-specific info is available
-                    else:
-
-                        # FIXME this includes delta-contact time, which we only know when bluetooth beacons are on
-                        s += (min(end_next_contact, t) - start_next_contact) \
-                            * self.betas_weighted_mean[self.site_dict[self.site_type[site]]] 
+            # without site information, only weighted mean of betas 
+            # and no measure-specific info is available
+            else:
+                s += (min(end_next_contact, t) - start_next_contact) \
+                    * self.betas_weighted_mean
                     
-                    
-                    valid_contact = True
-                else:
-                    valid_contact = True
-                    break
-                
-            # get next contact (if it exists)
-            next_contact_obj = self.mob.next_contact(indiv_i=j, indiv_j=i, t=end_next_contact + self.delta, site=None)
-        
-        s = np.exp(-s)
-        
-        return valid_contact, s
+        # survival probability
+        survival_prob = np.exp(-s)
+        return survival_prob

@@ -46,8 +46,6 @@ def make_calibration_parser():
     # simulation
     parser.add_argument("--no_households", action="store_true",
                         help="no households should be used for simulation")
-    parser.add_argument("--no_lazy_contacts", action="store_true",
-                        help="no lazy online computation of mobility traces (default is lazy)")
     parser.add_argument("--testingcap", type=int,
                         help="overwrite default unscaled testing capacity as provided by MobilitySimulator")
 
