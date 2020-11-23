@@ -442,8 +442,8 @@ class MobilitySimulator:
     def compute_site_priority_by_frequency(self, rollouts, max_time):
         time_at_site = np.zeros(self.num_sites)
         for _ in range(rollouts):
-            self.simulate(max_time=max_time)
-            for v in self.all_mob_traces:
+            all_mob_traces = self._simulate_mobility(max_time=max_time, seed=None)
+            for v in all_mob_traces:
                 time_at_site[v.site] += v.duration
         temp = time_at_site.argsort()
         site_priority = np.empty_like(temp)

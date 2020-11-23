@@ -60,7 +60,7 @@ if __name__ == '__main__':
     # for debugging purposes
     if args.smoke_test:
         start_date = '2021-01-01'
-        # end_date = '2021-01-15'
+        end_date = '2021-02-15'
         random_repeats = 1
         full_scale = False
         ps_adoption = [0.5]

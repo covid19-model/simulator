@@ -7,10 +7,11 @@ import numpy as np
 import random as rd
 import pandas as pd
 import pickle
+import pprint
 import multiprocessing
 import argparse
 from lib.measures import *
-from lib.experiment import Experiment, options_to_str, process_command_line
+from lib.experiment import Experiment, options_to_str, process_command_line, load_summary
 from lib.calibrationSettings import calibration_lockdown_dates, calibration_mob_paths, calibration_states, contact_tracing_adoption
 from lib.calibrationFunctions import get_calibrated_params
 
@@ -18,7 +19,7 @@ TO_HOURS = 24.0
 
 if __name__ == '__main__':
 
-    name = 'beacon-manual-tracing'
+    name = 'beacon-environment'
     start_date = '2021-01-01'
     end_date = '2021-05-01'
     random_repeats = 48
@@ -32,18 +33,19 @@ if __name__ == '__main__':
     )
 
     beta_multipliers = {
-        'education': 0.5,
+        'education': 1.0,
         'social': 1.0,
         'bus_stop': 1.0,
-        'office': 0.25,
-        'supermarket': 0.5,
+        'office': 1.0,
+        'supermarket': 1.0,
     }
 
     # contact tracing experiment parameters
+    beacons_onlys = [True, False]
     ps_adoption = [1.0, 0.75, 0.65, 0.5]
     beacon_cache = 0.0
-    thetas = np.linspace(0.1, 0.9, num=9, endpoint=True) # only p_infection > theta are traced
-    print('thresholds: ', thetas)
+    theta_sim = 0.5  # only p_exposure > theta are traced
+    thresholds_roc = np.linspace(0.0, 1.0, num=101, endpoint=True)
 
     # seed
     c = 0
@@ -67,14 +69,16 @@ if __name__ == '__main__':
     # for debugging purposes
     if args.smoke_test:
         start_date = '2021-01-01'
-        # end_date = '2021-01-15'
-        random_repeats = 1
+        end_date = '2021-02-15'
+        random_repeats = 4
         full_scale = False
-        ps_adoption = [0.5]
-        thetas = [0.3]
+        ps_adoption = [1.0]
+        beacons_onlys =[True]
         beacon_config = dict(
             mode='all',
         )
+        thresholds_roc = np.linspace(0.0, 1.0, num=11, endpoint=True)
+
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -89,91 +93,90 @@ if __name__ == '__main__':
     )
 
     # contact tracing experiment for various options
-    for beacons_only in [True, False]:
+    for beacons_only in beacons_onlys:
         for p_adoption in ps_adoption:
-            for theta in list(thetas):
 
-                # measures
-                max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+            # measures
+            max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
-                m = [        
-                    # beacon measures
-                    ManualTracingForAllMeasure(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_participate=1.0,
-                        p_recall=0.5),
+            m = [        
+                # beacon measures
+                ManualTracingForAllMeasure(
+                    t_window=Interval(0.0, TO_HOURS * max_days),
+                    p_participate=1.0,
+                    p_recall=0.5),
 
-                    # beta scaling (direcly scales betas ahead of time, so upscaling is valid_
-                    APrioriBetaMultiplierMeasureByType(
-                        beta_multiplier=beta_multipliers),       
+                # beta scaling (direcly scales betas ahead of time, so upscaling is valid_
+                APrioriBetaMultiplierMeasureByType(
+                    beta_multiplier=beta_multipliers),       
 
-                    # standard tracing measures
-                    ComplianceForAllMeasure(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_compliance=p_adoption),
-                    SocialDistancingForSmartTracing(
-                        t_window=Interval(0.0, TO_HOURS * max_days), 
-                        p_stay_home=1.0, 
-                        smart_tracing_isolation_duration=TO_HOURS * 14.0),
-                    SocialDistancingForSmartTracingHousehold(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_isolate=1.0,
-                        smart_tracing_isolation_duration=TO_HOURS * 14.0),
-                    SocialDistancingSymptomaticAfterSmartTracing(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_stay_home=1.0,
-                        smart_tracing_isolation_duration=TO_HOURS * 14.0),
-                    SocialDistancingSymptomaticAfterSmartTracingHousehold(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_isolate=1.0,
-                        smart_tracing_isolation_duration=TO_HOURS * 14.0),
-                    ]
+                # standard tracing measures
+                ComplianceForAllMeasure(
+                    t_window=Interval(0.0, TO_HOURS * max_days),
+                    p_compliance=p_adoption),
+                SocialDistancingForSmartTracing(
+                    t_window=Interval(0.0, TO_HOURS * max_days), 
+                    p_stay_home=1.0, 
+                    smart_tracing_isolation_duration=TO_HOURS * 14.0),
+                SocialDistancingForSmartTracingHousehold(
+                    t_window=Interval(0.0, TO_HOURS * max_days),
+                    p_isolate=1.0,
+                    smart_tracing_isolation_duration=TO_HOURS * 14.0),
+                SocialDistancingSymptomaticAfterSmartTracing(
+                    t_window=Interval(0.0, TO_HOURS * max_days),
+                    p_stay_home=1.0,
+                    smart_tracing_isolation_duration=TO_HOURS * 14.0),
+                SocialDistancingSymptomaticAfterSmartTracingHousehold(
+                    t_window=Interval(0.0, TO_HOURS * max_days),
+                    p_isolate=1.0,
+                    smart_tracing_isolation_duration=TO_HOURS * 14.0),
+                ]
 
-                # set testing params via update function of standard testing parameters
-                def test_update(d):
-                    d['smart_tracing_actions'] = ['isolate', 'test']
-                    d['test_reporting_lag'] = 48.0
-                    d['tests_per_batch'] = 100000
+            # set testing params via update function of standard testing parameters
+            def test_update(d):
+                d['smart_tracing_actions'] = ['isolate', 'test']
+                d['test_reporting_lag'] = 48.0
+                d['tests_per_batch'] = 100000
 
-                    # isolation
-                    d['smart_tracing_policy_isolate'] = 'advanced-threshold'
-                    d['smart_tracing_isolation_threshold'] = theta
-                    d['smart_tracing_isolated_contacts'] = 100000
-                    d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
+                # isolation
+                d['smart_tracing_policy_isolate'] = 'advanced-threshold'
+                d['smart_tracing_isolation_threshold'] = theta_sim
+                d['smart_tracing_isolated_contacts'] = 100000
+                d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
 
-                    # testing
-                    d['smart_tracing_policy_test'] = 'advanced-threshold'
-                    d['smart_tracing_testing_threshold'] = theta
-                    d['smart_tracing_tested_contacts'] = 100000
+                # testing
+                d['smart_tracing_policy_test'] = 'advanced-threshold'
+                d['smart_tracing_testing_threshold'] = theta_sim
+                d['smart_tracing_tested_contacts'] = 100000
 
-                    # if true only contacts at sites with beacons can be traced
-                    d['beacons_only'] = beacons_only
-                    # Visits of i `beacon_cache` hours before and after visits of j get tracked
-                    d['beacon_cache'] = beacon_cache
+                # if true only contacts at sites with beacons can be traced
+                d['beacons_only'] = beacons_only
+                # Visits of i `beacon_cache` hours before and after visits of j get tracked
+                d['beacon_cache'] = beacon_cache
 
-                    return d
+                return d
 
 
-                simulation_info = options_to_str(
-                    beacon='y' if beacons_only else 'n',
-                    p_adoption=p_adoption,
-                    theta=theta,
-                )
-                    
-                experiment.add(
-                    simulation_info=simulation_info,
-                    country=country,
-                    area=area,
-                    measure_list=m,
-                    beacon_config=beacon_config,
-                    test_update=test_update,
-                    seed_summary_path=seed_summary_path,
-                    set_initial_seeds_to=set_initial_seeds_to,
-                    set_calibrated_params_to=calibrated_params,
-                    full_scale=full_scale,
-                    lockdown_measures_active=False,
-                    expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
+            simulation_info = options_to_str(
+                beacon='y' if beacons_only else 'n',
+                p_adoption=p_adoption,
+            )
                 
+            experiment.add(
+                simulation_info=simulation_info,
+                country=country,
+                area=area,
+                measure_list=m,
+                beacon_config=beacon_config,
+                thresholds_roc=thresholds_roc,
+                test_update=test_update,
+                seed_summary_path=seed_summary_path,
+                set_initial_seeds_to=set_initial_seeds_to,
+                set_calibrated_params_to=calibrated_params,
+                full_scale=full_scale,
+                lockdown_measures_active=False,
+                expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
+            
     print(f'{experiment_info} configuration done.')
 
     # execute all simulations

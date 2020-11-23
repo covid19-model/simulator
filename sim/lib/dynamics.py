@@ -166,8 +166,11 @@ class DiseaseModel(object):
         self.children_count_ipre = np.zeros(self.n_people, dtype='int')
         self.children_count_isym = np.zeros(self.n_people, dtype='int')
         
-        # smart tracing
-        self.empirical_survival_probability = np.ones(self.n_people, dtype='float')
+        # contact tracing
+        self.contact_caused_expo = [None for i in range(self.n_people)]
+        # list of tuples (i, contacts) where `contacts` were valid when `i` got tested positive
+        self.valid_contacts_for_tracing = []
+
 
     def initialize_states_for_seeds(self):
         """
@@ -281,7 +284,7 @@ class DiseaseModel(object):
                 else:
                     raise ValueError('Invalid initial seed state.')
 
-    def launch_epidemic(self, params, initial_counts, testing_params, measure_list, verbose=True):
+    def launch_epidemic(self, params, initial_counts, testing_params, measure_list, thresholds_roc=None, verbose=True):
         """
         Run the epidemic, starting from initial event list.
         Events are treated in order in a priority queue. An event in the queue is a tuple
@@ -290,6 +293,7 @@ class DiseaseModel(object):
 
         """
         self.verbose = verbose
+        self.thresholds_roc = thresholds_roc
 
         # optimized params
         self.betas = params['betas']
@@ -696,8 +700,103 @@ class DiseaseModel(object):
             # print
             self.__print(t, force=True)
 
+        
+        '''Compute ROC statistics'''
+        # tracing_stats[threshold][action][stat]
+        self.tracing_stats = {}
+        if self.thresholds_roc is not None:
+            for threshold in self.thresholds_roc:
+                self.tracing_stats[threshold] = self.compute_roc_stats(
+                    threshold_isolate=threshold, threshold_test=threshold)
+
         # free memory
-        del self.queue
+        self.valid_contacts_for_tracing = None
+        self.queue = None
+
+
+    def compute_roc_stats(self, *, threshold_isolate, threshold_test):
+        '''        
+        Recovers contacts for which trace/no-trace decision was made.
+        Then re-computes TP/FP/TN/FN for different decision thresholds, given 
+        the label that a given person with contact got exposed.
+        Assumes `advanced-threshold` policy for both isolation and testing.
+        '''
+
+        stats = {
+            'isolate' : {'tp' : 0, 'fp' : 0, 'tn' : 0, 'fn' : 0},
+            'test' :    {'tp' : 0, 'fp' : 0, 'tn' : 0, 'fn' : 0},
+        } 
+        
+        contacts_caused_tracing_isolation = [[] for _ in range(self.n_people)]
+        contacts_caused_tracing_no_isolation = [[] for _ in range(self.n_people)]
+
+        contacts_caused_tracing_testing = [[] for _ in range(self.n_people)]
+        contacts_caused_tracing_no_testing = [[] for _ in range(self.n_people)]
+
+        # for each tracing call due to an `infector`, re-compute classification decision (tracing or not)  
+        # under the decision threshold `thres`, and record decision in `contacts_caused_tracing_...` arrays by individual
+        for t, infector, valid_contacts_with_j in self.valid_contacts_for_tracing:
+
+            # compute empirical survival probability
+            emp_survival_prob = dict()
+            for j, contacts_j in valid_contacts_with_j.items():
+                emp_survival_prob[j] = self.__compute_empirical_survival_probability(
+                    t=t, i=infector, j=j, contacts_i_j=contacts_j)
+
+            # isolation decision
+            contacts_isolation, contacts_no_isolation = self.__tracing_policy_advanced_threshold(
+                t=t, contacts_with_j=valid_contacts_with_j, threshold=threshold_isolate,
+                emp_survival_prob=emp_survival_prob)
+            for j, contacts_j in contacts_isolation:
+                contacts_caused_tracing_isolation[j].append(set(contacts_j))
+            for j, contacts_j in contacts_no_isolation:
+                contacts_caused_tracing_no_isolation[j].append(set(contacts_j))
+            
+            # testing decision
+            contacts_testing, contacts_no_testing = self.__tracing_policy_advanced_threshold(
+                t=t, contacts_with_j=valid_contacts_with_j, threshold=threshold_test,
+                emp_survival_prob=emp_survival_prob)
+            for j, contacts_j in contacts_testing:
+                contacts_caused_tracing_testing[j].append(set(contacts_j))
+            for j, contacts_j in contacts_no_testing:
+                contacts_caused_tracing_no_testing[j].append(set(contacts_j))
+
+            
+        # for each individual, compare label (contact exposure?) with classification (traced due to this contact?)
+        for j in range(self.n_people):
+
+            # if `j` never got exposed by a contact, not relevant
+            c_expo = self.contact_caused_expo[j]
+            if c_expo is None:
+                continue
+
+            for action, contacts_caused_tracing, contacts_caused_no_tracing in \
+                [('isolate', contacts_caused_tracing_isolation, contacts_caused_tracing_no_isolation),
+                ('test', contacts_caused_tracing_testing, contacts_caused_tracing_no_testing)]:
+            
+                # each time `j` is traced after a contact
+                for c_traced in contacts_caused_tracing[j]:
+                    # and this contact ultimately caused the exposure of `j`
+                    # TP
+                    if c_expo in c_traced:
+                        stats[action]['tp'] += 1
+                    # FP
+                    else:
+                        stats[action]['fp'] += 1
+
+                # each time `j` is not traced after a contact
+                for c_not_traced in contacts_caused_no_tracing[j]:
+                    # and this contact ultimately caused the exposure of `j`
+                    # FN
+                    if c_expo in c_not_traced:
+                        stats[action]['fn'] += 1
+                    # TN
+                    else:
+                        stats[action]['tn'] += 1
+        
+        return stats
+
+        
 
     def __process_exposure_event(self, *, t, i, parent, contact):
         """
@@ -734,6 +833,11 @@ class DiseaseModel(object):
                 self.queue.push(
                     (t + self.delta_expo_to_ipre[i], 'ipre', i, None, None, None),
                     priority=t + self.delta_expo_to_ipre[i])
+
+        # record which contact caused this exposure event (to check if it was traced for TP/FP/TN/FN computation)
+        if contact is not None:
+            assert(self.contact_caused_expo[i] is None)
+            self.contact_caused_expo[i] = contact
 
     def __process_presymptomatic_event(self, t, i, add_exposures=True):
         """
@@ -1223,85 +1327,89 @@ class DiseaseModel(object):
             tmax=t,
             beacon_cache=self.smart_tracing_beacon_cache)
 
-        # filter which contacts were valid and store by individual
+        # filter which contacts were valid in dict keyed by individual
         valid_contacts_with_j = defaultdict(list)   
         for contact in infectors_contacts:            
             if self.__is_tracing_contact_valid(t=t, i=i, contact=contact):
                 j = contact.indiv_i
                 valid_contacts_with_j[j].append(contact)
-
-        '''Select contacts to be traced based on tracing policy'''
-        contacts_isolation = PriorityQueue()
-        contacts_testing = PriorityQueue()
-
-        for j, contacts_j in valid_contacts_with_j.items():
-            
-            # isolation
-            if 'isolate' in self.smart_tracing_actions:
-                if self.smart_tracing_policy_isolate == 'basic':
-                    contacts_isolation.push(j, priority=t)
-
-                elif self.smart_tracing_policy_isolate == 'advanced':
-                    self.empirical_survival_probability[j] = \
-                        self.__compute_empirical_survival_probability(
-                            t=t, i=i, j=j, contacts_i_j=contacts_j)
-                    contacts_isolation.push(j, priority=self.empirical_survival_probability[j])
-
-                elif self.smart_tracing_policy_isolate == 'advanced-threshold':
-                    self.empirical_survival_probability[j] = \
-                        self.__compute_empirical_survival_probability(
-                            t=t, i=i, j=j, contacts_i_j=contacts_j)
-                    if self.empirical_survival_probability[j] > self.smart_tracing_isolation_threshold:
-                        contacts_isolation.push(j, priority=self.empirical_survival_probability[j])
-
-                else:
-                    raise ValueError('Invalid smart tracing policy.')
-
-            # testing
-            if 'test' in self.smart_tracing_actions:
-                # if contact is positive, skip (don't test positive people twice)
-                if not self.state['posi'][j]:
-                    if self.smart_tracing_policy_test == 'basic':
-                        contacts_testing.push(j, priority=t)
-
-                    elif self.smart_tracing_policy_test == 'advanced':
-                        self.empirical_survival_probability[j] = \
-                            self.__compute_empirical_survival_probability(
-                                t=t, i=i, j=j, contacts_i_j=contacts_j)
-                        contacts_testing.push(j, priority=self.empirical_survival_probability[j])
-
-                    elif self.smart_tracing_policy_test == 'advanced-threshold':
-                        self.empirical_survival_probability[j] = \
-                            self.__compute_empirical_survival_probability(
-                                t=t, i=i, j=j, contacts_i_j=contacts_j)
-                        if self.empirical_survival_probability[j] > self.smart_tracing_testing_threshold:
-                            contacts_testing.push(j, priority=self.empirical_survival_probability[j])
-
-                    else:
-                        raise ValueError('Invalid smart tracing policy.')
         
+        # if needed, compute empirical survival probability for all contacts
+        if ('isolate' in self.smart_tracing_actions and self.smart_tracing_policy_isolate != 'basic') or \
+           ('test' in self.smart_tracing_actions and self.smart_tracing_policy_test != 'basic'):
+            emp_survival_prob = dict()
+            for j, contacts_j in valid_contacts_with_j.items():
+                emp_survival_prob[j] = self.__compute_empirical_survival_probability(
+                    t=t, i=i, j=j, contacts_i_j=contacts_j)
+
+        '''Select contacts (not) to be traced based on tracing policy'''
+        # each list contains (j, contacts_j) tuples, i.e. a part of `valid_contacts_with_j`
+        # determining which valid individuals are traced 
+        contacts_isolation, contacts_testing = [], []
+
+        # isolation
+        if 'isolate' in self.smart_tracing_actions:
+            if self.smart_tracing_policy_isolate == 'basic':
+                contacts_isolation, _ = self.__tracing_policy_basic(
+                    contacts_with_j=valid_contacts_with_j, 
+                    budget=self.smart_tracing_isolated_contacts)
+
+            elif self.smart_tracing_policy_isolate == 'advanced':
+                contacts_isolation, _ = self.__tracing_policy_advanced(
+                    t=t, contacts_with_j=valid_contacts_with_j,
+                    emp_survival_prob=emp_survival_prob, 
+                    budget=self.smart_tracing_isolated_contacts)
+
+            elif self.smart_tracing_policy_isolate == 'advanced-threshold':
+                contacts_isolation, _ = self.__tracing_policy_advanced_threshold(
+                    t=t, contacts_with_j=valid_contacts_with_j, 
+                    threshold=self.smart_tracing_isolation_threshold,
+                    emp_survival_prob=emp_survival_prob)
+            else:
+                raise ValueError('Invalid tracing isolation policy.')
+
+        # testing
+        if 'test' in self.smart_tracing_actions:
+            
+            if self.smart_tracing_policy_test == 'basic':
+                contacts_testing, _ = self.__tracing_policy_basic(
+                    contacts_with_j=valid_contacts_with_j, 
+                    budget=self.smart_tracing_tested_contacts)
+
+            elif self.smart_tracing_policy_test == 'advanced':
+                contacts_testing, _ = self.__tracing_policy_advanced(
+                    t=t, contacts_with_j=valid_contacts_with_j,
+                    emp_survival_prob=emp_survival_prob, 
+                    budget=self.smart_tracing_tested_contacts)
+
+            elif self.smart_tracing_policy_test == 'advanced-threshold':
+                contacts_testing, _ = self.__tracing_policy_advanced_threshold(
+                    t=t, contacts_with_j=valid_contacts_with_j,
+                    threshold=self.smart_tracing_testing_threshold,
+                    emp_survival_prob=emp_survival_prob)
+            else:
+                raise ValueError('Invalid tracing tes policy.')
+            
+
+        # record which contacts are being traced and which are not for later analysis
+        if self.thresholds_roc is not None:
+            self.__record_contacts_causing_trace_action(t=t, infector=i, contacts=valid_contacts_with_j)
 
         '''Execute contact tracing actions for selected contacts'''
         if 'isolate' in self.smart_tracing_actions:
-            for _ in range(min(self.smart_tracing_isolated_contacts, len(contacts_isolation))):
-                j = contacts_isolation.pop()    
-
+            for j, _ in contacts_isolation:
                 self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=j)
                 self.measure_list.start_containment(SocialDistancingForSmartTracingHousehold, t=t, j=j)
                 self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracing, t=t, j=j)
                 self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracingHousehold, t=t, j=j)
 
         if 'test' in self.smart_tracing_actions:
-            for _ in range(min(self.smart_tracing_tested_contacts, len(contacts_testing))):
-                j = contacts_testing.pop()
-
-                # only have empirical survival probability information when using the `advanced` policy
-                # not relevant when using `fifo` queue
+            for j, _ in contacts_testing:
                 if self.smart_tracing_policy_test == 'basic':
                     self.__apply_for_testing(t=t, i=j, priority=1.0)
                 elif self.smart_tracing_policy_test == 'advanced' \
                     or self.smart_tracing_policy_test == 'advanced-threshold':
-                    self.__apply_for_testing(t=t, i=j, priority=self.empirical_survival_probability[j])
+                    self.__apply_for_testing(t=t, i=j, priority=emp_survival_prob[j])
                 else:
                     raise ValueError('Invalid smart tracing policy.')
         
@@ -1328,6 +1436,66 @@ class DiseaseModel(object):
                     # not relevant for `fifo` queue 
                     self.__apply_for_testing(t=t, i=j, priority=0.0)
 
+    def __tracing_policy_basic(self, contacts_with_j, budget):
+        """
+        Basic contact tracing. Selects random contacts up to the limit.
+        `contacts_with_j`:   {j : contacts} where `contacts` are contacts of infector with j 
+                             in the contact tracing time window
+        """
+        # randomly permute all (j, contacts_with_j) tuples
+        n = len(contacts_with_j)
+        js = list(contacts_with_j.keys())
+        contact_with_js = list(contacts_with_j.values())
+        p = np.random.permutation(n).tolist()
+        tuples = list(zip([js[p[i]] for i in range(n)],
+                          [contact_with_js[p[i]] for i in range(n)]))
+
+        # return (traced, not traced)
+        return tuples[:budget], tuples[budget:]
+
+    def __tracing_policy_advanced(self, t, contacts_with_j, budget, emp_survival_prob):
+        """
+        Advanced contact tracing. Selects contacts according to high exposure risk up to the limit.
+        `contacts_with_j`:   {j : contacts} where `contacts` are contacts of infector with j 
+                             in the contact tracing time window
+        `emp_survival_prob`: {j : empirical probability of j not being infected}
+        """
+
+        # sort by empirical probability of survival (lowest first)
+        p = np.array([emp_survival_prob[j] for j in contacts_with_j.keys()]).argsort().tolist()
+        n = len(contacts_with_j)
+        js = list(contacts_with_j.keys())
+        contact_with_js = list(contacts_with_j.values())
+        p = np.random.permutation(n).tolist()
+        tuples = list(zip([js[p[i]] for i in range(n)],
+                          [contact_with_js[p[i]] for i in range(n)]))
+
+        # return (traced, not traced)
+        return tuples[:budget], tuples[budget:]
+
+    def __tracing_policy_advanced_threshold(self, t, contacts_with_j, threshold, emp_survival_prob):
+        """
+        Advanced contact tracing. Selects contacts according to high exposure risk up to the threshold.
+        `contacts_with_j`:   {j : contacts} where `contacts` are contacts of infector with j 
+                             in the contact tracing time window
+        `emp_survival_prob`: {j : empirical probability of j not being infected}
+        """
+        # only trace below a certain empirical probability of survival 
+        traced = [(j, contact_with_j) for j, contact_with_j in contacts_with_j.items() if emp_survival_prob[j] <= threshold]
+        not_traced = [(j, contact_with_j) for j, contact_with_j in contacts_with_j.items() if emp_survival_prob[j] > threshold]
+
+        # return (traced, not traced)
+        return traced, not_traced
+          
+
+    def __record_contacts_causing_trace_action(self, *, t, infector, contacts):
+        """
+        Records the contact tuples `contacts` (j, contacts of j with infector) that ended up
+        triggering or not triggering a tracing action `action` for individual `j`.
+        Used to later compute true positives, false positives, etc.
+        """
+        self.valid_contacts_for_tracing.append((t, infector, contacts))
+
 
     def __is_tracing_contact_valid(self, *, t, i, contact):
         """ 
@@ -1349,25 +1517,32 @@ class DiseaseModel(object):
         '''Check status of both individuals'''
         i_has_valid_status = (
             # not dead
-            (not (self.state['dead'][i] and self.state_started_at['dead'][i] < start_contact)) and
+            (not (self.state['dead'][i] and self.state_started_at['dead'][i] <= start_contact)) and
 
             # not hospitalized at time of contact
-            (not (self.state['hosp'][i] and self.state_started_at['hosp'][i] < start_contact))
+            (not (self.state['hosp'][i] and self.state_started_at['hosp'][i] <= start_contact))
         )
 
         j_has_valid_status = (
             # not dead
-            (not (self.state['dead'][j] and self.state_started_at['dead'][j] < start_contact)) and
+            (not (self.state['dead'][j] and self.state_started_at['dead'][j] <= start_contact)) and
 
             # not hospitalized at time of contact
-            (not (self.state['hosp'][j] and self.state_started_at['hosp'][j] < start_contact))
+            (not (self.state['hosp'][j] and self.state_started_at['hosp'][j] <= start_contact)) and
+
+            # not positive at time of tracing
+            (not (self.state['posi'][j] and self.state_started_at['posi'][j] <= t))
         )
+
         if (not i_has_valid_status) or (not j_has_valid_status):
             return False
         
         '''Check compliance'''
         is_i_compliant = self.measure_list.is_compliant(
-            ComplianceForAllMeasure, t=max(t - self.smart_tracing_contact_delta, 0.0), j=i)
+            ComplianceForAllMeasure, 
+            # to be consistent with general `is_i_compliant` check outside, don't use `start_contact`
+            t=max(t - self.smart_tracing_contact_delta, 0.0), j=i)
+            
         if is_i_compliant:
             is_i_compliant_or_recalls = True
         else:
@@ -1378,7 +1553,7 @@ class DiseaseModel(object):
             # check if `i` recalls the visit and hence its site
             i_recalls_visit = self.measure_list.is_active(
                 ManualTracingForAllMeasure,
-                t=contact.t_from, # t not needed for the visit, but only for whether measure is active
+                t=start_contact,  # t not needed for the visit, but only for whether measure is active
                 j=i,
                 j_visit_id=i_visit_id)  # `i_visit_id` queries whether `i` recalls this specific visit
 
@@ -1386,7 +1561,9 @@ class DiseaseModel(object):
 
         # j can only be traced when complying with the system
         is_j_compliant = self.measure_list.is_compliant(
-            ComplianceForAllMeasure, t=max(t - self.smart_tracing_contact_delta, 0.0), j=j)
+            ComplianceForAllMeasure, 
+            # to be consistent with `is_i_compliant` check, don't use `start_contact`
+            t=max(t - self.smart_tracing_contact_delta, 0.0), j=j)
         
         if (not is_i_compliant_or_recalls) or (not is_j_compliant):
             return False

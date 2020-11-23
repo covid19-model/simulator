@@ -55,8 +55,9 @@ Simulation = namedtuple('Simulation', (
 
     ## default arguments
     'beacon_config',            # dictionary containing information regarding beacon implementation
+    'thresholds_roc',               # threshold values for ROC curve computation
 
-), defaults=(None, )) # NOTE: `defaults` iterable is applied from back to front, i.e. just `beacon_config` has a default
+), defaults=(None, None))  # NOTE: `defaults` iterable is applied from back to front, i.e. just `beacon_config` and `thresholds_roc` has a default
 
 
 
@@ -200,6 +201,7 @@ class Experiment(object):
         set_initial_seeds_to=None,
         expected_daily_base_expo_per100k=0,
         beacon_config=None,
+        thresholds_roc=None,
         store_mob=False):
 
         # Set time window based on experiment start and end date
@@ -358,6 +360,8 @@ class Experiment(object):
         # with stored `Result` objects prior to implementing beacon functionality
         if beacon_config is not None:
             sim_kwargs['beacon_config'] = beacon_config
+        if thresholds_roc is not None:
+            sim_kwargs['thresholds_roc'] = thresholds_roc
 
         self.sims.append(Simulation(**sim_kwargs))
 
@@ -398,6 +402,7 @@ class Experiment(object):
                 site_loc=mob_settings['site_loc'],
                 num_sites=len(mob_settings['site_loc']),
                 beacon_config=sim.beacon_config,
+                thresholds_roc=sim.thresholds_roc if sim.thresholds_roc is not None else [],  # convert to [] if None
                 store_mob=sim.store_mob,
                 store_measure_bernoullis=sim.store_mob,
                 verbose=False)

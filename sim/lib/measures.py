@@ -106,7 +106,7 @@ class SocialDistancingForAllMeasure(Measure):
     def exit_run(self):
         """ Deletes bernoulli array. """
         if self._is_init:
-            del self.bernoulli_stay_home
+            self.bernoulli_stay_home = None
             self._is_init = False
 
 
@@ -384,7 +384,7 @@ class SocialDistancingByAgeMeasure(Measure):
     def exit_run(self):
         """ Deletes bernoulli array. """
         if self._is_init:
-            del self.bernoulli_stay_home
+            self.bernoulli_stay_home = None
             self._is_init = False
 
 
@@ -464,8 +464,7 @@ class SocialDistancingForSmartTracing(Measure):
     def exit_run(self):
         """ Deletes bernoulli array. """
         if self._is_init:
-            del self.bernoulli_stay_home
-            # del self.got_contained
+            self.bernoulli_stay_home = None
             self._is_init = False
 
 
@@ -539,8 +538,8 @@ class SocialDistancingSymptomaticAfterSmartTracing(Measure):
     def exit_run(self):
         """ Deletes bernoulli array. """
         if self._is_init:
-            del self.bernoulli_stay_home
-            del self.got_contained
+            self.bernoulli_stay_home = None
+            self.got_contained = None
             self._is_init = False
 
 class SocialDistancingForSmartTracingHousehold(Measure):
@@ -669,7 +668,7 @@ class SocialDistancingSymptomaticAfterSmartTracingHousehold(Measure):
     def exit_run(self):
         """ Deletes bernoulli array. """
         if self._is_init:
-            del self.got_contained
+            self.got_contained = None
             self._is_init = False
 
 class SocialDistancingForKGroups(Measure):
@@ -896,7 +895,7 @@ class ComplianceForAllMeasure(Measure):
     def exit_run(self):
         """ Deletes bernoulli array. """
         if self._is_init:
-            del self.bernoulli_compliant
+            self.bernoulli_compliant = None
             self._is_init = False
     
 
@@ -975,8 +974,8 @@ class ManualTracingForAllMeasure(Measure):
     def exit_run(self):
         """ Deletes bernoulli array. """
         if self._is_init:
-            del self.bernoulli_participate
-            del self.bernoulli_recall
+            self.bernoulli_participate = None
+            self.bernoulli_recall = None
             self._is_init = False
     
 
