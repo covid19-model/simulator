@@ -1321,7 +1321,7 @@ class DiseaseModel(object):
             return 
 
         '''Find valid contacts of infector (excluding delta-contacts)'''
-        infectors_contacts = self.mob.find_beacon_contacts_of_indiv(
+        infectors_contacts = self.mob.find_contacts_of_indiv(
             indiv=i,
             tmin=t - self.smart_tracing_contact_delta,
             tmax=t,
