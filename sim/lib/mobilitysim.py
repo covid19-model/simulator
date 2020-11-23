@@ -619,6 +619,9 @@ class MobilitySimulator:
                     mob_traces_at_site[v.site].append(v)
 
         for inf_visit in infector_traces:
+            if len(mob_traces_at_site[inf_visit.site]) == 0:
+                continue
+
             inter = InterLap()
             inter.update(mob_traces_at_site[inf_visit.site])
 
