@@ -604,9 +604,6 @@ class MobilitySimulator:
         # If beacon_cache is None use delta contacts for simulating infections
         extended_time_window = beacon_cache if beacon_cache is not None else self.delta
 
-        if extended_time_window > self.delta:
-            raise ValueError(f'Specified beacon cache {beacon_cache} is larger than delta-contact window {self.delta}')
-
         infector_traces = []
         mob_traces_at_site = defaultdict(list)
         contacts = InterLap()

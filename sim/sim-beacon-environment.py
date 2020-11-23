@@ -35,7 +35,7 @@ if __name__ == '__main__':
     beta_multipliers = {
         'education': 1.0,
         'social': 2.0,
-        'bus_stop': 2.0,
+        'bus_stop': 0.2,
         'office': 0.5,
         'supermarket': 1.0,
     }
@@ -69,9 +69,9 @@ if __name__ == '__main__':
     # for debugging purposes
     if args.smoke_test:
         start_date = '2021-01-01'
-        end_date = '2021-03-01'
-        # random_repeats = 24
-        random_repeats = 16
+        # end_date = '2021-03-01'
+        random_repeats = 24
+        # random_repeats = 16
         full_scale = False
         ps_adoption = [1.0]
         beacons_onlys =[True, False]
