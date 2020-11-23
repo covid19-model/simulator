@@ -575,147 +575,58 @@ class MobilitySimulator:
         self.mob_traces = self._group_mob_traces(all_mob_traces)
         return all_mob_traces
 
-    def _find_contacts(self):
+    def _find_all_contacts(self):
         """
         Finds contacts in a given list `mob_traces` of `Visit`s
         and stores them in a dictionary of dictionaries of InterLap objects,
         """
-        # Group mobility traces by site
-        mob_traces_at_site = defaultdict(list)
-        for v in self.all_mob_traces:
-            mob_traces_at_site[v.site].append(v)
 
-        contacts = self._find_mob_trace_overlaps(sites=range(self.num_sites),
-                                                 mob_traces_at_site=mob_traces_at_site,
-                                                 infector_mob_traces_at_site=mob_traces_at_site,
-                                                 tmin=0.0,
-                                                 for_all_individuals=True,
-                                                 direct_only=False)
+        # dict of dict of list of contacts:
+        # i.e. contacts[i][j][k] = "k-th contact from i to j"
+        contacts = {i: defaultdict(InterLap) for i in range(self.num_people)}
+
+        for j in range(self.num_people):
+            # Get all contacts of indiv j
+            contacts_j = self.find_contacts_of_indiv(indiv=j, tmin=0, tmax=np.inf)
+            # Sort contacts of indiv j by contact person
+            for c in contacts_j:
+                contacts[c.indiv_i, j].update([c])
+
         return contacts
 
-    def find_contacts_of_indiv(self, indiv, tmin, tmax, direct_only=False):
+    def find_contacts_of_indiv(self, indiv, tmin, tmax, beacon_cache=None):
         """
         Finds all delta-contacts of person 'indiv' with any other individual after time 'tmin'
         and returns them as InterLap object.
         In the simulator, this function is called for `indiv` as infector.
         """
-        mob_traces_at_site = defaultdict(list)
-        infector_mob_traces_at_site = defaultdict(list)
-        visited_sites = []
 
-        for v in self.all_mob_traces:
-            # Only consider visit if overlap with [tmin, tmax]
-            if tmin < v.t_to_shifted and (v.t_from < tmax if (tmax is not None) else True):
+        # If beacon_cache is None use delta contacts for simulating infections
+        extended_time_window = beacon_cache if beacon_cache is not None else self.delta
 
-                # Store as either mob_trace of infector or of everyone else
-                if v.indiv == indiv:
-                    infector_mob_traces_at_site[v.site].append(v)
-                    if v.site not in visited_sites:
-                        visited_sites.append(v.site)
-                mob_traces_at_site[v.site].append(v)
+        if extended_time_window > self.delta:
+            raise ValueError(f'Specified beacon cache {beacon_cache} is larger than delta-contact window {self.delta}')
 
-        contacts = self._find_mob_trace_overlaps(sites=visited_sites,
-                                                 mob_traces_at_site=mob_traces_at_site,
-                                                 infector_mob_traces_at_site=infector_mob_traces_at_site,
-                                                 tmin=tmin,
-                                                 tmax=tmax,
-                                                 for_all_individuals=False,
-                                                 direct_only=direct_only)
-        return contacts
-
-    def _find_mob_trace_overlaps(self, sites, mob_traces_at_site, infector_mob_traces_at_site, tmin, tmax,
-                                 for_all_individuals, direct_only):
-        # decide way of storing depending on way the function is used (all or individual)
-        # FIXME: this could be done in a cleaner way by calling this function several times in `_find_contacts` 
-        if for_all_individuals:
-            # dict of dict of list of contacts:
-            # i.e. contacts[i][j][k] = "k-th contact from i to j"
-            contacts = {i: defaultdict(InterLap) for i in range(self.num_people)}
-        else:
-            contacts = InterLap()
-
-        if self.verbose and for_all_individuals:
-            print() # otherwise jupyter notebook looks ugly
-
-        for s in sites:
-            if self.verbose and for_all_individuals:
-                print('Checking site ' + str(s + 1) + '/' + str(len(sites)), end='\r')
-            if len(mob_traces_at_site[s]) == 0:
-                continue
-
-            # Init the interval overlap matcher
-            inter = InterLap()
-            inter.update(mob_traces_at_site[s])
-
-            # Match contacts
-            # Iterate over each visit of the infector at site s
-            for v_inf in infector_mob_traces_at_site[s]:
-                t_max_infector = v_inf.t_to_shifted if not direct_only else v_inf.t_to
-                # Skip if delta-contact ends before `tmin` or begins after `tmax`
-                if tmin < t_max_infector and (v_inf.t_from < tmax if (tmax is not None) else True):
-                    
-                    v_time = (v_inf.t_from, t_max_infector)
-
-                    # Find any othe person that had overlap with this visit
-                    for v in list(inter.find(other=v_time)):
-
-                        # Ignore contacts with same individual
-                        if v.indiv == v_inf.indiv:
-                            continue
-
-                        # Compute contact time
-                        c_t_from = max(v.t_from, v_inf.t_from)
-                        c_t_to = min(v.t_to, t_max_infector)
-                        if c_t_to > c_t_from and c_t_to > tmin:
-
-                            # Init contact tuple
-                            # Note 1: Contact always considers delta overlap for `indiv_j` 
-                            # (i.e. for `indiv_j` being the infector)
-                            # Note 2: Contact contains the delta-extended visit of `indiv_j`
-                            # (i.e. there is a `Contact` even when `indiv_j` never overlapped physically with `indiv_i`)
-                            # (i.e. need to adjust for that in dY_i integral)
-                            c = Contact(t_from=c_t_from,
-                                        t_to=c_t_to,
-                                        indiv_i=v.indiv,
-                                        indiv_j=v_inf.indiv,
-                                        id_tup=(v.id, v_inf.id),
-                                        site=s,
-                                        duration=c_t_to - c_t_from)
-
-                            # Add it to interlap
-                            if for_all_individuals:
-                                # Dictionary of all contacts
-                                contacts[v.indiv][v_inf.indiv].update([c])
-                            else:
-                                # All contacts of (infector) 'indiv' only
-                                contacts.update([c])
-        return contacts
-
-    def find_beacon_contacts_of_indiv(self, indiv, tmin, tmax, beacon_cache):
-        """
-        Finds all delta-contacts of person 'indiv' with any other individual after time 'tmin'
-        and returns them as InterLap object.
-        In the simulator, this function is called for `indiv` as infector.
-        """
         infector_traces = []
         mob_traces_at_site = defaultdict(list)
         contacts = InterLap()
 
         for v in self.all_mob_traces:
             # Only consider visit if overlap with [tmin, tmax]
-            is_valid_contact = (tmin < v.t_to + beacon_cache
+            is_valid_contact = (tmin < v.t_to_shifted
                                 and (v.t_from < tmax if (tmax is not None) else True))
             if is_valid_contact:
                 if v.indiv == indiv:
                     infector_traces.append(v)
-                mob_traces_at_site[v.site].append(v)
+                else:
+                    mob_traces_at_site[v.site].append(v)
 
         for inf_visit in infector_traces:
             inter = InterLap()
             inter.update(mob_traces_at_site[inf_visit.site])
 
-            # The beacon records the visits that happened `beacon_cache` hours before and after infectors visit
-            visit_time = (inf_visit.t_from, inf_visit.t_to + beacon_cache)
+            # Find all contacts including delta-contacts, if beacon_cache=0, delta-contacts get removed later
+            visit_time = (inf_visit.t_from, inf_visit.t_to_shifted)
 
             for visit in list(inter.find(other=visit_time)):
                 # Ignore contacts with same individual
@@ -724,20 +635,16 @@ class MobilitySimulator:
 
                 # Compute contact time
                 c_t_from = max(visit.t_from, inf_visit.t_from)
-                c_t_to = min(visit.t_to, inf_visit.t_to)
+                c_t_to = min(visit.t_to, inf_visit.t_to + extended_time_window)
 
-                # Visits up to `beacon_cache` apart from each other count as contacts
-                if c_t_to + beacon_cache > c_t_from and c_t_to + beacon_cache > tmin:
-                    # If only indirect beacon contact register contact at `c_t_from` with duration 0
-                    if c_t_to < c_t_from:
-                        c_t_to = c_t_from
+                if c_t_to > c_t_from and c_t_to > tmin:
                     c = Contact(t_from=c_t_from,
                                 t_to=c_t_to,
                                 indiv_i=visit.indiv,
                                 indiv_j=inf_visit.indiv,
                                 id_tup=(visit.id, inf_visit.id),
                                 site=inf_visit.site,
-                                duration=max(0, c_t_to - c_t_from))
+                                duration=c_t_to - c_t_from)
                     contacts.update([c])
         return contacts
 
@@ -784,16 +691,8 @@ class MobilitySimulator:
         if self.verbose:
             print(f'Simulated {len(all_mob_traces)} visits.', flush=True)
 
-        # if not lazy_contacts:
-        #     # Find the contacts in all sites in the histories
-        #     if self.verbose:
-        #         print(f'Find contacts... ', end='')
-        #     self.contacts = self._find_contacts()
-
-        # else:
         # Initialize empty contact array
         self.contacts = {i: defaultdict(InterLap) for i in range(self.num_people)}
-
 
     def list_intervals_in_window_individual_at_site(self, *, indiv, site, t0, t1):
         """Return a generator of Intervals of all visits of `indiv` is at site
