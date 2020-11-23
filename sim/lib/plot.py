@@ -1738,6 +1738,116 @@ class Plotter(object):
             os.system(f'pdfcrop "${fpath}" tmp.pdf && mv tmp.pdf "${fpath}"')
             plt.close()
 
+    def plot_roc_curve(self, titles, summaries, action='isolate', figformat='double',
+                       filename='roc_example', figsize=None):
+        ''''
+        ROC curve
+        '''
+        self._set_matplotlib_params(format=figformat)
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+
+        # xs
+        xs = np.linspace(0, 1, num=500)
+        
+        for i, summary in enumerate(summaries):
+            
+            tracing_stats = summary.tracing_stats
+            thresholds = list(tracing_stats.keys())
+            
+            fpr_mean, fpr_std = [], []
+            tpr_mean, tpr_std = [], []
+
+            fpr_median = []
+            tpr_median = []
+            
+            fpr_of_means = []
+            tpr_of_means = []
+
+            fpr_of_medians = []
+            tpr_of_medians = []
+            
+
+            for thres in thresholds:
+
+                stats = tracing_stats[thres][action]
+
+
+                # FPR = FP/(FP + TN)
+                # [if FP = 0 and TN = 0, set to 0]
+                fprs = stats['fp'] / (stats['fp'] + stats['tn'])
+                fprs = np.nan_to_num(fprs, nan=0.0)
+                fpr_mean.append(np.mean(fprs).item())
+                fpr_std.append(np.std(fprs).item())
+                # fpr_median.append(np.median(fprs).item())
+
+                # fpr_of_means.append(np.nan_to_num(stats['fp'].mean() / (stats['fp'].mean() + stats['tn'].mean()), nan=0.0))
+                # fpr_of_medians.append(np.nan_to_num(np.median(stats['fp']) / (np.median(stats['fp'])+ np.median(stats['tn'])), nan=0.0))
+
+
+                # TPR = TP/(TP + FN)
+                # [if TP = 0 and FN = 0, set to 0]
+                tprs = stats['tp'] / (stats['tp'] + stats['fn'])
+                tprs = np.nan_to_num(tprs, nan=0.0)
+                tpr_mean.append(np.mean(tprs).item())
+                tpr_std.append(np.std(tprs).item())
+                # tpr_median.append(np.median(tprs).item())
+
+                # tpr_of_means.append(np.nan_to_num(stats['tp'].mean() / (stats['tp'].mean() + stats['fn'].mean()), nan=0.0))
+                # tpr_of_medians.append(np.nan_to_num(np.median(stats['tp'])/ (np.median(stats['tp'])+ np.median(stats['fn'])), nan=0.0))
+
+
+
+            
+            # # print(tracing_stats)
+            print(thresholds)
+            print(titles[i], 'FPR', fpr_mean, fpr_mean)
+            print(titles[i], 'TPR', tpr_mean, tpr_mean)
+
+            # print(titles[i], 'FPR', fpr_mean[0], fpr_mean[-1])
+            # print(titles[i], 'TPR', tpr_mean[0], tpr_mean[-1])
+
+            # print(titles[i], 'FPR of means', fpr_of_means[0], fpr_of_means[-1])
+            # print(titles[i], 'TPR of means', tpr_of_means[0], tpr_of_means[-1])
+
+            print()
+
+            # lines
+            ax.plot(fpr_mean, tpr_mean, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
+            # ax.plot(fpr_median, tpr_median, linestyle='-', label=titles[i] + ' median', c=self.color_different_scenarios[i])
+            # ax.plot(fpr_of_means, tpr_of_means, linestyle='-', label=titles[i] + ' of mean', c=self.color_different_scenarios[i])
+            # ax.plot(fpr_of_medians, tpr_of_medians, linestyle='-', label=titles[i] + ' of median', c=self.color_different_scenarios[i])
+
+
+        # diagonal
+        ax.plot(xs, xs, linestyle='dotted', c='black')
+
+        # axis
+        ax.set_xlim((0.0, 1.0))
+        ax.set_ylim((0.0, 1.0))
+        ax.set_xlabel('FPR')
+        ax.set_ylabel('TPR')
+        # ax.set_xlabel('FPR = FP/(FP + TN)')
+        # ax.set_ylabel('TPR = TP/(TP + FN)')
+
+        # Set default axes style
+        # self._set_default_axis_settings(ax=ax)
+        
+        leg = ax.legend(loc='lower right',
+            # bbox_to_anchor=(0.001, 0.999),
+            # bbox_transform=ax.transAxes,
+        #   prop={'size': 5.6}
+        )
+
+        # subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
+        # plt.subplots_adjust(**subplot_adjust)
+
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+                    dpi=DPI, bbox_inches='tight')
+
+        if NO_PLOT:
+            plt.close()
+        return
+
 
 
 def extract_data_from_summary(summary_path, acc=500, conditional_measures=False, n_age_groups=None):

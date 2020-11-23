@@ -1481,8 +1481,8 @@ class DiseaseModel(object):
         `emp_survival_prob`: {j : empirical probability of j not being infected}
         """
         # only trace below a certain empirical probability of survival 
-        traced = [(j, contact_with_j) for j, contact_with_j in contacts_with_j.items() if emp_survival_prob[j] <= threshold]
-        not_traced = [(j, contact_with_j) for j, contact_with_j in contacts_with_j.items() if emp_survival_prob[j] > threshold]
+        traced = [(j, contact_with_j) for j, contact_with_j in contacts_with_j.items() if emp_survival_prob[j] < threshold]
+        not_traced = [(j, contact_with_j) for j, contact_with_j in contacts_with_j.items() if emp_survival_prob[j] >= threshold]
 
         # return (traced, not traced)
         return traced, not_traced

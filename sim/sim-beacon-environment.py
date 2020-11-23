@@ -34,18 +34,18 @@ if __name__ == '__main__':
 
     beta_multipliers = {
         'education': 1.0,
-        'social': 1.0,
-        'bus_stop': 1.0,
-        'office': 1.0,
+        'social': 2.0,
+        'bus_stop': 2.0,
+        'office': 0.5,
         'supermarket': 1.0,
     }
 
     # contact tracing experiment parameters
     beacons_onlys = [True, False]
     ps_adoption = [1.0, 0.75, 0.65, 0.5]
-    beacon_cache = 0.0
-    theta_sim = 0.5  # only p_exposure > theta are traced
-    thresholds_roc = np.linspace(0.0, 1.0, num=101, endpoint=True)
+    beacon_cache = 5.0
+    theta_sim = 0.5  # only p_survival < theta are traced
+    thresholds_roc = np.linspace(-0.01, 1.01, num=103, endpoint=True)
 
     # seed
     c = 0
@@ -69,15 +69,16 @@ if __name__ == '__main__':
     # for debugging purposes
     if args.smoke_test:
         start_date = '2021-01-01'
-        end_date = '2021-02-15'
-        random_repeats = 4
+        end_date = '2021-03-01'
+        # random_repeats = 24
+        random_repeats = 16
         full_scale = False
         ps_adoption = [1.0]
-        beacons_onlys =[True]
+        beacons_onlys =[True, False]
         beacon_config = dict(
             mode='all',
         )
-        thresholds_roc = np.linspace(0.0, 1.0, num=11, endpoint=True)
+        # thresholds_roc = np.linspace(0.0, 1.0, num=11, endpoint=True)
 
 
     # create experiment object
