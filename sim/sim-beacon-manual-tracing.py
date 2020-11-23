@@ -33,9 +33,9 @@ if __name__ == '__main__':
 
     # contact tracing experiment parameters
     # ps_adoption = [1.0, 0.75, 0.65, 0.5]
-    ps_adoption = [1.0, 0.75, 0.5, 0.25]
+    ps_adoption = [1.0, 0.75, 0.65, 0.5]
     ps_recall =   [1.0]#, 0.75, 0.5, 0.25]
-    beacon_cache = 0.0
+    beacon_cache = 4
     beacons_only = True
 
     # seed

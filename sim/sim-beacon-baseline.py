@@ -30,7 +30,7 @@ if __name__ == '__main__':
 
     # contact tracing experiment parameters
     # ps_adoption = [1.0, 0.75, 0.65, 0.5]
-    ps_adoption = [1.0, 0.75, 0.5, 0.25]
+    ps_adoption = [1.0, 0.75, 0.65, 0.5]
 
     # seed
     c = 0
@@ -43,7 +43,7 @@ if __name__ == '__main__':
     area = args.area
     cpu_count = args.cpu_count
 
-    # ps_adoption.append(contact_tracing_adoption[country])
+    ps_adoption.append(contact_tracing_adoption[country])
 
     # Load calibrated parameters up to `maxBOiters` iterations of BO
     maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
