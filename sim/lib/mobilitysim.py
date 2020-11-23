@@ -715,7 +715,7 @@ class MobilitySimulator:
             inter.update(mob_traces_at_site[inf_visit.site])
 
             # The beacon records the visits that happened `beacon_cache` hours before and after infectors visit
-            visit_time = (inf_visit.t_from - beacon_cache, inf_visit.t_to + beacon_cache)
+            visit_time = (inf_visit.t_from, inf_visit.t_to + beacon_cache)
 
             for visit in list(inter.find(other=visit_time)):
                 # Ignore contacts with same individual
