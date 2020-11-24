@@ -59,6 +59,8 @@ if __name__ == '__main__':
         multi_beta_calibration=False,
         maxiters=maxBOiters)
 
+    unique_calibration_params = [unique_calibration_params[-1]]
+
     for iteration, calibrated_params in unique_calibration_params:
         print(iteration - 20, calibrated_params)
 
