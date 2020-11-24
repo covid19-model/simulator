@@ -680,6 +680,7 @@ def make_bayes_opt_functions(args):
         num_sites=mob.num_sites,
         home_loc=mob.home_loc,
         site_loc=mob.site_loc,
+        thresholds_roc=[],
         verbose=False)
 
 
