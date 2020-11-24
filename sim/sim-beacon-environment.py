@@ -41,10 +41,9 @@ if __name__ == '__main__':
     }
 
     # contact tracing experiment parameters
-    beacons_onlys = [True, False]
+    beacon_configs = [None, dict(mode='visit_freq', proportion_with_beacon=0.5)]
     ps_adoption = [1.0, 0.75, 0.65, 0.5]
-    beacon_cache = 5.0
-    theta_sim = 0.9  # only p_risk > theta are traced
+    theta_sim = 0.5  # only p_survival < theta are traced
     thresholds_roc = np.linspace(-0.01, 1.01, num=103, endpoint=True)
 
     # seed
@@ -75,7 +74,7 @@ if __name__ == '__main__':
         random_repeats = 8
         full_scale = False
         ps_adoption = [1.0]
-        
+
         beacons_onlys = [True, False]
         # beacons_onlys =[True]
         beacon_config = dict(
@@ -97,13 +96,19 @@ if __name__ == '__main__':
     )
 
     # contact tracing experiment for various options
-    for beacons_only in beacons_onlys:
+    for beacon_config in beacon_configs:
         for p_adoption in ps_adoption:
 
             # measures
             max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
             m = [        
+                # beacon measures
+                ManualTracingForAllMeasure(
+                    t_window=Interval(0.0, TO_HOURS * max_days),
+                    p_participate=1.0,
+                    p_recall=0.5),
+
                 # beta scaling (direcly scales betas ahead of time, so upscaling is valid_
                 APrioriBetaMultiplierMeasureByType(
                     beta_multiplier=beta_multipliers),       
@@ -146,17 +151,11 @@ if __name__ == '__main__':
                 d['smart_tracing_policy_test'] = 'advanced-threshold'
                 d['smart_tracing_testing_threshold'] = theta_sim
                 d['smart_tracing_tested_contacts'] = 100000
-
-                # if true only contacts at sites with beacons can be traced
-                d['beacons_only'] = beacons_only
-                # Visits of i `beacon_cache` hours before and after visits of j get tracked
-                d['beacon_cache'] = beacon_cache
-
                 return d
 
 
             simulation_info = options_to_str(
-                beacon='y' if beacons_only else 'n',
+                beacon='true' if beacon_config is not None else 'false',
                 p_adoption=p_adoption,
             )
                 

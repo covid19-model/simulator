@@ -595,15 +595,19 @@ class MobilitySimulator:
 
         return contacts
 
-    def find_contacts_of_indiv(self, indiv, tmin, tmax, beacon_cache=None):
+    def find_contacts_of_indiv(self, indiv, tmin, tmax, tracing=False, p_reveal_visit=1.0):
         """
         Finds all delta-contacts of person 'indiv' with any other individual after time 'tmin'
         and returns them as InterLap object.
         In the simulator, this function is called for `indiv` as infector.
         """
 
-        # If beacon_cache is None use delta contacts for simulating infections
-        extended_time_window = beacon_cache if beacon_cache is not None else self.delta
+        if tracing is True and self.beacon_config is None:
+            # If function is used for contact tracing and there are no beacons, can only trace direct contacts
+            extended_time_window = 0
+        else:
+            # If used for infection simulation or used for tracing with beacons, capture also indirect contacts
+            extended_time_window = self.delta
 
         infector_traces = []
         mob_traces_at_site = defaultdict(list)
@@ -620,6 +624,8 @@ class MobilitySimulator:
                     mob_traces_at_site[v.site].append(v)
 
         for inf_visit in infector_traces:
+            if tracing is True and np.random.uniform(low=0, high=1) > p_reveal_visit:
+                continue
             if len(mob_traces_at_site[inf_visit.site]) == 0:
                 continue
 

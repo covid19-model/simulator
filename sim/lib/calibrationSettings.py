@@ -68,8 +68,7 @@ calibration_testing_params = {
     'smart_tracing_testing_threshold': 1.0,
 
     # beacons
-    'beacons_only' : False,  # if True, only contacts at sites with beacons can be traced
-    'beacon_cache' : 0.0, # visits of i `beacon_cache` hours before and after visits of j get tracked
+    'p_willing_to_share': 1.0,
 }
 
 # BO acquisition function optimization (Knowledge gradient)
