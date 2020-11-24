@@ -10,6 +10,8 @@ import scipy as sp
 import os, math
 import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
+from sympy import Symbol, integrate, lambdify, exp, Max, Min, Piecewise, log
+import pprint
 
 from lib.priorityqueue import PriorityQueue
 from lib.measures import * 
@@ -37,6 +39,7 @@ class DiseaseModel(object):
         # cache settings
         self.mob = mob
         self.d = distributions
+        assert(np.allclose(np.array(self.d.delta), np.array(self.mob.delta), atol=1e-3))
 
         # parse distributions object
         self.lambda_0 = self.d.lambda_0
@@ -167,9 +170,12 @@ class DiseaseModel(object):
         self.children_count_isym = np.zeros(self.n_people, dtype='int')
         
         # contact tracing
+        # records which contact caused the exposure of `i`
         self.contact_caused_expo = [None for i in range(self.n_people)]
         # list of tuples (i, contacts) where `contacts` were valid when `i` got tested positive
         self.valid_contacts_for_tracing = []
+        # evaluates an integral of the exposure rate 
+        self.exposure_integral = self.make_exposure_int_eval()
 
 
     def initialize_states_for_seeds(self):
@@ -283,6 +289,46 @@ class DiseaseModel(object):
 
                 else:
                     raise ValueError('Invalid initial seed state.')
+
+    def make_exposure_int_eval(self):
+        '''
+        Returns evaluatable numpy function that computes an integral
+        of the exposure rate. The function returned takes the following arguments
+
+            `j_from`:     visit start of j
+            `j_to`:       visit end of j
+            `inf_from`:   visit start of infector
+            `inf_to`:     visit end of infector
+            `beta_site`:  transmission rate at site
+
+        '''
+
+        # define symbols in exposure rate
+        beta_sp = Symbol('beta')
+        lower_sp = Symbol('lower')
+        upper_sp = Symbol('upper')
+        a_sp = Symbol('a')
+        b_sp = Symbol('b')
+        u_sp = Symbol('u')
+        t_sp = Symbol('t')
+
+        # symbolically integrate term of the exposure rate over [lower_sp, upper_sp]
+        expo_int_symb = Max(integrate(
+            beta_sp * 
+            integrate(
+                Piecewise((1.0, (a_sp <= u_sp) & (u_sp <= b_sp)), (0.0, True)) * exp(- self.gamma * (t_sp - u_sp)), 
+                (u_sp, t_sp - self.delta, t_sp)),
+            (t_sp, lower_sp, upper_sp)
+        ).simplify(), 0.0)
+
+        f_sp = lambdify((lower_sp, upper_sp, a_sp, b_sp, beta_sp), expo_int_symb, 'numpy')
+
+        # define function with named arguments
+        def f(*, j_from, j_to, inf_from, inf_to, beta_site):
+            '''Shifts to 0.0 for numerical stability'''
+            return f_sp(0.0, j_to - j_from, inf_from - j_from, inf_to - j_from, beta_site)
+
+        return f
 
     def launch_epidemic(self, params, initial_counts, testing_params, measure_list, thresholds_roc=None, verbose=True):
         """
@@ -709,6 +755,11 @@ class DiseaseModel(object):
                 self.tracing_stats[threshold] = self.compute_roc_stats(
                     threshold_isolate=threshold, threshold_test=threshold)
 
+        stats = self.tracing_stats[self.thresholds_roc[0]]['isolate']
+        print(" P {:5.2f}  N {:5.2f}".format(
+            (stats['fn'] + stats['tp']), (stats['fp'] + stats['tn'])
+        ))
+
         # free memory
         self.valid_contacts_for_tracing = None
         self.queue = None
@@ -733,6 +784,8 @@ class DiseaseModel(object):
         contacts_caused_tracing_testing = [[] for _ in range(self.n_people)]
         contacts_caused_tracing_no_testing = [[] for _ in range(self.n_people)]
 
+        contacts_evaluated = set()
+
         # for each tracing call due to an `infector`, re-compute classification decision (tracing or not)  
         # under the decision threshold `thres`, and record decision in `contacts_caused_tracing_...` arrays by individual
         for t, infector, valid_contacts_with_j in self.valid_contacts_for_tracing:
@@ -740,6 +793,7 @@ class DiseaseModel(object):
             # compute empirical survival probability
             emp_survival_prob = dict()
             for j, contacts_j in valid_contacts_with_j.items():
+                contacts_evaluated.add(j)
                 emp_survival_prob[j] = self.__compute_empirical_survival_probability(
                     t=t, i=infector, j=j, contacts_i_j=contacts_j)
 
@@ -761,39 +815,50 @@ class DiseaseModel(object):
             for j, contacts_j in contacts_no_testing:
                 contacts_caused_tracing_no_testing[j].append(set(contacts_j))
 
-            
-        # for each individual, compare label (contact exposure?) with classification (traced due to this contact?)
-        for j in range(self.n_people):
+        # for each individual considered in tracing, compare label (contact exposure?) with classification (traced due to this contact?)
+        for j in contacts_evaluated:
 
-            # if `j` never got exposed by a contact, not relevant
-            c_expo = self.contact_caused_expo[j]
-            if c_expo is None:
+            j_was_exposed = self.state_started_at['expo'][j] < np.inf
+            c_expo = self.contact_caused_expo[j]         
+
+            # skip if `j` got exposed by another source, even though traced (household or background)
+            # if (c_expo is None) and j_was_exposed:
+            if (c_expo is None):
                 continue
 
+
+            # dict int : list of sets of contacts
             for action, contacts_caused_tracing, contacts_caused_no_tracing in \
                 [('isolate', contacts_caused_tracing_isolation, contacts_caused_tracing_no_isolation),
                 ('test', contacts_caused_tracing_testing, contacts_caused_tracing_no_testing)]:
-            
+
                 # each time `j` is traced after a contact
                 for c_traced in contacts_caused_tracing[j]:
+
                     # and this contact ultimately caused the exposure of `j`
                     # TP
-                    if c_expo in c_traced:
+                    # if (c_expo is not None) and (c_expo in c_traced):
+                    if (c_expo in c_traced):
                         stats[action]['tp'] += 1
+                    # otherwise: `j` either wasn't exposed or exposed but by another contact 
                     # FP
                     else:
                         stats[action]['fp'] += 1
 
                 # each time `j` is not traced after a contact
                 for c_not_traced in contacts_caused_no_tracing[j]:
+
                     # and this contact ultimately caused the exposure of `j`
                     # FN
-                    if c_expo in c_not_traced:
+                    # if (c_expo is not None) and (c_expo in c_not_traced):
+                    if (c_expo in c_not_traced):
                         stats[action]['fn'] += 1
+
+                    # otherwise: `j` either wasn't exposed or not exposed but by another contact
                     # TN
                     else:
                         stats[action]['tn'] += 1
-        
+
         return stats
 
         
@@ -1475,14 +1540,14 @@ class DiseaseModel(object):
 
     def __tracing_policy_advanced_threshold(self, t, contacts_with_j, threshold, emp_survival_prob):
         """
-        Advanced contact tracing. Selects contacts according to high exposure risk up to the threshold.
-        `contacts_with_j`:   {j : contacts} where `contacts` are contacts of infector with j 
+        Advanced contact tracing. Selects contacts that have higher exposure risk than the threshold.
+        `contacts_with_j`:   {j : contacts} where `contacts` is list of contacts of infector with j 
                              in the contact tracing time window
         `emp_survival_prob`: {j : empirical probability of j not being infected}
         """
-        # only trace below a certain empirical probability of survival 
-        traced = [(j, contact_with_j) for j, contact_with_j in contacts_with_j.items() if emp_survival_prob[j] < threshold]
-        not_traced = [(j, contact_with_j) for j, contact_with_j in contacts_with_j.items() if emp_survival_prob[j] >= threshold]
+        # only trace above a certain empirical probability of exposure 
+        traced =     [(j, contact_with_j) for j, contact_with_j in contacts_with_j.items() if (1 - emp_survival_prob[j]) >  threshold]
+        not_traced = [(j, contact_with_j) for j, contact_with_j in contacts_with_j.items() if (1 - emp_survival_prob[j]) <= threshold]
 
         # return (traced, not traced)
         return traced, not_traced
@@ -1580,52 +1645,99 @@ class DiseaseModel(object):
         # if all of the above checks passed, then contact is valid
         return True
 
-
-
     def __compute_empirical_survival_probability(self, *, t, i, j, contacts_i_j):
         """ Compute empirical survival probability of individual j due to node i at time t"""
+        
         s = 0
 
-        # loop over all contacts the i had with j and accumulate 
-        # the empirical infection risk (= beta * contact time) in `s`
         for contact in contacts_i_j:
 
-            start_next_contact = contact.t_from
-            end_next_contact = contact.t_to
+            t_start = contact.t_from
+            t_end = contact.t_to
+            t_end_direct = contact.t_to_direct
             site = contact.site
 
-            # break if next contact is >= t
-            if start_next_contact >= t:
+            # break if next contact starts after t
+            if t_start >= t:
                 break
 
             # check whether this computation has access to site information
             if self.mob.site_has_beacon[site]:
-
-                # BetaMultiplier measures
-                beta_fact = 1.0
-
-                beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureBySite, t=start_next_contact)
-                beta_fact *= beta_mult_measure.beta_factor(k=site, t=start_next_contact) \
-                    if beta_mult_measure else 1.0
-                
-                beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureByType, t=start_next_contact)
-                beta_fact *= (beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[site]], t=start_next_contact) \
-                    if beta_mult_measure else 1.0)
-
-                beta_mult_measure = self.measure_list.find(UpperBoundCasesBetaMultiplier, t=t)
-                beta_fact *= (beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[site]], t=t, t_pos_tests=self.t_pos_tests) \
-                    if beta_mult_measure else 1.0)
-
-                # empirical exposure probabiliity
-                s += (min(end_next_contact, t) - start_next_contact) \
-                    * beta_fact * self.betas[self.site_dict[self.site_type[site]]] 
-
-            # without site information, only weighted mean of betas 
-            # and no measure-specific info is available
+                s += self.__survival_prob_contribution_with_site(
+                    i=i, j=j, site=site, t=t, t_start=t_start, 
+                    t_end_direct=t_end_direct, t_end=t_end)
             else:
-                s += (min(end_next_contact, t) - start_next_contact) \
-                    * self.betas_weighted_mean
-                    
+                s += self.__survival_prob_contribution_no_site(
+                    t=t, t_start=t_start, t_end_direct=t_end_direct)
+
         # survival probability
         survival_prob = np.exp(-s)
         return survival_prob
+
+    def __survival_prob_contribution_no_site(self, *, t, t_start, t_end_direct):
+        """Computes empirical survival probability estimate when no site information
+            such as non-contemporaneous contact is known.
+
+            t:             time of tracing action (upper bound on visit time)
+            t_start:       start of contact
+            t_end_direct:  end of direct contact
+        """
+
+        # only consider direct contact
+        if min(t_end_direct, t) >= t_start:
+            # assume infector was at site entire `delta` time window 
+            # before j arrived by lack of information otherwise
+            return (min(t_end_direct, t) - t_start) * self.betas_weighted_mean * self.__kernel_term(- self.delta, 0.0, 0.0)
+        else:
+            return 0.0
+
+
+    def __survival_prob_contribution_with_site(self, *, i, j, site, t, t_start, t_end_direct, t_end):
+        """Computes exact empirical survival probability estimate when site information
+            such as site-specific transmission rate and 
+            such as non-contemporaneous contact is known.
+
+            i:              infector
+            j:              individual at risk due to `i`
+            site:           site
+            t:              time of tracing action (upper bound on visit time)
+            t_start:        start of contact
+            t_end_direct:   end of direct contact
+            t_end:          end of contact
+        """
+
+        # query visit of infector i that resulted in the contact
+        inf_visit_ = list(self.mob.list_intervals_in_window_individual_at_site(
+            indiv=i, site=site, t0=t_end_direct, t1=t_end_direct))
+        assert(len(inf_visit_) == 1)
+        inf_from, inf_to = inf_visit_[0].left, inf_visit_[0].right
+
+        # query visit of j that resulted in the contact
+        j_visit_ = list(self.mob.list_intervals_in_window_individual_at_site(
+            indiv=j, site=site, t0=t_start, t1=t_start))
+        assert(len(j_visit_) == 1)
+        j_from, j_to = j_visit_[0].left, j_visit_[0].right
+
+        # BetaMultiplier measures
+        beta_fact = 1.0
+        beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureBySite, t=t_start)
+        beta_fact *= beta_mult_measure.beta_factor(k=site, t=t_start) \
+            if beta_mult_measure else 1.0
+        
+        beta_mult_measure = self.measure_list.find(BetaMultiplierMeasureByType, t=t_start)
+        beta_fact *= (beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[site]], t=t_start)
+            if beta_mult_measure else 1.0)
+
+        beta_mult_measure = self.measure_list.find(UpperBoundCasesBetaMultiplier, t=t)
+        beta_fact *= (beta_mult_measure.beta_factor(typ=self.site_dict[self.site_type[site]], t=t, t_pos_tests=self.t_pos_tests) \
+            if beta_mult_measure else 1.0)
+
+        # contact contribution
+        expo_int = self.exposure_integral(
+            j_from=j_from,
+            j_to=min(j_to, t),
+            inf_from=inf_from,
+            inf_to=min(inf_to, t),
+            beta_site=beta_fact * self.betas[self.site_dict[self.site_type[site]]]
+        )
+        return expo_int

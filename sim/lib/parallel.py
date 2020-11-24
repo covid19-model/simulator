@@ -124,9 +124,10 @@ def create_ParallelSummary_from_DiseaseModel(sim, store_mob=False):
     summary.children_count_ipre[0, :] = sim.children_count_ipre
     summary.children_count_isym[0, :] = sim.children_count_isym
 
-    for action in ['isolate', 'test']:
-        for stat in ['tp', 'fp', 'tn', 'fn']:
-            summary.tracing_stats[action][stat] = sim.tracing_stats[action][stat]
+    for thres in sim.tracing_stats.keys():
+        for action in ['isolate', 'test']:
+            for stat in ['tp', 'fp', 'tn', 'fn']:
+                summary.tracing_stats[thres][action][stat][0] = sim.tracing_stats[thres][action][stat]
 
     return summary
 
@@ -194,7 +195,7 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
                      initial_seeds_list, testing_params_list, measure_list_list, max_time_list,
                      thresholds_roc_list, store_mob_list)
 
-    # # DEBUG mode (to see errors printed properly)
+    # # # DEBUG mode (to see errors printed properly)
     # res = []
     # for r in repeat_ids:
     #     res.append(pp_launch(r, mob_setting_list[r], distributions_list[r], params_list[r],
@@ -226,7 +227,7 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
         summary.children_count_ipre[r, :] = result['children_count_ipre']
         summary.children_count_isym[r, :] = result['children_count_isym']
 
-        for thres in thresholds_roc:
+        for thres in result['tracing_stats'].keys():
             for action in ['isolate', 'test']:
                 for stat in ['tp', 'fp', 'tn', 'fn']:
                     summary.tracing_stats[thres][action][stat][r] = result['tracing_stats'][thres][action][stat]

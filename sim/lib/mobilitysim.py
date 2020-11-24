@@ -26,13 +26,14 @@ Visit = namedtuple('Visit', (
 # Tupe representing a contact from a individual i to another individual j
 # where individual i is at risk due to j
 Contact = namedtuple('Contact', (
-    't_from',   # Time of beginning of contact
-    't_to',     # Time of end of contact
-    'indiv_i',  # Id of individual 'from' contact (uses interval (`t_from`, `t_to`) for matching)
-    'indiv_j',  # Id of individual 'to' contact (may have already left, uses interval (`t_from`, `t_to_shifted`) for matching)
-    'site',     # Id of site
-    'duration', # Duration of contact (i.e. when i was at risk due to j)
-    'id_tup'    # tuple of `id`s of visits of `indiv_i` and `indiv_j`
+    't_from',      # Time of beginning of contact
+    't_to',        # Time of end of contact including `delta`
+    'indiv_i',     # Id of individual 'from' contact (uses interval (`t_from`, `t_to`) for matching)
+    'indiv_j',     # Id of individual 'to' contact (may have already left, uses interval (`t_from`, `t_to_shifted`) for matching)
+    'site',        # Id of site
+    'duration',    # Duration of contact (i.e. when i was at risk due to j)
+    'id_tup',      # tuple of `id`s of visits of `indiv_i` and `indiv_j`
+    't_to_direct', # Time of end of contact (excluding delta; hence, it is possible for `t_to_direct` < `t_from`)
 ))
 
 # Tuple representing an interval for back-operability with previous version
@@ -633,6 +634,7 @@ class MobilitySimulator:
                 # Compute contact time
                 c_t_from = max(visit.t_from, inf_visit.t_from)
                 c_t_to = min(visit.t_to, inf_visit.t_to + extended_time_window)
+                c_t_to_direct = min(visit.t_to, inf_visit.t_to) # only direct
 
                 if c_t_to > c_t_from and c_t_to > tmin:
                     c = Contact(t_from=c_t_from,
@@ -641,7 +643,8 @@ class MobilitySimulator:
                                 indiv_j=inf_visit.indiv,
                                 id_tup=(visit.id, inf_visit.id),
                                 site=inf_visit.site,
-                                duration=c_t_to - c_t_from)
+                                duration=c_t_to - c_t_from,
+                                t_to_direct=c_t_to_direct)
                     contacts.update([c])
         return contacts
 
@@ -694,14 +697,19 @@ class MobilitySimulator:
     def list_intervals_in_window_individual_at_site(self, *, indiv, site, t0, t1):
         """Return a generator of Intervals of all visits of `indiv` is at site
            `site` that overlap with [t0, t1]
+
+        The call 
+
+            self.mob_traces[indiv].find((t0, t1))
+
+        matches all visits on visit window [`t_from`, `t_to_shifted`].
+        Since we only want to return real in-person visits, 
+        we need to filter out matches such that `t_to` < `t0` and were only happening
+        in the sense of "environemental contamination" 
+        i.e. only matched on (`t_to`, `t_to_shifted`] 
         """
         for visit in self.mob_traces[indiv].find((t0, t1)):
-            # the above call matches all on (`t_from`, `t_to_shifted`)
-            # thus need to filter out visits that ended before `t0`, 
-            # i.e. visits such that `t_to` <= `t0`, 
-            # i.e. environmental match only (match only occured on (`t_to`, `t_to_shifted`))
-
-            if visit.t_to > t0 and visit.site == site:
+            if visit.t_to >= t0 and visit.site == site:
                 yield Interval(visit.t_from, visit.t_to)
 
     def is_in_contact(self, *, indiv_i, indiv_j, t, site=None):

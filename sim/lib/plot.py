@@ -1744,30 +1744,34 @@ class Plotter(object):
         ROC curve
         '''
         self._set_matplotlib_params(format=figformat)
-        fig, ax = plt.subplots(1, 1, figsize=figsize)
+        # fig, ax = plt.subplots(1, 1, figsize=figsize)
+        fig, axs = plt.subplots(1, 2, figsize=figsize)
 
         # xs
         xs = np.linspace(0, 1, num=500)
         
         for i, summary in enumerate(summaries):
             
+            print('exposed:', np.sum(summary.state_started_at['expo'] < np.inf, axis=1).mean())
             tracing_stats = summary.tracing_stats
             thresholds = list(tracing_stats.keys())
             
             fpr_mean, fpr_std = [], []
             tpr_mean, tpr_std = [], []
 
-            fpr_median = []
-            tpr_median = []
+            precision_mean, precision_std = [], []
+            recall_mean, recall_std = [], []
             
             fpr_of_means = []
-            tpr_of_means = []
+            tpr_of_means = []     
+            precision_of_means = []
+            recall_of_means = []
 
-            fpr_of_medians = []
-            tpr_of_medians = []
-            
+            fpr_single_runs = [[] for _ in range(len(tracing_stats[thresholds[0]]['isolate']['tn']))]     
+            tpr_single_runs = [[] for _ in range(len(tracing_stats[thresholds[0]]['isolate']['tn']))]   
 
-            for thres in thresholds:
+
+            for t, thres in enumerate(thresholds):
 
                 stats = tracing_stats[thres][action]
 
@@ -1778,72 +1782,70 @@ class Plotter(object):
                 fprs = np.nan_to_num(fprs, nan=0.0)
                 fpr_mean.append(np.mean(fprs).item())
                 fpr_std.append(np.std(fprs).item())
-                # fpr_median.append(np.median(fprs).item())
+                fpr_of_means.append(np.array(stats['fp']).mean() / (np.array(stats['fp']).mean() + np.array(stats['tn']).mean()))
 
-                # fpr_of_means.append(np.nan_to_num(stats['fp'].mean() / (stats['fp'].mean() + stats['tn'].mean()), nan=0.0))
-                # fpr_of_medians.append(np.nan_to_num(np.median(stats['fp']) / (np.median(stats['fp'])+ np.median(stats['tn'])), nan=0.0))
+                for r in range(len(fpr_single_runs)):
+                    fpr_single_runs[r].append(fprs[r])
 
-
-                # TPR = TP/(TP + FN)
+                # TPR = TP/(TP + FN) 
+                # = RECALL
                 # [if TP = 0 and FN = 0, set to 0]
                 tprs = stats['tp'] / (stats['tp'] + stats['fn'])
                 tprs = np.nan_to_num(tprs, nan=0.0)
                 tpr_mean.append(np.mean(tprs).item())
                 tpr_std.append(np.std(tprs).item())
-                # tpr_median.append(np.median(tprs).item())
+                tpr_of_means.append(np.array(stats['tp']).mean() / (np.array(stats['tp']).mean() + np.array(stats['fn']).mean()))
 
-                # tpr_of_means.append(np.nan_to_num(stats['tp'].mean() / (stats['tp'].mean() + stats['fn'].mean()), nan=0.0))
-                # tpr_of_medians.append(np.nan_to_num(np.median(stats['tp'])/ (np.median(stats['tp'])+ np.median(stats['fn'])), nan=0.0))
+                for r in range(len(tpr_single_runs)):
+                    tpr_single_runs[r].append(tprs[r])
 
+                # precision = TP/(TP + FP)
+                precs = stats['tp'] / (stats['tp'] + stats['fp'])
+                precs = np.nan_to_num(precs, nan=0.0)
+                precision_mean.append(np.mean(precs).item())
+                precision_std.append(np.std(precs).item())
+                precision_of_means.append(np.array(stats['tp']).mean() / (np.array(stats['tp']).mean() + np.array(stats['fp']).mean()))
 
+                if i == 0:
+                    print("{:1.3f}   TP {:5.2f} FP {:5.2f}  TN {:5.2f}  FN {:5.2f}".format(
+                        thres, stats['tp'].mean(), stats['fp'].mean(), stats['tn'].mean(), stats['fn'].mean()
+                    ))
+                    if t == len(thresholds) - 1:
+                        print(" P {:5.2f}  N {:5.2f}".format(
+                            (stats['fn'] + stats['tp']).mean(), (stats['fp'] + stats['tn']).mean()
+                        ))
 
-            
-            # # print(tracing_stats)
-            print(thresholds)
-            print(titles[i], 'FPR', fpr_mean, fpr_mean)
-            print(titles[i], 'TPR', tpr_mean, tpr_mean)
-
-            # print(titles[i], 'FPR', fpr_mean[0], fpr_mean[-1])
-            # print(titles[i], 'TPR', tpr_mean[0], tpr_mean[-1])
-
-            # print(titles[i], 'FPR of means', fpr_of_means[0], fpr_of_means[-1])
-            # print(titles[i], 'TPR of means', tpr_of_means[0], tpr_of_means[-1])
-
-            print()
 
             # lines
-            ax.plot(fpr_mean, tpr_mean, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
-            # ax.plot(fpr_median, tpr_median, linestyle='-', label=titles[i] + ' median', c=self.color_different_scenarios[i])
-            # ax.plot(fpr_of_means, tpr_of_means, linestyle='-', label=titles[i] + ' of mean', c=self.color_different_scenarios[i])
-            # ax.plot(fpr_of_medians, tpr_of_medians, linestyle='-', label=titles[i] + ' of median', c=self.color_different_scenarios[i])
+            axs[0].plot(fpr_of_means, tpr_of_means, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
+            axs[1].plot(tpr_of_means, precision_of_means, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
 
+
+        for ax in axs:
+            ax.set_xlim((0.0, 1.0))
+            ax.set_ylim((0.0, 1.0))
 
         # diagonal
-        ax.plot(xs, xs, linestyle='dotted', c='black')
+        axs[0].plot(xs, xs, linestyle='dotted', c='black')
 
-        # axis
-        ax.set_xlim((0.0, 1.0))
-        ax.set_ylim((0.0, 1.0))
-        ax.set_xlabel('FPR')
-        ax.set_ylabel('TPR')
-        # ax.set_xlabel('FPR = FP/(FP + TN)')
-        # ax.set_ylabel('TPR = TP/(TP + FN)')
+        axs[0].set_xlabel('FPR')
+        axs[0].set_ylabel('TPR')
+
+        axs[1].set_xlabel('Recall')
+        axs[1].set_ylabel('Precision')
 
         # Set default axes style
         # self._set_default_axis_settings(ax=ax)
         
-        leg = ax.legend(loc='lower right',
-            # bbox_to_anchor=(0.001, 0.999),
-            # bbox_transform=ax.transAxes,
-        #   prop={'size': 5.6}
-        )
+        leg = axs[0].legend(loc='lower right')
+        leg = axs[1].legend(loc='top right')
 
         # subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         # plt.subplots_adjust(**subplot_adjust)
 
         plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
                     dpi=DPI, bbox_inches='tight')
-
+        plt.tight_layout()
         if NO_PLOT:
             plt.close()
         return
