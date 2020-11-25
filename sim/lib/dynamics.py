@@ -330,7 +330,7 @@ class DiseaseModel(object):
 
         return f
 
-    def launch_epidemic(self, params, initial_counts, testing_params, measure_list, thresholds_roc=None, verbose=True):
+    def launch_epidemic(self, params, initial_counts, testing_params, measure_list, thresholds_roc=[], verbose=True):
         """
         Run the epidemic, starting from initial event list.
         Events are treated in order in a priority queue. An event in the queue is a tuple
@@ -749,15 +749,15 @@ class DiseaseModel(object):
         '''Compute ROC statistics'''
         # tracing_stats[threshold][action][stat]
         self.tracing_stats = {}
-        if self.thresholds_roc is not None:
+        if len(self.thresholds_roc) > 0:
             for threshold in self.thresholds_roc:
                 self.tracing_stats[threshold] = self.compute_roc_stats(
                     threshold_isolate=threshold, threshold_test=threshold)
 
-        stats = self.tracing_stats[self.thresholds_roc[0]]['isolate']
-        print(" P {:5.2f}  N {:5.2f}".format(
-            (stats['fn'] + stats['tp']), (stats['fp'] + stats['tn'])
-        ))
+            stats = self.tracing_stats[self.thresholds_roc[0]]['isolate']
+            print(" P {:5.2f}  N {:5.2f}".format(
+                (stats['fn'] + stats['tp']), (stats['fp'] + stats['tn'])
+            ))
 
         # free memory
         self.valid_contacts_for_tracing = None
@@ -1457,7 +1457,7 @@ class DiseaseModel(object):
             
 
         # record which contacts are being traced and which are not for later analysis
-        if self.thresholds_roc is not None:
+        if len(self.thresholds_roc) > 0:# is not None:
             self.__record_contacts_causing_trace_action(t=t, infector=i, contacts=valid_contacts_with_j)
 
         '''Execute contact tracing actions for selected contacts'''
