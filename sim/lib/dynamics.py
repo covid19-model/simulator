@@ -792,7 +792,7 @@ class DiseaseModel(object):
                 self.tracing_stats[threshold] = self.compute_roc_stats(
                     threshold_isolate=threshold, threshold_test=threshold)
 
-        stats = self.tracing_stats[self.thresholds_roc[0]]['sites']['isolate']
+        # stats = self.tracing_stats[self.thresholds_roc[0]]['sites']['isolate']
         
         # print(" P {:5.2f}  N {:5.2f}".format(
         #     (stats['fn'] + stats['tp']), (stats['fp'] + stats['tn'])
