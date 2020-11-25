@@ -43,12 +43,8 @@ if __name__ == '__main__':
     # contact tracing experiment parameters
     beacon_configs = [None, dict(mode='visit_freq', proportion_with_beacon=0.5)]
     ps_adoption = [1.0, 0.75, 0.65, 0.5]
-<<<<<<< HEAD
     beacon_cache = 0.40 # > delta
     theta_sim = 0.9  # only p_risk > theta are traced
-=======
-    theta_sim = 0.5  # only p_survival < theta are traced
->>>>>>> 663c75fd2491e65166270a4172098f8ec08bf078
     thresholds_roc = np.linspace(-0.01, 1.01, num=103, endpoint=True)
 
     # seed
@@ -73,29 +69,21 @@ if __name__ == '__main__':
     # for debugging purposes
     if args.smoke_test:
         # end_date = '2021-01-10'
-        end_date = '2021-01-20'
-        # end_date = '2021-01-30'
+        # end_date = '2021-01-20'
+        end_date = '2021-01-30'
         # end_date = '2021-03-01'
 
-        expected_daily_base_expo_per100k = 20 / 7
+        expected_daily_base_expo_per100k = 5 / 7
 
 
         # random_repeats = 1
-        random_repeats = 4
+        random_repeats = 8
 
         full_scale = False
         ps_adoption = [1.0]
-<<<<<<< HEAD
-        
-        beacons_onlys =[True]
-=======
-
-        beacons_onlys = [True, False]
-        # beacons_onlys =[True]
->>>>>>> 663c75fd2491e65166270a4172098f8ec08bf078
-        beacon_config = dict(
+        beacon_configs = [dict(
             mode='all',
-        )
+        )]
         thresholds_roc = np.array([-0.01, 0.00, 0.25, 0.5, 0.75, 0.90, 0.95, 0.97, 0.99, 0.995, 0.999, 0.9999])
         # thresholds_roc = np.array([0.5])
 

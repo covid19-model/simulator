@@ -871,9 +871,11 @@ class DiseaseModel(object):
                         emp_survival_prob=emp_survival_prob[policy])
 
                     for j, contacts_j in contacts_action:
-                        c[policy][action][True][j].append(set(contacts_j))
+                        # c[policy][action][True][j].append(set(contacts_j))
+                        c[policy][action][True][j].append(t)
                     for j, contacts_j in contacts_no_action:
-                        c[policy][action][False][j].append(set(contacts_j))
+                        # c[policy][action][False][j].append(set(contacts_j))
+                        c[policy][action][False][j].append(t)
 
         # for each individual considered in tracing, compare label (contact exposure?) with classification (traced due to this contact?)
         for j in individuals_traced:
@@ -886,14 +888,19 @@ class DiseaseModel(object):
                 continue
 
             for policy in ['sites', 'no_sites']:
-                for action in ['isolate', 'test']:
+                # for action in ['isolate', 'test']:
+                for action in ['isolate']:
 
                     # each time `j` is traced after a contact
-                    for c_traced in c[policy][action][True][j]:
+                    # for c_traced in c[policy][action][True][j]:
+                    for timing in c[policy][action][True][j]:
 
                         # and this contact ultimately caused the exposure of `j`
                         # TP
-                        if (c_expo is not None) and (c_expo in c_traced):
+                        # if (c_expo is not None) and (c_expo in c_traced):
+                        if self.state_started_at['expo'][j] <= timing \
+                            and timing - self.smart_tracing_contact_delta <= self.state_started_at['expo'][j] \
+                            and (c_expo is not None):
                             stats[policy][action]['tp'] += 1
 
                         # otherwise: `j` either wasn't exposed or exposed but by another contact 
@@ -902,11 +909,15 @@ class DiseaseModel(object):
                             stats[policy][action]['fp'] += 1
 
                     # each time `j` is not traced after a contact
-                    for c_not_traced in c[policy][action][False][j]:
+                    # for c_not_traced in c[policy][action][False][j]:
+                    for timing in c[policy][action][False][j]:
 
                         # and this contact ultimately caused the exposure of `j`
                         # FN
-                        if (c_expo is not None) and (c_expo in c_not_traced):
+                        # if (c_expo is not None) and (c_expo in c_not_traced):
+                        if self.state_started_at['expo'][j] <= timing \
+                            and timing - self.smart_tracing_contact_delta <= self.state_started_at['expo'][j] \
+                            and (c_expo is not None):
                             stats[policy][action]['fn'] += 1
 
                         # otherwise: `j` either wasn't exposed or not exposed but by another contact
