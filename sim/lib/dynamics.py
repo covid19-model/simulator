@@ -365,7 +365,7 @@ class DiseaseModel(object):
 
         return f
 
-    def launch_epidemic(self, params, initial_counts, testing_params, measure_list, thresholds_roc=None, verbose=True):
+    def launch_epidemic(self, params, initial_counts, testing_params, measure_list, thresholds_roc=[], verbose=True):
         """
         Run the epidemic, starting from initial event list.
         Events are treated in order in a priority queue. An event in the queue is a tuple
@@ -411,8 +411,7 @@ class DiseaseModel(object):
         self.smart_tracing_tested_contacts     = testing_params['smart_tracing_tested_contacts']
         self.smart_tracing_testing_threshold   = testing_params['smart_tracing_testing_threshold']
 
-        self.smart_tracing_beacons_only = testing_params['beacons_only']
-        self.smart_tracing_beacon_cache = testing_params['beacon_cache']
+        self.smart_tracing_p_willing_to_share = testing_params['p_willing_to_share']
 
         if 'isolate' in self.smart_tracing_actions \
             and self.smart_tracing_isolated_contacts == 0:
@@ -785,7 +784,7 @@ class DiseaseModel(object):
         '''Compute ROC statistics'''
         # tracing_stats [threshold][policy][action][stat]
         self.tracing_stats = {}
-        if self.thresholds_roc is not None:
+        if len(self.thresholds_roc) > 0:
             for threshold in self.thresholds_roc:
                 self.tracing_stats[threshold] = self.compute_roc_stats(
                     threshold_isolate=threshold, threshold_test=threshold)
@@ -1441,12 +1440,13 @@ class DiseaseModel(object):
             # no information available from `i`
             return 
 
-        '''Find valid contacts of infector (excluding delta-contacts)'''
+        '''Find valid contacts of infector (excluding delta-contacts if beacons are not employed)'''
         infectors_contacts = self.mob.find_contacts_of_indiv(
             indiv=i,
             tmin=t - self.smart_tracing_contact_delta,
             tmax=t,
-            beacon_cache=self.smart_tracing_beacon_cache)
+            tracing=True,
+            p_reveal_visit=self.smart_tracing_p_willing_to_share)
 
         # filter which contacts were valid in dict keyed by individual
         valid_contacts_with_j = defaultdict(list)   
@@ -1513,7 +1513,7 @@ class DiseaseModel(object):
             
 
         # record which contacts are being traced and which are not for later analysis
-        if self.thresholds_roc is not None:
+        if len(self.thresholds_roc) > 0:# is not None:
             self.__record_contacts_causing_trace_action(t=t, infector=i, contacts=valid_contacts_with_j)
 
         '''Execute contact tracing actions for selected contacts'''
@@ -1630,8 +1630,7 @@ class DiseaseModel(object):
         j_visit_id, i_visit_id = contact.id_tup
 
         '''Check that site traces contact'''
-        # if "only beacons", then need a beacon at the site
-        if self.smart_tracing_beacons_only:
+        if self.mob.beacon_config is not None:
             if not self.mob.site_has_beacon[site_id]:
                 return False 
 
