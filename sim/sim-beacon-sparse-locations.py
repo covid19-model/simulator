@@ -32,7 +32,7 @@ if __name__ == '__main__':
     # contact tracing experiment parameters
     beacon_modes = ['visit_freq', 'random']
     sites_with_beacons = [1.0, 0.5, 0.25, 0.10, 0.05]
-    ps_adoption = [0.05, 0.10]
+    ps_adoption = [0.05, 0.10, 0.25]
     p_recall = 1.0
 
     # seed
@@ -46,7 +46,6 @@ if __name__ == '__main__':
     area = args.area
     cpu_count = args.cpu_count
 
-    ps_adoption.append(contact_tracing_adoption[country])
     ps_adoption = ps_adoption[::-1]
 
     # Load calibrated parameters up to `maxBOiters` iterations of BO

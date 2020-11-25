@@ -43,8 +43,6 @@ if __name__ == '__main__':
     area = args.area
     cpu_count = args.cpu_count
 
-    ps_adoption.append(contact_tracing_adoption[country])
-
     # Load calibrated parameters up to `maxBOiters` iterations of BO
     maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
     calibrated_params = get_calibrated_params(country=country, area=area,

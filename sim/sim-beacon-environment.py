@@ -37,7 +37,7 @@ if __name__ == '__main__':
     )
 
     # contact tracing experiment parameters
-    ps_adoption = [1.0, 0.75, 0.65, 0.5]
+    ps_adoption = [1.0, 0.5, 0.25, 0.10, 0.05]
     spread_factors = [1.0, 2.0, 4.0, 8.0]
     theta_sim = 0.9  # only p_risk > theta are traced
     thresholds_roc = np.linspace(-0.01, 1.01, num=103, endpoint=True)
@@ -52,8 +52,6 @@ if __name__ == '__main__':
     country = args.country
     area = args.area
     cpu_count = args.cpu_count
-
-    ps_adoption.append(contact_tracing_adoption[country])
 
     # Load calibrated parameters up to `maxBOiters` iterations of BO
     maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
