@@ -176,6 +176,7 @@ class DiseaseModel(object):
         self.valid_contacts_for_tracing = []
         # evaluates an integral of the exposure rate 
         self.exposure_integral = self.make_exposure_int_eval()
+        self.exposure_rate = self.make_exposure_rate_eval() # for sanity check
 
 
     def initialize_states_for_seeds(self):
@@ -327,6 +328,40 @@ class DiseaseModel(object):
         def f(*, j_from, j_to, inf_from, inf_to, beta_site):
             '''Shifts to 0.0 for numerical stability'''
             return f_sp(0.0, j_to - j_from, inf_from - j_from, inf_to - j_from, beta_site)
+
+        return f
+    
+    def make_exposure_rate_eval(self):
+        '''
+        Returns evaluatable numpy function that computes an integral
+        of the exposure rate. The function returned takes the following arguments
+
+            `inf_from`:   visit start of infector
+            `inf_to`:     visit end of infector
+            `beta_site`:  transmission rate at site
+
+        '''
+
+        # define symbols in exposure rate
+        a_sp = Symbol('a')
+        b_sp = Symbol('b')
+        u_sp = Symbol('u')
+        t_sp = Symbol('t')
+
+        # symbolically integrate term of the exposure rate over [lower_sp, upper_sp]
+        expo_rate_symb = Max(
+            integrate(
+                Piecewise((1.0, (a_sp <= u_sp) & (u_sp <= b_sp)), (0.0, True)) \
+                    * exp(- self.gamma * (t_sp - u_sp)),
+                (u_sp, t_sp - self.delta, t_sp)).simplify(),
+        0.0)
+
+        f_sp = lambdify((t_sp, a_sp, b_sp), expo_rate_symb, 'numpy')
+
+        # define function with named arguments
+        def f(*, t, inf_from, inf_to):
+            '''Shifts to 0.0 for numerical stability'''
+            return f_sp(t, inf_from, inf_to)
 
         return f
 
@@ -746,16 +781,16 @@ class DiseaseModel(object):
             # print
             self.__print(t, force=True)
 
-        
+
         '''Compute ROC statistics'''
-        # tracing_stats[threshold][action][stat]
+        # tracing_stats [threshold][policy][action][stat]
         self.tracing_stats = {}
         if self.thresholds_roc is not None:
             for threshold in self.thresholds_roc:
                 self.tracing_stats[threshold] = self.compute_roc_stats(
                     threshold_isolate=threshold, threshold_test=threshold)
 
-        stats = self.tracing_stats[self.thresholds_roc[0]]['isolate']
+        stats = self.tracing_stats[self.thresholds_roc[0]]['sites']['isolate']
         print(" P {:5.2f}  N {:5.2f}".format(
             (stats['fn'] + stats['tp']), (stats['fp'] + stats['tn'])
         ))
@@ -774,90 +809,111 @@ class DiseaseModel(object):
         '''
 
         stats = {
-            'isolate' : {'tp' : 0, 'fp' : 0, 'tn' : 0, 'fn' : 0},
-            'test' :    {'tp' : 0, 'fp' : 0, 'tn' : 0, 'fn' : 0},
+            'sites' : {
+                'isolate' : {'tp' : 0, 'fp' : 0, 'tn' : 0, 'fn' : 0},
+                'test' :    {'tp' : 0, 'fp' : 0, 'tn' : 0, 'fn' : 0},
+            },
+            'no_sites' : {
+                'isolate' : {'tp' : 0, 'fp' : 0, 'tn' : 0, 'fn' : 0},
+                'test' :    {'tp' : 0, 'fp' : 0, 'tn' : 0, 'fn' : 0},
+            },
         } 
         
-        contacts_caused_tracing_isolation = [[] for _ in range(self.n_people)]
-        contacts_caused_tracing_no_isolation = [[] for _ in range(self.n_people)]
-
-        contacts_caused_tracing_testing = [[] for _ in range(self.n_people)]
-        contacts_caused_tracing_no_testing = [[] for _ in range(self.n_people)]
-
-        contacts_evaluated = set()
+        # c[sites/no_sites][isolate/test][False/True][j]
+        # i-j contacts due to which j was traced/not traced
+        c = {
+            'sites' : {
+                'isolate': {
+                    False: [[] for _ in range(self.n_people)], 
+                    True:  [[] for _ in range(self.n_people)],
+                },
+                'test': {
+                    False: [[] for _ in range(self.n_people)],
+                    True:  [[] for _ in range(self.n_people)],
+                },
+            },
+            'no_sites' : {
+                'isolate': {
+                    False: [[] for _ in range(self.n_people)],
+                    True:  [[] for _ in range(self.n_people)],
+                },
+                'test': {
+                    False: [[] for _ in range(self.n_people)],
+                    True:  [[] for _ in range(self.n_people)],
+                },
+            },
+        }
+        
+        individuals_traced = set()
 
         # for each tracing call due to an `infector`, re-compute classification decision (tracing or not)  
         # under the decision threshold `thres`, and record decision in `contacts_caused_tracing_...` arrays by individual
         for t, infector, valid_contacts_with_j in self.valid_contacts_for_tracing:
 
             # compute empirical survival probability
-            emp_survival_prob = dict()
+            emp_survival_prob = {
+                'sites' : dict(),
+                'no_sites' : dict()
+            }
             for j, contacts_j in valid_contacts_with_j.items():
-                contacts_evaluated.add(j)
-                emp_survival_prob[j] = self.__compute_empirical_survival_probability(
-                    t=t, i=infector, j=j, contacts_i_j=contacts_j)
+                individuals_traced.add(j)
+                emp_survival_prob['sites'][j] = self.__compute_empirical_survival_probability(
+                    t=t, i=infector, j=j, contacts_i_j=contacts_j, ignore_sites=False)
+                emp_survival_prob['no_sites'][j] = self.__compute_empirical_survival_probability(
+                    t=t, i=infector, j=j, contacts_i_j=contacts_j, ignore_sites=True)
 
-            # isolation decision
-            contacts_isolation, contacts_no_isolation = self.__tracing_policy_advanced_threshold(
-                t=t, contacts_with_j=valid_contacts_with_j, threshold=threshold_isolate,
-                emp_survival_prob=emp_survival_prob)
-            for j, contacts_j in contacts_isolation:
-                contacts_caused_tracing_isolation[j].append(set(contacts_j))
-            for j, contacts_j in contacts_no_isolation:
-                contacts_caused_tracing_no_isolation[j].append(set(contacts_j))
-            
-            # testing decision
-            contacts_testing, contacts_no_testing = self.__tracing_policy_advanced_threshold(
-                t=t, contacts_with_j=valid_contacts_with_j, threshold=threshold_test,
-                emp_survival_prob=emp_survival_prob)
-            for j, contacts_j in contacts_testing:
-                contacts_caused_tracing_testing[j].append(set(contacts_j))
-            for j, contacts_j in contacts_no_testing:
-                contacts_caused_tracing_no_testing[j].append(set(contacts_j))
+            # compute tracing decision
+            for policy in ['sites', 'no_sites']:
+                # for action in ['isolate', 'test']:
+                for action in ['isolate']:
+                    contacts_action, contacts_no_action = self.__tracing_policy_advanced_threshold(
+                        t=t, contacts_with_j=valid_contacts_with_j, 
+                        threshold=threshold_isolate if action == 'isolate' else threshold_test,
+                        emp_survival_prob=emp_survival_prob[policy])
+
+                    for j, contacts_j in contacts_action:
+                        c[policy][action][True][j].append(set(contacts_j))
+                    for j, contacts_j in contacts_no_action:
+                        c[policy][action][False][j].append(set(contacts_j))
 
         # for each individual considered in tracing, compare label (contact exposure?) with classification (traced due to this contact?)
-        for j in contacts_evaluated:
+        for j in individuals_traced:
 
             j_was_exposed = self.state_started_at['expo'][j] < np.inf
             c_expo = self.contact_caused_expo[j]         
 
             # skip if `j` got exposed by another source, even though traced (household or background)
-            # if (c_expo is None) and j_was_exposed:
-            if (c_expo is None):
+            if (c_expo is None) and j_was_exposed:
                 continue
 
+            for policy in ['sites', 'no_sites']:
+                for action in ['isolate', 'test']:
 
-            # dict int : list of sets of contacts
-            for action, contacts_caused_tracing, contacts_caused_no_tracing in \
-                [('isolate', contacts_caused_tracing_isolation, contacts_caused_tracing_no_isolation),
-                ('test', contacts_caused_tracing_testing, contacts_caused_tracing_no_testing)]:
+                    # each time `j` is traced after a contact
+                    for c_traced in c[policy][action][True][j]:
 
-                # each time `j` is traced after a contact
-                for c_traced in contacts_caused_tracing[j]:
+                        # and this contact ultimately caused the exposure of `j`
+                        # TP
+                        if (c_expo is not None) and (c_expo in c_traced):
+                            stats[policy][action]['tp'] += 1
 
-                    # and this contact ultimately caused the exposure of `j`
-                    # TP
-                    # if (c_expo is not None) and (c_expo in c_traced):
-                    if (c_expo in c_traced):
-                        stats[action]['tp'] += 1
-                    # otherwise: `j` either wasn't exposed or exposed but by another contact 
-                    # FP
-                    else:
-                        stats[action]['fp'] += 1
+                        # otherwise: `j` either wasn't exposed or exposed but by another contact 
+                        # FP
+                        else:
+                            stats[policy][action]['fp'] += 1
 
-                # each time `j` is not traced after a contact
-                for c_not_traced in contacts_caused_no_tracing[j]:
+                    # each time `j` is not traced after a contact
+                    for c_not_traced in c[policy][action][False][j]:
 
-                    # and this contact ultimately caused the exposure of `j`
-                    # FN
-                    # if (c_expo is not None) and (c_expo in c_not_traced):
-                    if (c_expo in c_not_traced):
-                        stats[action]['fn'] += 1
+                        # and this contact ultimately caused the exposure of `j`
+                        # FN
+                        if (c_expo is not None) and (c_expo in c_not_traced):
+                            stats[policy][action]['fn'] += 1
 
-                    # otherwise: `j` either wasn't exposed or not exposed but by another contact
-                    # TN
-                    else:
-                        stats[action]['tn'] += 1
+                        # otherwise: `j` either wasn't exposed or not exposed but by another contact
+                        # TN
+                        else:
+                            stats[policy][action]['tn'] += 1
 
         return stats
 
@@ -1139,7 +1195,7 @@ class DiseaseModel(object):
             beta_k = self.betas[self.site_dict[self.site_type[site]]]
             p = (beta_k * base_rate * sum([self.__kernel_term(v[0], v[1], tau) for v in intersections])) \
                 / lambda_max
-            
+
             assert(p <= 1 + 1e-8 and p >= 0)
 
             # accept w.prob. lambda(t) / lambda_max
@@ -1453,7 +1509,7 @@ class DiseaseModel(object):
                     threshold=self.smart_tracing_testing_threshold,
                     emp_survival_prob=emp_survival_prob)
             else:
-                raise ValueError('Invalid tracing tes policy.')
+                raise ValueError('Invalid tracing test policy.')
             
 
         # record which contacts are being traced and which are not for later analysis
@@ -1645,7 +1701,7 @@ class DiseaseModel(object):
         # if all of the above checks passed, then contact is valid
         return True
 
-    def __compute_empirical_survival_probability(self, *, t, i, j, contacts_i_j):
+    def __compute_empirical_survival_probability(self, *, t, i, j, contacts_i_j, ignore_sites=False):
         """ Compute empirical survival probability of individual j due to node i at time t"""
         
         s = 0
@@ -1662,7 +1718,7 @@ class DiseaseModel(object):
                 break
 
             # check whether this computation has access to site information
-            if self.mob.site_has_beacon[site]:
+            if self.mob.site_has_beacon[site] and not ignore_sites:
                 s += self.__survival_prob_contribution_with_site(
                     i=i, j=j, site=site, t=t, t_start=t_start, 
                     t_end_direct=t_end_direct, t_end=t_end)

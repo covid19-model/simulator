@@ -1755,58 +1755,61 @@ class Plotter(object):
             print('exposed:', np.sum(summary.state_started_at['expo'] < np.inf, axis=1).mean())
             tracing_stats = summary.tracing_stats
             thresholds = list(tracing_stats.keys())
-            
-            fpr_mean, fpr_std = [], []
-            tpr_mean, tpr_std = [], []
 
-            precision_mean, precision_std = [], []
-            recall_mean, recall_std = [], []
-            
-            fpr_of_means = []
-            tpr_of_means = []     
-            precision_of_means = []
-            recall_of_means = []
+            for j, (name, policy) in enumerate([('PanCast', 'sites'), ('SPECT', 'no_sites')]):
 
-            fpr_single_runs = [[] for _ in range(len(tracing_stats[thresholds[0]]['isolate']['tn']))]     
-            tpr_single_runs = [[] for _ in range(len(tracing_stats[thresholds[0]]['isolate']['tn']))]   
+                
+                fpr_mean, fpr_std = [], []
+                tpr_mean, tpr_std = [], []
 
+                precision_mean, precision_std = [], []
+                recall_mean, recall_std = [], []
+                
+                fpr_of_means = []
+                tpr_of_means = []     
+                precision_of_means = []
+                recall_of_means = []
 
-            for t, thres in enumerate(thresholds):
-
-                stats = tracing_stats[thres][action]
+                fpr_single_runs = [[] for _ in range(len(tracing_stats[thresholds[0]][policy]['isolate']['tn']))]     
+                tpr_single_runs = [[] for _ in range(len(tracing_stats[thresholds[0]][policy]['isolate']['tn']))]   
 
 
-                # FPR = FP/(FP + TN)
-                # [if FP = 0 and TN = 0, set to 0]
-                fprs = stats['fp'] / (stats['fp'] + stats['tn'])
-                fprs = np.nan_to_num(fprs, nan=0.0)
-                fpr_mean.append(np.mean(fprs).item())
-                fpr_std.append(np.std(fprs).item())
-                fpr_of_means.append(np.array(stats['fp']).mean() / (np.array(stats['fp']).mean() + np.array(stats['tn']).mean()))
+                for t, thres in enumerate(thresholds):
 
-                for r in range(len(fpr_single_runs)):
-                    fpr_single_runs[r].append(fprs[r])
+                    stats = tracing_stats[thres][policy][action]
 
-                # TPR = TP/(TP + FN) 
-                # = RECALL
-                # [if TP = 0 and FN = 0, set to 0]
-                tprs = stats['tp'] / (stats['tp'] + stats['fn'])
-                tprs = np.nan_to_num(tprs, nan=0.0)
-                tpr_mean.append(np.mean(tprs).item())
-                tpr_std.append(np.std(tprs).item())
-                tpr_of_means.append(np.array(stats['tp']).mean() / (np.array(stats['tp']).mean() + np.array(stats['fn']).mean()))
 
-                for r in range(len(tpr_single_runs)):
-                    tpr_single_runs[r].append(tprs[r])
+                    # FPR = FP/(FP + TN)
+                    # [if FP = 0 and TN = 0, set to 0]
+                    fprs = stats['fp'] / (stats['fp'] + stats['tn'])
+                    fprs = np.nan_to_num(fprs, nan=0.0)
+                    fpr_mean.append(np.mean(fprs).item())
+                    fpr_std.append(np.std(fprs).item())
+                    fpr_of_means.append(np.array(stats['fp']).mean() / (np.array(stats['fp']).mean() + np.array(stats['tn']).mean()))
 
-                # precision = TP/(TP + FP)
-                precs = stats['tp'] / (stats['tp'] + stats['fp'])
-                precs = np.nan_to_num(precs, nan=0.0)
-                precision_mean.append(np.mean(precs).item())
-                precision_std.append(np.std(precs).item())
-                precision_of_means.append(np.array(stats['tp']).mean() / (np.array(stats['tp']).mean() + np.array(stats['fp']).mean()))
+                    for r in range(len(fpr_single_runs)):
+                        fpr_single_runs[r].append(fprs[r])
 
-                if i == 0:
+                    # TPR = TP/(TP + FN) 
+                    # = RECALL
+                    # [if TP = 0 and FN = 0, set to 0]
+                    tprs = stats['tp'] / (stats['tp'] + stats['fn'])
+                    tprs = np.nan_to_num(tprs, nan=0.0)
+                    tpr_mean.append(np.mean(tprs).item())
+                    tpr_std.append(np.std(tprs).item())
+                    tpr_of_means.append(np.array(stats['tp']).mean() / (np.array(stats['tp']).mean() + np.array(stats['fn']).mean()))
+
+                    for r in range(len(tpr_single_runs)):
+                        tpr_single_runs[r].append(tprs[r])
+
+                    # precision = TP/(TP + FP)
+                    precs = stats['tp'] / (stats['tp'] + stats['fp'])
+                    precs = np.nan_to_num(precs, nan=0.0)
+                    precision_mean.append(np.mean(precs).item())
+                    precision_std.append(np.std(precs).item())
+                    precision_of_means.append(np.array(stats['tp']).mean() / (np.array(stats['tp']).mean() + np.array(stats['fp']).mean()))
+
+                    # if i == 0:
                     print("{:1.3f}   TP {:5.2f} FP {:5.2f}  TN {:5.2f}  FN {:5.2f}".format(
                         thres, stats['tp'].mean(), stats['fp'].mean(), stats['tn'].mean(), stats['fn'].mean()
                     ))
@@ -1816,9 +1819,9 @@ class Plotter(object):
                         ))
 
 
-            # lines
-            axs[0].plot(fpr_of_means, tpr_of_means, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
-            axs[1].plot(tpr_of_means, precision_of_means, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
+                # lines
+                axs[0].plot(fpr_of_means, tpr_of_means, linestyle='-', label=name, c=self.color_different_scenarios[j])
+                axs[1].plot(tpr_of_means, precision_of_means, linestyle='-', label=name, c=self.color_different_scenarios[j])
 
 
         for ax in axs:

@@ -34,16 +34,16 @@ if __name__ == '__main__':
 
     beta_multipliers = {
         'education': 1.0,
-        'social': 2.0,
-        'bus_stop': 0.2,
-        'office': 0.5,
+        'social': 5.0,
+        'bus_stop': 0.1,
+        'office': 1.0,
         'supermarket': 1.0,
     }
 
     # contact tracing experiment parameters
     beacons_onlys = [True, False]
     ps_adoption = [1.0, 0.75, 0.65, 0.5]
-    beacon_cache = 5.0
+    beacon_cache = 0.40 # > delta
     theta_sim = 0.9  # only p_risk > theta are traced
     thresholds_roc = np.linspace(-0.01, 1.01, num=103, endpoint=True)
 
@@ -68,20 +68,26 @@ if __name__ == '__main__':
 
     # for debugging purposes
     if args.smoke_test:
-        start_date = '2021-01-01'
-        # end_date = '2021-02-01'
-        end_date = '2021-03-01'
+        # end_date = '2021-01-10'
+        end_date = '2021-01-20'
+        # end_date = '2021-01-30'
+        # end_date = '2021-03-01'
 
-        random_repeats = 8
+        expected_daily_base_expo_per100k = 20 / 7
+
+
+        # random_repeats = 1
+        random_repeats = 4
+
         full_scale = False
         ps_adoption = [1.0]
         
-        beacons_onlys = [True, False]
-        # beacons_onlys =[True]
+        beacons_onlys =[True]
         beacon_config = dict(
             mode='all',
         )
-        # thresholds_roc = np.array([0.01, 0.25, 0.5, 0.75, 0.99])
+        thresholds_roc = np.array([-0.01, 0.00, 0.25, 0.5, 0.75, 0.90, 0.95, 0.97, 0.99, 0.995, 0.999, 0.9999])
+        # thresholds_roc = np.array([0.5])
 
 
     # create experiment object
@@ -135,6 +141,7 @@ if __name__ == '__main__':
                 d['smart_tracing_actions'] = ['isolate', 'test']
                 d['test_reporting_lag'] = 48.0
                 d['tests_per_batch'] = 100000
+                # d['smart_tracing_contact_delta'] = 20 * TO_HOURS,
 
                 # isolation
                 d['smart_tracing_policy_isolate'] = 'advanced-threshold'
@@ -181,4 +188,4 @@ if __name__ == '__main__':
     experiment.run_all()
 
     result = load_summary(f'beacon-environment-GER-TU/beacon-environment-GER-TU-beacon=y-p_adoption={p_adoption}.pk')
-    pprint.pprint(result.summary.tracing_stats)
+    # pprint.pprint(result.summary.tracing_stats)

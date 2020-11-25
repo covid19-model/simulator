@@ -91,18 +91,21 @@ class ParallelSummary(object):
         self.children_count_ipre = np.zeros((repeats, n_people), dtype='int')
         self.children_count_isym = np.zeros((repeats, n_people), dtype='int')
 
-        self.tracing_stats = { thres : {
-            'isolate': 
-               {'tp': np.zeros(repeats, dtype='int'), 
-                'fp': np.zeros(repeats, dtype='int'), 
-                'tn': np.zeros(repeats, dtype='int'), 
-                'fn': np.zeros(repeats, dtype='int')},
-            'test': 
-               {'tp': np.zeros(repeats, dtype='int'),
-                'fp': np.zeros(repeats, dtype='int'), 
-                'tn': np.zeros(repeats, dtype='int'), 
-                'fn': np.zeros(repeats, dtype='int')},
-        } for thres in thresholds_roc}
+        self.tracing_stats = { thres : { 
+            policy : {
+                'isolate': 
+                    {'tp': np.zeros(repeats, dtype='int'), 
+                    'fp': np.zeros(repeats, dtype='int'), 
+                    'tn': np.zeros(repeats, dtype='int'), 
+                    'fn': np.zeros(repeats, dtype='int')},
+                'test': 
+                    {'tp': np.zeros(repeats, dtype='int'),
+                    'fp': np.zeros(repeats, dtype='int'), 
+                    'tn': np.zeros(repeats, dtype='int'), 
+                    'fn': np.zeros(repeats, dtype='int')},
+            } 
+            for policy in ['sites', 'no_sites']} 
+        for thres in thresholds_roc}
 
 
 def create_ParallelSummary_from_DiseaseModel(sim, store_mob=False):
@@ -125,9 +128,10 @@ def create_ParallelSummary_from_DiseaseModel(sim, store_mob=False):
     summary.children_count_isym[0, :] = sim.children_count_isym
 
     for thres in sim.tracing_stats.keys():
-        for action in ['isolate', 'test']:
-            for stat in ['tp', 'fp', 'tn', 'fn']:
-                summary.tracing_stats[thres][action][stat][0] = sim.tracing_stats[thres][action][stat]
+        for policy in ['sites', 'no_sites']:
+            for action in ['isolate', 'test']:
+                for stat in ['tp', 'fp', 'tn', 'fn']:
+                    summary.tracing_stats[thres][policy][action][stat][0] = sim.tracing_stats[thres][policy][action][stat]
 
     return summary
 
@@ -228,8 +232,10 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
         summary.children_count_isym[r, :] = result['children_count_isym']
 
         for thres in result['tracing_stats'].keys():
-            for action in ['isolate', 'test']:
-                for stat in ['tp', 'fp', 'tn', 'fn']:
-                    summary.tracing_stats[thres][action][stat][r] = result['tracing_stats'][thres][action][stat]
+            for policy in ['sites', 'no_sites']:
+                for action in ['isolate', 'test']:
+                    for stat in ['tp', 'fp', 'tn', 'fn']:
+                        summary.tracing_stats[thres][policy][action][stat][r] = \
+                            result['tracing_stats'][thres][policy][action][stat]
 
     return summary
