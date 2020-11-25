@@ -411,7 +411,10 @@ class DiseaseModel(object):
         self.smart_tracing_tested_contacts     = testing_params['smart_tracing_tested_contacts']
         self.smart_tracing_testing_threshold   = testing_params['smart_tracing_testing_threshold']
 
-        self.smart_tracing_p_willing_to_share = testing_params['p_willing_to_share']
+        self.smart_tracing_stats_window = testing_params.get(
+            'smart_tracing_stats_window', (0.0, self.max_time))
+
+        self.smart_tracing_p_willing_to_share  = testing_params['p_willing_to_share']
 
         if 'isolate' in self.smart_tracing_actions \
             and self.smart_tracing_isolated_contacts == 0:
@@ -790,9 +793,10 @@ class DiseaseModel(object):
                     threshold_isolate=threshold, threshold_test=threshold)
 
         stats = self.tracing_stats[self.thresholds_roc[0]]['sites']['isolate']
-        print(" P {:5.2f}  N {:5.2f}".format(
-            (stats['fn'] + stats['tp']), (stats['fp'] + stats['tn'])
-        ))
+        
+        # print(" P {:5.2f}  N {:5.2f}".format(
+        #     (stats['fn'] + stats['tp']), (stats['fp'] + stats['tn'])
+        # ))
 
         # free memory
         self.valid_contacts_for_tracing = None
@@ -894,6 +898,10 @@ class DiseaseModel(object):
                     # each time `j` is traced after a contact
                     # for c_traced in c[policy][action][True][j]:
                     for timing in c[policy][action][True][j]:
+                        
+                        # ignore FP if there is no way of knowing
+                        if self.state_started_at['expo'][j] < timing - self.smart_tracing_contact_delta:
+                            continue
 
                         # and this contact ultimately caused the exposure of `j`
                         # TP
@@ -911,6 +919,10 @@ class DiseaseModel(object):
                     # each time `j` is not traced after a contact
                     # for c_not_traced in c[policy][action][False][j]:
                     for timing in c[policy][action][False][j]:
+
+                        # ignore TN if there is no way of knowing
+                        if self.state_started_at['expo'][j] < timing - self.smart_tracing_contact_delta:
+                            continue
 
                         # and this contact ultimately caused the exposure of `j`
                         # FN
@@ -1524,8 +1536,7 @@ class DiseaseModel(object):
             
 
         # record which contacts are being traced and which are not for later analysis
-        if len(self.thresholds_roc) > 0:# is not None:
-            self.__record_contacts_causing_trace_action(t=t, infector=i, contacts=valid_contacts_with_j)
+        self.__record_contacts_causing_trace_action(t=t, infector=i, contacts=valid_contacts_with_j)
 
         '''Execute contact tracing actions for selected contacts'''
         if 'isolate' in self.smart_tracing_actions:
@@ -1626,7 +1637,12 @@ class DiseaseModel(object):
         triggering or not triggering a tracing action `action` for individual `j`.
         Used to later compute true positives, false positives, etc.
         """
-        self.valid_contacts_for_tracing.append((t, infector, contacts))
+        if len(self.thresholds_roc) > 0:
+
+            if (self.smart_tracing_stats_window[0] <= t) and \
+               (self.smart_tracing_stats_window[1] > t):
+
+                self.valid_contacts_for_tracing.append((t, infector, contacts))
 
 
     def __is_tracing_contact_valid(self, *, t, i, contact):

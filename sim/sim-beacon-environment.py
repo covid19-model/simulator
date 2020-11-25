@@ -21,29 +21,24 @@ if __name__ == '__main__':
 
     name = 'beacon-environment'
     start_date = '2021-01-01'
-    end_date = '2021-05-01'
+    end_date = '2021-01-28'
     random_repeats = 48
     full_scale = True
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = {}
     expected_daily_base_expo_per100k = 5 / 7
+
+    smart_tracing_stats_window = (21 * TO_HOURS, 28 * TO_HOURS)
+
     beacon_config = dict(
         mode='all',
+        # mode='visit_freq', proportion_with_beacon=0.5,
     )
 
-    beta_multipliers = {
-        'education': 1.0,
-        'social': 5.0,
-        'bus_stop': 0.1,
-        'office': 1.0,
-        'supermarket': 1.0,
-    }
-
     # contact tracing experiment parameters
-    beacon_configs = [None, dict(mode='visit_freq', proportion_with_beacon=0.5)]
     ps_adoption = [1.0, 0.75, 0.65, 0.5]
-    beacon_cache = 0.40 # > delta
+    spread_factors = [2.0, 4.0, 8.0]
     theta_sim = 0.9  # only p_risk > theta are traced
     thresholds_roc = np.linspace(-0.01, 1.01, num=103, endpoint=True)
 
@@ -68,24 +63,15 @@ if __name__ == '__main__':
 
     # for debugging purposes
     if args.smoke_test:
-        # end_date = '2021-01-10'
-        # end_date = '2021-01-20'
-        end_date = '2021-01-30'
-        # end_date = '2021-03-01'
 
-        expected_daily_base_expo_per100k = 5 / 7
-
-
-        # random_repeats = 1
-        random_repeats = 8
-
+        random_repeats = 16
+        spread_factors = [8.0]
         full_scale = False
         ps_adoption = [1.0]
         beacon_configs = [dict(
             mode='all',
         )]
         thresholds_roc = np.array([-0.01, 0.00, 0.25, 0.5, 0.75, 0.90, 0.95, 0.97, 0.99, 0.995, 0.999, 0.9999])
-        # thresholds_roc = np.array([0.5])
 
 
     # create experiment object
@@ -101,8 +87,16 @@ if __name__ == '__main__':
     )
 
     # contact tracing experiment for various options
-    for beacon_config in beacon_configs:
+    for fact in spread_factors:
         for p_adoption in ps_adoption:
+
+            beta_multipliers = {
+                'education': 1.0,
+                'social': 1.0 * fact,
+                'bus_stop': 1.0 / fact,
+                'office': 1.0,
+                'supermarket': 1.0,
+            }
 
             # measures
             max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
@@ -145,7 +139,6 @@ if __name__ == '__main__':
                 d['smart_tracing_actions'] = ['isolate', 'test']
                 d['test_reporting_lag'] = 48.0
                 d['tests_per_batch'] = 100000
-                # d['smart_tracing_contact_delta'] = 20 * TO_HOURS,
 
                 # isolation
                 d['smart_tracing_policy_isolate'] = 'advanced-threshold'
@@ -157,12 +150,16 @@ if __name__ == '__main__':
                 d['smart_tracing_policy_test'] = 'advanced-threshold'
                 d['smart_tracing_testing_threshold'] = theta_sim
                 d['smart_tracing_tested_contacts'] = 100000
+
+                # time span during which ROC info is computed
+                d['smart_tracing_stats_window'] = smart_tracing_stats_window
+
                 return d
 
 
             simulation_info = options_to_str(
-                beacon='true' if beacon_config is not None else 'false',
                 p_adoption=p_adoption,
+                x=fact,
             )
                 
             experiment.add(
@@ -185,5 +182,5 @@ if __name__ == '__main__':
     # execute all simulations
     experiment.run_all()
 
-    result = load_summary(f'beacon-environment-GER-TU/beacon-environment-GER-TU-beacon=y-p_adoption={p_adoption}.pk')
+    # result = load_summary(f'beacon-environment-GER-TU/beacon-environment-GER-TU-beacon=y-p_adoption={p_adoption}.pk')
     # pprint.pprint(result.summary.tracing_stats)
