@@ -38,7 +38,7 @@ if __name__ == '__main__':
 
     # contact tracing experiment parameters
     ps_adoption = [1.0, 0.75, 0.65, 0.5]
-    spread_factors = [2.0, 4.0, 8.0]
+    spread_factors = [1.0, 2.0, 4.0, 8.0]
     theta_sim = 0.9  # only p_risk > theta are traced
     thresholds_roc = np.linspace(-0.01, 1.01, num=103, endpoint=True)
 
@@ -103,10 +103,10 @@ if __name__ == '__main__':
 
             m = [        
                 # beacon measures
-                ManualTracingForAllMeasure(
-                    t_window=Interval(0.0, TO_HOURS * max_days),
-                    p_participate=1.0,
-                    p_recall=0.5),
+                # ManualTracingForAllMeasure(
+                #     t_window=Interval(0.0, TO_HOURS * max_days),
+                #     p_participate=1.0,
+                #     p_recall=0.5),
 
                 # beta scaling (direcly scales betas ahead of time, so upscaling is valid_
                 APrioriBetaMultiplierMeasureByType(
