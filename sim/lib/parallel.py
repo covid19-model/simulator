@@ -137,7 +137,7 @@ def create_ParallelSummary_from_DiseaseModel(sim, store_mob=False):
 
 
 def pp_launch(r, kwargs, distributions, params, initial_counts, testing_params, measure_list, max_time,
-              thresholds_roc, store_mob):
+              thresholds_roc, store_mob, store_measure_bernoullis):
 
     mob = MobilitySimulator(**kwargs)
     mob.simulate(max_time=max_time)
@@ -166,6 +166,10 @@ def pp_launch(r, kwargs, distributions, params, initial_counts, testing_params, 
     if store_mob:
         result['mob'] = sim.mob
 
+    ml = result['measure_list']
+    if not store_measure_bernoullis:
+        ml.exit_run()
+
     return result
 
 
@@ -189,6 +193,7 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
     thresholds_roc_list = [copy.deepcopy(thresholds_roc) for _ in range(random_repeats)]
     max_time_list = [copy.deepcopy(max_time) for _ in range(random_repeats)]
     store_mob_list = [copy.deepcopy(store_mob) for _ in range(random_repeats)]
+    store_measure_bernoullis = [copy.deepcopy(store_measure_bernoullis) for _ in range(random_repeats)]
     repeat_ids = list(range(random_repeats))
 
     if verbose:
@@ -197,7 +202,7 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
     with ProcessPoolExecutor(cpu_count) as ex:
         res = ex.map(pp_launch, repeat_ids, mob_setting_list, distributions_list, params_list,
                      initial_seeds_list, testing_params_list, measure_list_list, max_time_list,
-                     thresholds_roc_list, store_mob_list)
+                     thresholds_roc_list, store_mob_list, store_measure_bernoullis)
 
     # # # DEBUG mode (to see errors printed properly)
     # res = []
@@ -218,8 +223,6 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
             summary.state_ended_at[code][r, :] = result['state_ended_at'][code]
 
         ml = result['measure_list']
-        if not store_measure_bernoullis:
-            ml.exit_run()
         summary.measure_list.append(ml)
 
         if store_mob:
