@@ -14,6 +14,7 @@ from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line, load_summary
 from lib.calibrationSettings import calibration_lockdown_dates, calibration_mob_paths, calibration_states, contact_tracing_adoption
 from lib.calibrationFunctions import get_calibrated_params
+from lib.settings.mobility_reduction import mobility_reduction
 
 TO_HOURS = 24.0
 
@@ -29,7 +30,7 @@ if __name__ == '__main__':
     set_initial_seeds_to = {}
     expected_daily_base_expo_per100k = 5 / 7
 
-    smart_tracing_stats_window = (21 * TO_HOURS, 28 * TO_HOURS)
+    smart_tracing_stats_window = (14 * TO_HOURS, 28 * TO_HOURS)
 
     beacon_config = dict(
         mode='all',
@@ -100,15 +101,14 @@ if __name__ == '__main__':
             max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
             m = [        
-                # beacon measures
-                # ManualTracingForAllMeasure(
-                #     t_window=Interval(0.0, TO_HOURS * max_days),
-                #     p_participate=1.0,
-                #     p_recall=0.5),
-
-                # beta scaling (direcly scales betas ahead of time, so upscaling is valid_
+                # beta scaling (direcly scales betas ahead of time, so upscaling is valid
                 APrioriBetaMultiplierMeasureByType(
-                    beta_multiplier=beta_multipliers),       
+                    beta_multiplier=beta_multipliers),     
+
+                # mobility reduction since the beginning of the pandemic 
+                SocialDistancingBySiteTypeForAllMeasure(
+                    t_window=Interval(0.0, TO_HOURS * max_days),
+                    p_stay_home_dict=mobility_reduction[country][area]),
 
                 # standard tracing measures
                 ComplianceForAllMeasure(

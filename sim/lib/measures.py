@@ -225,6 +225,70 @@ class SocialDistancingPerStateMeasure(SocialDistancingForAllMeasure):
         return 0.0
 
 
+class SocialDistancingBySiteTypeForAllMeasure(Measure):
+    """
+    Social distancing measure. All the population is advised to stay home. Each
+    visit of each individual respects the measure with some probability.
+    """
+
+    def __init__(self, t_window, p_stay_home_dict):
+        """
+
+        Parameters
+        ----------
+        t_window : Interval
+            Time window during which the measure is active
+        p_stay_home_dict : dict of site_type : float
+            Probability of respecting the measure for a given site type, should be in [0,1]
+        """
+        # Init time window
+        super().__init__(t_window)
+
+        # Init probabilities of respecting measure
+        if (not isinstance(p_stay_home_dict, dict)) or any([p < 0.0 or p > 1.0 for p in p_stay_home_dict.values()]):
+            raise ValueError("`p_stay_home_dict` should contain non-negative floats between 0 and 1")
+        self.p_stay_home_dict = p_stay_home_dict
+
+    def init_run(self, n_people, n_visits):
+        """Init the measure for this run by sampling the outcome of each visit
+        for each individual 
+
+        Parameters
+        ----------
+        n_people : int
+            Number of people in the population
+        n_visits : int
+            Maximum number of visits of an individual
+        """
+        # Sample the outcome of the measure for each visit of each individual
+        self.bernoulli_stay_home_type = {
+            k : np.random.binomial(1, p, size=(n_people, n_visits))
+            for k, p in self.p_stay_home_dict.items()
+        }
+        self._is_init = True
+
+    @enforce_init_run
+    def is_contained(self, *, j, j_visit_id, site_type, t):
+        """Indicate if individual `j` respects measure for visit `j_visit_id`
+        """
+        is_home_now = self.bernoulli_stay_home_type[site_type][j, j_visit_id]
+        return is_home_now and self._in_window(t)
+
+    @enforce_init_run
+    def is_contained_prob(self, *, j, site_type, t):
+        """Returns probability of containment for individual `j` at time `t`
+        """
+        if self._in_window(t):
+            return self.p_stay_home_dict[site_type]
+        return 0.0
+
+    def exit_run(self):
+        """ Deletes bernoulli array. """
+        if self._is_init:
+            self.bernoulli_stay_home = None
+            self._is_init = False
+
+
 class SocialDistancingForPositiveMeasure(SocialDistancingForAllMeasure):
     """
     Social distancing measure. Only the population of positive cases who are not

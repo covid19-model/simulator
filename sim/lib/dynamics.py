@@ -447,6 +447,10 @@ class DiseaseModel(object):
                                    n_people=self.n_people,
                                    n_visits=max(self.mob.visit_counts))
 
+        self.measure_list.init_run(SocialDistancingBySiteTypeForAllMeasure,
+                                   n_people=self.n_people,
+                                   n_visits=max(self.mob.visit_counts))
+
         self.measure_list.init_run(UpperBoundCasesSocialDistancing,
                                    n_people=self.n_people,
                                    n_visits=max(self.mob.visit_counts))
@@ -602,19 +606,19 @@ class DiseaseModel(object):
                     infector_visits = self.mob.mob_traces[infector].find((t, t))
                     i_visits = self.mob.mob_traces[i].find((t, t))
 
-                    for interv in infector_visits:
+                    for v in infector_visits:
                         infector_away_from_home = \
-                            ((interv.t_to > t) and # infector actually at a site, not just matching "environmental contact"
+                            ((v.t_to > t) and # infector actually at a site, not just matching "environmental contact"
                              (not self.is_person_home_from_visit_due_to_measure(
-                             t=t, i=infector, visit_id=interv.id)))
+                             t=t, i=infector, visit_id=v.id, site_type=self.site_dict[self.site_type[v.site]])))
                         if infector_away_from_home:
                             break
 
-                    for interv in i_visits:
+                    for v in i_visits:
                         i_away_from_home = i_away_from_home or \
-                            ((interv.t_to > t) and # i actually at a site, not just matching "environmental contact"
+                            ((v.t_to > t) and # i actually at a site, not just matching "environmental contact"
                              (not self.is_person_home_from_visit_due_to_measure(
-                             t=t, i=i, visit_id=interv.id)))
+                             t=t, i=i, visit_id=v.id, site_type=self.site_dict[self.site_type[v.site]])))
 
                     away_from_home = (infector_away_from_home or i_away_from_home)
                     
@@ -698,6 +702,7 @@ class DiseaseModel(object):
                     # for contact exposures, `contact` causing the exposure is passed
                     contact = metadata 
                     i_visit_id, infector_visit_id = contact.id_tup
+                    assert(k == contact.site)
 
                     # is_in_contact2, contact2 = self.mob.is_in_contact(indiv_i=i, indiv_j=infector, site=k, t=t)
                     # assert(is_in_contact2 and (contact == contact2))
@@ -710,12 +715,14 @@ class DiseaseModel(object):
                     # 2) check whether infector stayed at home due to measures
                     #    or got hospitalized
                     infector_contained = self.is_person_home_from_visit_due_to_measure(
-                        t=t, i=infector, visit_id=infector_visit_id) \
-                        or self.state['hosp'][infector]
+                        t=t, i=infector, visit_id=infector_visit_id, 
+                        site_type=self.site_dict[self.site_type[k]]) \
+                    or self.state['hosp'][infector]
                                             
                     # 3) check whether susceptible stayed at home due to measures
                     i_contained = self.is_person_home_from_visit_due_to_measure(
-                        t=t, i=i, visit_id=i_visit_id)  
+                        t=t, i=i, visit_id=i_visit_id, 
+                        site_type=self.site_dict[self.site_type[k]])
 
                     # 4) check whether infectiousness got reduced due to site specific 
                     #    measures and as a consequence this event didn't occur
@@ -1297,7 +1304,7 @@ class DiseaseModel(object):
         rejection_prob = 1.0 - acceptance_prob
         return rejection_prob
     
-    def is_person_home_from_visit_due_to_measure(self, t, i, visit_id):
+    def is_person_home_from_visit_due_to_measure(self, t, i, visit_id, site_type):
         '''
         Returns True/False of whether person i stayed at home from visit
         `visit_id` due to any measures
@@ -1307,6 +1314,9 @@ class DiseaseModel(object):
             self.measure_list.is_contained(
                 SocialDistancingForAllMeasure, t=t,
                 j=i, j_visit_id=visit_id) or 
+            self.measure_list.is_contained(
+                SocialDistancingBySiteTypeForAllMeasure, t=t,
+                j=i, j_visit_id=visit_id, site_type=site_type) or
             self.measure_list.is_contained(
                 SocialDistancingForPositiveMeasure, t=t,
                 j=i, j_visit_id=visit_id, 
@@ -1717,9 +1727,11 @@ class DiseaseModel(object):
 
         '''Check SocialDistancing measures'''
         is_i_contained = self.is_person_home_from_visit_due_to_measure(
-            t=start_contact, i=i, visit_id=i_visit_id)
+            t=start_contact, i=i, visit_id=i_visit_id, 
+            site_type=self.site_dict[self.site_type[site_id]])
         is_j_contained = self.is_person_home_from_visit_due_to_measure(
-            t=start_contact, i=j, visit_id=j_visit_id)
+            t=start_contact, i=j, visit_id=j_visit_id, 
+            site_type=self.site_dict[self.site_type[site_id]])
 
         if is_i_contained or is_j_contained:
             return False

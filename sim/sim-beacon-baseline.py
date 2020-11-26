@@ -13,6 +13,7 @@ from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
 from lib.calibrationSettings import calibration_lockdown_dates, calibration_mob_paths, calibration_states, contact_tracing_adoption
 from lib.calibrationFunctions import get_calibrated_params
+from lib.settings.mobility_reduction import mobility_reduction
 
 TO_HOURS = 24.0
 
@@ -75,6 +76,11 @@ if __name__ == '__main__':
         max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
         m = [
+            # mobility reduction since the beginning of the pandemic
+            SocialDistancingBySiteTypeForAllMeasure(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_stay_home_dict=mobility_reduction[country][area]),
+                
             # standard tracing measures
             ComplianceForAllMeasure(
                 t_window=Interval(0.0, TO_HOURS * max_days),
