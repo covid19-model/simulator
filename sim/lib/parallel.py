@@ -193,7 +193,7 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
     thresholds_roc_list = [copy.deepcopy(thresholds_roc) for _ in range(random_repeats)]
     max_time_list = [copy.deepcopy(max_time) for _ in range(random_repeats)]
     store_mob_list = [copy.deepcopy(store_mob) for _ in range(random_repeats)]
-    store_measure_bernoullis = [copy.deepcopy(store_measure_bernoullis) for _ in range(random_repeats)]
+    store_measure_bernoullis_list = [copy.deepcopy(store_measure_bernoullis) for _ in range(random_repeats)]
     repeat_ids = list(range(random_repeats))
 
     if verbose:
@@ -202,7 +202,7 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
     with ProcessPoolExecutor(cpu_count) as ex:
         res = ex.map(pp_launch, repeat_ids, mob_setting_list, distributions_list, params_list,
                      initial_seeds_list, testing_params_list, measure_list_list, max_time_list,
-                     thresholds_roc_list, store_mob_list, store_measure_bernoullis)
+                     thresholds_roc_list, store_mob_list, store_measure_bernoullis_list)
 
     # # # DEBUG mode (to see errors printed properly)
     # res = []
