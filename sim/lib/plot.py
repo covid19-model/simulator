@@ -14,15 +14,9 @@ from matplotlib.dates import date2num, num2date
 from matplotlib.backends.backend_pgf import FigureCanvasPgf
 from matplotlib.colors import ListedColormap
 
-from lib.measures import (MeasureList, BetaMultiplierMeasureBySite,
-                          SocialDistancingForAllMeasure, BetaMultiplierMeasureByType,
-                          SocialDistancingForPositiveMeasure, SocialDistancingByAgeMeasure,
-                          SocialDistancingForSmartTracing, ComplianceForAllMeasure, UpperBoundCasesBetaMultiplier)
 from lib.rt import compute_daily_rts, R_T_RANGE
 import lib.rt_nbinom
-from lib.experiment import load_summary
-import pickle
-
+from lib.summary import *
 
 TO_HOURS = 24.0
 DPI = 200
@@ -368,96 +362,6 @@ class Plotter(object):
         ax.yaxis.set_ticks_position('left')
         ax.xaxis.set_ticks_position('bottom')
 
-    def __is_state_at(self, sim, r, state, t):
-        if state == 'posi' or state == 'nega':
-            return (sim.state_started_at[state][r] - TEST_LAG <= t) & (sim.state_ended_at[state][r] - TEST_LAG > t)
-        else:
-            return (sim.state_started_at[state][r] <= t) & (sim.state_ended_at[state][r] > t)
-
-    def __state_started_before(self, sim, r, state, t):
-        if state == 'posi' or state == 'nega':
-            return (sim.state_started_at[state][r] - TEST_LAG <= t)
-        else:
-            return (sim.state_started_at[state][r] <= t)
-
-    def __is_contained_at(self, sim, r, measure, t):
-        contained = np.zeros(sim.n_people, dtype='bool')
-        for i in range(sim.n_people):
-            if measure == 'SocialDistancingForAllMeasure':
-                contained[i] = sim.measure_list[r].is_contained_prob(SocialDistancingForAllMeasure, t=t, j=i)
-            elif measure == 'SocialDistancingForSmartTracing':
-                contained[i] = sim.measure_list[r].is_contained_prob(SocialDistancingForSmartTracing, t=t, j=i)
-            elif measure == 'SocialDistancingByAgeMeasure':
-                contained[i] = sim.measure_list[r].is_contained_prob(SocialDistancingByAgeMeasure, t=t, age=sim.people_age[r, i])
-            elif measure == 'SocialDistancingForPositiveMeasure':
-                contained[i] = sim.measure_list[r].is_contained_prob(SocialDistancingForPositiveMeasure,
-                                                                     t=t, j=i,
-                                                                     state_posi_started_at=sim.state_started_at['posi'][r, :],
-                                                                     state_posi_ended_at=sim.state_ended_at['posi'][r, :],
-                                                                     state_resi_started_at=sim.state_started_at['resi'][r, :],
-                                                                     state_dead_started_at=sim.state_started_at['dead'][r, :])
-            else:
-                raise ValueError('Social distancing measure unknown.')
-        return contained
-
-    def __comp_state_cumulative(self, sim, state, acc):
-        '''
-        Computes `state` variable over time [0, self.max_time] with given accuracy `acc
-        '''
-        ts, means, stds = [], [], []
-        for t in np.linspace(0.0, sim.max_time, num=acc, endpoint=True):
-            restarts = [np.sum(self.__state_started_before(sim, r, state, t))
-                for r in range(sim.random_repeats)]
-            ts.append(t/TO_HOURS)
-            means.append(np.mean(restarts))
-            stds.append(np.std(restarts))
-        return np.array(ts), np.array(means), np.array(stds)
-
-    def __comp_state_over_time(self, sim, state, acc, return_single_runs=False):
-        '''
-        Computes `state` variable over time [0, self.max_time] with given accuracy `acc
-        '''
-        ts, means, stds = [], [], []
-        for t in np.linspace(0.0, sim.max_time, num=acc, endpoint=True):
-            restarts = [np.sum(self.__is_state_at(sim, r, state, t))
-                for r in range(sim.random_repeats)]
-            if not return_single_runs:
-                ts.append(t/TO_HOURS)
-                means.append(np.mean(restarts))
-                stds.append(np.std(restarts))
-            else:
-                ts.append(t/TO_HOURS)
-                means.append(restarts)
-                stds.append(restarts)
-        return np.array(ts), np.array(means), np.array(stds)
-
-    def __comp_state_over_time_per_age(self, sim, state, acc, age):
-        '''
-        Computes `state` variable over time [0, self.max_time] with given accuracy `acc
-        for a given age group `age`
-        '''
-        ts, means, stds = [], [], []
-        for t in np.linspace(0.0, sim.max_time, num=acc, endpoint=True):
-            restarts = [np.sum(self.__is_state_at(sim, r, state, t) & (sim.people_age[r] == age))
-                        for r in range(sim.random_repeats)]
-            ts.append(t/TO_HOURS)
-            means.append(np.mean(restarts))
-            stds.append(np.std(restarts))
-        return np.array(ts), np.array(means), np.array(stds)
-
-    def __comp_contained_over_time(self, sim, measure, acc):
-        '''
-        Computes `state` variable over time [0, self.max_time] with given accuracy `acc
-        '''
-        ts, means, stds = [], [], []
-        for t in np.linspace(0.0, sim.max_time, num=acc, endpoint=True):
-            restarts = [np.sum(self.__is_contained_at(sim, r, measure, t))
-                for r in range(sim.random_repeats)]
-            ts.append(t/TO_HOURS)
-            means.append(np.mean(restarts))
-            stds.append(np.std(restarts))
-        return np.array(ts), np.array(means), np.array(stds)
-
     def plot_cumulative_infected(self, sim, title='Example', filename='daily_inf_0',
                                  figsize=(6, 5), errorevery=20, acc=1000, ymax=None,
                                  lockdown_label='Lockdown', lockdown_at=None,
@@ -564,11 +468,11 @@ class Plotter(object):
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
 
-        ts, iasy_mu, iasy_sig = self.__comp_state_over_time(sim, 'iasy', acc)
-        _,  ipre_mu, ipre_sig = self.__comp_state_over_time(sim, 'ipre', acc)
-        _,  isym_mu, isym_sig = self.__comp_state_over_time(sim, 'isym', acc)
-        # _,  expo_mu, iexpo_sig = self.__comp_state_over_time(sim, 'expo', acc)
-        # _,  posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
+        ts, iasy_mu, iasy_sig = comp_state_over_time(sim, 'iasy', acc)
+        _,  ipre_mu, ipre_sig = comp_state_over_time(sim, 'ipre', acc)
+        _,  isym_mu, isym_sig = comp_state_over_time(sim, 'isym', acc)
+        # _,  expo_mu, iexpo_sig = comp_state_over_time(sim, 'expo', acc)
+        # _,  posi_mu, posi_sig = comp_state_over_time(sim, 'posi', acc)
 
         line_xaxis = np.zeros(ts.shape)
         line_iasy = iasy_mu
@@ -660,8 +564,8 @@ class Plotter(object):
         ax = fig.add_subplot(111)
 
         # automatically shifted by `test_lag` in the function
-        ts, posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
-        _,  nega_mu, nega_sig = self.__comp_state_over_time(sim, 'nega', acc)
+        ts, posi_mu, posi_sig = comp_state_over_time(sim, 'posi', acc)
+        _,  nega_mu, nega_sig = comp_state_over_time(sim, 'nega', acc)
 
         line_xaxis = np.zeros(ts.shape)
         line_posi = posi_mu
@@ -725,14 +629,14 @@ class Plotter(object):
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
 
-        ts, all_mu, all_sig = self.__comp_contained_over_time(sim, 'SocialDistancingForAllMeasure', acc)
-        _,  positive_mu, positive_sig = self.__comp_contained_over_time(sim, 'SocialDistancingForPositiveMeasure', acc)
-        _,  age_mu, age_sig = self.__comp_contained_over_time(sim, 'SocialDistancingByAgeMeasure', acc)
-        _,  tracing_mu, tracing_sig = self.__comp_contained_over_time(sim, 'SocialDistancingForSmartTracing', acc)
+        ts, all_mu, all_sig = comp_contained_over_time(sim, 'SocialDistancingForAllMeasure', acc)
+        _,  positive_mu, positive_sig = comp_contained_over_time(sim, 'SocialDistancingForPositiveMeasure', acc)
+        _,  age_mu, age_sig = comp_contained_over_time(sim, 'SocialDistancingByAgeMeasure', acc)
+        _,  tracing_mu, tracing_sig = comp_contained_over_time(sim, 'SocialDistancingForSmartTracing', acc)
 
-        _, iasy_mu, iasy_sig = self.__comp_state_over_time(sim, 'iasy', acc)
-        _,  ipre_mu, ipre_sig = self.__comp_state_over_time(sim, 'ipre', acc)
-        _,  isym_mu, isym_sig = self.__comp_state_over_time(sim, 'isym', acc)
+        _, iasy_mu, iasy_sig = comp_state_over_time(sim, 'iasy', acc)
+        _,  ipre_mu, ipre_sig = comp_state_over_time(sim, 'ipre', acc)
+        _,  isym_mu, isym_sig = comp_state_over_time(sim, 'isym', acc)
 
         line_xaxis = np.zeros(ts.shape)
 
@@ -821,10 +725,10 @@ class Plotter(object):
             if isinstance(sim, str):
                 is_conditional = True if i == conditional_measures else False
                 try:
-                    data = load_extracted_data(sim, acc)
+                    data = load_condensed_summary(sim, acc)
                 except FileNotFoundError:
-                    acc = extract_data_from_summary(sim, acc=acc, conditional_measures=is_conditional)
-                    data = load_extracted_data(sim, acc)
+                    acc = create_condensed_summary_from_path(sim, acc=acc)
+                    data = load_condensed_summary(sim, acc)
                 acc = data['acc']
                 ts = data['ts']
                 iasy_mu = data['iasy_mu']
@@ -845,10 +749,10 @@ class Plotter(object):
                     if acc > sim.max_time:
                         acc = int(sim.max_time)
 
-                    ts, iasy_mu, iasy_sig = self.__comp_state_over_time(sim, 'iasy', acc)
-                    _,  ipre_mu, ipre_sig = self.__comp_state_over_time(sim, 'ipre', acc)
-                    _,  isym_mu, isym_sig = self.__comp_state_over_time(sim, 'isym', acc)
-                    _,  posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
+                    ts, iasy_mu, iasy_sig = comp_state_over_time(sim, 'iasy', acc)
+                    _,  ipre_mu, ipre_sig = comp_state_over_time(sim, 'ipre', acc)
+                    _,  isym_mu, isym_sig = comp_state_over_time(sim, 'isym', acc)
+                    _,  posi_mu, posi_sig = comp_state_over_time(sim, 'posi', acc)
 
                 if x_axis_dates:
                     # Convert x-axis into posix timestamps and use pandas to plot as dates
@@ -868,9 +772,9 @@ class Plotter(object):
                     if acc > sim.max_time:
                         acc = int(sim.max_time)
 
-                    ts, iasy, iasy_sig = self.__comp_state_over_time(sim, 'iasy', acc, return_single_runs=True)
-                    _,  ipre, ipre_sig = self.__comp_state_over_time(sim, 'ipre', acc, return_single_runs=True)
-                    _,  isym, isym_sig = self.__comp_state_over_time(sim, 'isym', acc, return_single_runs=True)
+                    ts, iasy, iasy_sig = comp_state_over_time(sim, 'iasy', acc, return_single_runs=True)
+                    _,  ipre, ipre_sig = comp_state_over_time(sim, 'ipre', acc, return_single_runs=True)
+                    _,  isym, isym_sig = comp_state_over_time(sim, 'isym', acc, return_single_runs=True)
                 else:
                     iasy = data['iasy']
                     ipre = data['ipre']
@@ -978,10 +882,10 @@ class Plotter(object):
         for i, sim in enumerate(sims):
             if isinstance(sim, str):
                 try:
-                    data = load_extracted_data(sim, acc=acc)
+                    data = load_condensed_summary(sim, acc=acc)
                 except FileNotFoundError:
-                    acc = extract_data_from_summary(sim, acc=acc)
-                    data = load_extracted_data(sim, acc=acc)
+                    acc = create_condensed_summary_from_path(sim, acc=acc)
+                    data = load_condensed_summary(sim, acc=acc)
 
                 acc = data['acc']
                 ts = data['ts']
@@ -997,8 +901,8 @@ class Plotter(object):
                 if acc > sim.max_time:
                     acc = int(sim.max_time)
 
-                ts, hosp_mu, hosp_sig = self.__comp_state_over_time(sim, 'hosp', acc)
-                ts, dead_mu, dead_sig = self.__comp_state_over_time(sim, 'dead', acc)
+                ts, hosp_mu, hosp_sig = comp_state_over_time(sim, 'hosp', acc)
+                ts, dead_mu, dead_sig = comp_state_over_time(sim, 'dead', acc)
 
             # Convert x-axis into posix timestamps and use pandas to plot as dates
             ts = days_to_datetime(ts, start_date=start_date)
@@ -1102,10 +1006,10 @@ class Plotter(object):
 
         # infections
         r = restart
-        is_expo = self.__is_state_at(sim, r, 'expo', at_time)
-        is_iasy = self.__is_state_at(sim, r, 'iasy', at_time)
-        is_ipre = self.__is_state_at(sim, r, 'ipre', at_time)
-        is_isym = self.__is_state_at(sim, r, 'isym', at_time)
+        is_expo = is_state_at(sim, r, 'expo', at_time)
+        is_iasy = is_state_at(sim, r, 'iasy', at_time)
+        is_ipre = is_state_at(sim, r, 'ipre', at_time)
+        is_isym = is_state_at(sim, r, 'isym', at_time)
         is_infected = is_iasy | is_ipre | is_isym
         no_state = (1 - is_infected) & (1 - is_expo)
 
@@ -1183,7 +1087,7 @@ class Plotter(object):
             if acc > sims[i].max_time:
                 acc = int(sims[i].max_time)
 
-            ts, line_hosp, error_sig = self.__comp_state_over_time(
+            ts, line_hosp, error_sig = comp_state_over_time(
                 sims[i], 'hosp', acc)
             line_xaxis = np.zeros(ts.shape)
 
@@ -1245,10 +1149,10 @@ class Plotter(object):
         for i, sim in enumerate(sims):
             if isinstance(sim, str):
                 try:
-                    data = load_extracted_data(sim, acc)
+                    data = load_condensed_summary(sim, acc)
                 except FileNotFoundError:
-                    acc = extract_data_from_summary(sim, acc=acc, n_age_groups=n_age_groups)
-                    data = load_extracted_data(sim, acc=acc)
+                    acc = create_condensed_summary_from_path(sim, acc=acc, n_age_groups=n_age_groups)
+                    data = load_condensed_summary(sim, acc=acc)
                 acc = data['acc']
                 ts = data['ts']
                 posi_mu = data['posi_mu']
@@ -1256,7 +1160,7 @@ class Plotter(object):
             else:
                 if acc > sim.max_time:
                     acc = int(sim.max_time)
-                ts, posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
+                ts, posi_mu, posi_sig = comp_state_over_time(sim, 'posi', acc)
             plain_ts = ts
             # Convert x-axis into posix timestamps and use pandas to plot as dates
             ts = days_to_datetime(ts, start_date=start_date)
@@ -1334,10 +1238,10 @@ class Plotter(object):
 
         if isinstance(sim, str):
             try:
-                data = load_extracted_data(sim, acc=acc)
+                data = load_condensed_summary(sim, acc=acc)
             except FileNotFoundError:
-                acc = extract_data_from_summary(sim, acc=acc, n_age_groups=n_age_groups)
-                data = load_extracted_data(sim, acc=acc)
+                acc = create_condensed_summary_from_path(sim, acc=acc, n_age_groups=n_age_groups)
+                data = load_condensed_summary(sim, acc=acc)
         else:
             if acc > sim.max_time:
                 acc = int(sim.max_time)
@@ -1352,7 +1256,7 @@ class Plotter(object):
                 posi_sig = data['posi_sig_age'][i]
             else:
                 # automatically shifted by `test_lag` in the function
-                ts, posi_mu, posi_sig = self.__comp_state_over_time_per_age(sim, 'posi', acc, age)
+                ts, posi_mu, posi_sig = comp_state_over_time_per_age(sim, 'posi', acc, age)
 
             T = posi_mu.shape[0]
 
@@ -1544,34 +1448,6 @@ class Plotter(object):
         if NO_PLOT:
             plt.close()
 
-    def _estimate_daily_nbinom_rts(self, result, slider_size, window_size, end_cutoff):
-        # Extract summary from result
-        sim = result.summary
-        # Build the range of time interval to estimate for
-        t0_range = np.arange(0.0, sim.max_time - window_size - end_cutoff, slider_size)
-        t1_range = t0_range + window_size
-        interval_range = list(zip(t0_range, t1_range))
-        # Run the estimation
-        res_data = []
-        rand_rep_range = list(range(result.metadata.random_repeats))
-        for r, (t0, t1) in itertools.product(rand_rep_range, interval_range):
-            print(f"\rEstimating r={r+1:2>d}/{len(rand_rep_range)}, interval=[{t0:>6.2f}, {t1:>6.2f}]...", end='')
-            data = lib.rt_nbinom.get_sec_cases_in_window(sim, r, t0, t1)
-            fitter = lib.rt_nbinom.NegativeBinomialFitter()
-            fitter.fit(data)
-            res_data.append({'r': r, 't0': t0, 't1': t1,
-                         'Rt': fitter.r_, 'kt': fitter.k_,
-                         'num_sec_cases': data})
-        print()
-        # Format the results
-        df = pd.DataFrame(res_data)
-        # Ignore simulations with not enough data for fitting
-        df['len_data'] = df['num_sec_cases'].apply(len)
-        df['sum_data'] = df['num_sec_cases'].apply(sum)
-        df.loc[(df['len_data'] < 10) + (df['sum_data'] < 10),'kt'] = np.nan
-        df.loc[(df['len_data'] == 0),'Rt'] = 0.0  # if no cases observed
-        return df
-
     def plot_daily_nbinom_rts(self, result=None, filename='', df=None,
                               slider_size=24.0, window_size=24.*7, end_cutoff=24.*10,
                               figsize=None, figformat='double', ymax=None,
@@ -1582,7 +1458,7 @@ class Plotter(object):
         self._set_matplotlib_params(format=figformat)
         # Compute data if not provided
         if df is None:
-            df = self._estimate_daily_nbinom_rts(result, slider_size, window_size, end_cutoff)
+            df = lib.rt_nbinom.estimate_daily_nbinom_rts(result, slider_size, window_size, end_cutoff)
         # Format dates
         if x_axis_dates:
             # Cast time of end of interval to datetime
@@ -1656,31 +1532,6 @@ class Plotter(object):
         if NO_PLOT:
             plt.close()
 
-    def _compute_nbinom_distributions(self, result, x_range, interval_range):
-        # Fit all intervals for all random repeats
-        rand_rep_range = range(result.metadata.random_repeats)
-        res_data = []
-        for r, (t0, t1) in itertools.product(rand_rep_range, interval_range):
-                data = lib.rt_nbinom.get_sec_cases_in_window(result.summary, r, t0, t1)
-                fitter = lib.rt_nbinom.NegativeBinomialFitter()
-                fitter.fit(data)
-                res_data.append({'r': r, 't0': t0, 't1': t1,
-                                'Rt': fitter.r_, 'kt': fitter.k_,
-                                'num_sec_cases': data})
-        # Format in dataframe
-        df = pd.DataFrame(res_data)
-        # Ignore simulations with not enough data for fitting
-        df['len_data'] = df['num_sec_cases'].apply(len)
-        df['sum_data'] = df['num_sec_cases'].apply(sum)
-        df.loc[(df['len_data'] < 5) + (df['sum_data'] < 5),'kt'] = np.nan
-        df.loc[(df['len_data'] == 0),'Rt'] = 0.0  # if no cases observed
-        # Compute NB parameters
-        df['param_n'] = df['kt']
-        df['param_p'] = df['kt'] / (df['kt'] + df['Rt'])
-        # Computer NB PMF
-        df['nbinom_pmf'] = df.apply(lambda row: sps.nbinom.pmf(x_range, n=row['param_n'], p=row['param_p']), axis=1)
-        return df
-
     def plot_nbinom_distributions(self, *, result=None, df=None, x_range=None,
                                   figsize=FIG_SIZE_TRIPLE_TALL, figformat='triple',
                                   t0_range=[], label_range=[], window_size=10.*24, ymax=None, filename=''):
@@ -1691,7 +1542,7 @@ class Plotter(object):
         """
         if df is None:
             interval_range = [(t0, t0 + window_size) for t0 in t0_range]
-            df = self._compute_nbinom_distributions(result, x_range, interval_range)
+            df = lib.rt_nbinom.compute_nbinom_distributions(result, x_range, interval_range)
         # Aggregate results by time
         df_agg = df.groupby('t0').agg({'nbinom_pmf': list,
                                     'Rt': ['mean', 'std'],
@@ -1738,18 +1589,27 @@ class Plotter(object):
             os.system(f'pdfcrop "${fpath}" tmp.pdf && mv tmp.pdf "${fpath}"')
             plt.close()
 
-    def plot_roc_curve(self, titles, summaries, action='isolate', figformat='double',
+    def plot_roc_curve(self, titles, summaries=None, paths=None, action='isolate', figformat='double',
                        filename='roc_example', figsize=None):
         ''''
         ROC curve
         '''
+        assert (summaries or paths) is not None and (summaries and paths) is None, "Specify either summaries or paths"
         self._set_matplotlib_params(format=figformat)
         # fig, ax = plt.subplots(1, 1, figsize=figsize)
         fig, axs = plt.subplots(1, 2, figsize=figsize)
 
         # xs
         xs = np.linspace(0, 1, num=500)
-        
+
+        if paths:
+            try:
+                summaries = [load_condensed_summary(path) for path in paths]
+            except FileNotFoundError:
+                for path in paths:
+                    _ = create_condensed_summary_from_path(path)
+                summaries = [load_condensed_summary(path) for path in paths]
+
         for i, summary in enumerate(summaries):
             
             print('exposed:', np.sum(summary.state_started_at['expo'] < np.inf, axis=1).mean())
@@ -1855,105 +1715,3 @@ class Plotter(object):
         if NO_PLOT:
             plt.close()
         return
-
-
-
-def extract_data_from_summary(summary_path, acc=500, conditional_measures=False, n_age_groups=None):
-    print(f'Extracting data from summary: {summary_path}')
-    result = load_summary(summary_path)
-    sim = result[1]
-
-    if acc > sim.max_time:
-        acc = int(sim.max_time)
-        print(f'Requested accuracy not attainable, using maximal acc={acc} ...')
-
-    plotter = Plotter()
-    comp_state_over_time = plotter._Plotter__comp_state_over_time
-    ts, iasy_mu, iasy_sig = comp_state_over_time(sim, 'iasy', acc)
-    _, ipre_mu, ipre_sig = comp_state_over_time(sim, 'ipre', acc)
-    _, isym_mu, isym_sig = comp_state_over_time(sim, 'isym', acc)
-    _, posi_mu, posi_sig = comp_state_over_time(sim, 'posi', acc)
-    _, hosp_mu, hosp_sig = comp_state_over_time(sim, 'hosp', acc)
-    _, dead_mu, dead_sig = comp_state_over_time(sim, 'dead', acc)
-    _, posi_mu, posi_sig = comp_state_over_time(sim, 'posi', acc)
-    _, nega_mu, nega_sig = comp_state_over_time(sim, 'nega', acc)
-    _, iasy, _ = comp_state_over_time(sim, 'iasy', acc, return_single_runs=True)
-    _, ipre, _ = comp_state_over_time(sim, 'ipre', acc, return_single_runs=True)
-    _, isym, _ = comp_state_over_time(sim, 'isym', acc, return_single_runs=True)
-
-    lockdowns = None
-    mean_lockdown_time = 0
-    if conditional_measures:
-        lockdowns, mean_lockdown_time = get_lockdown_times(sim)
-
-    posi_mu_age, posi_sig_age = [], []
-    if n_age_groups:
-        for age in range(n_age_groups):
-            _, posi_mean, posi_std = plotter._Plotter__comp_state_over_time_per_age(sim, 'posi', acc, age)
-            posi_mu_age.append(posi_mean)
-            posi_sig_age.append(posi_std)
-
-    data = {'acc': acc,
-            'max_time': sim.max_time,
-            'ts': ts,
-            'iasy': iasy, 'iasy_mu': iasy_mu, 'iasy_sig': iasy_sig,
-            'ipre': ipre, 'ipre_mu': ipre_mu, 'ipre_sig': ipre_sig,
-            'isym': isym, 'isym_mu': isym_mu, 'isym_sig': isym_sig,
-            'hosp_mu': hosp_mu, 'hosp_sig': hosp_sig,
-            'dead_mu': dead_mu, 'dead_sig': dead_sig,
-            'posi_mu': posi_mu, 'posi_sig': posi_sig,
-            'nega_mu': nega_mu, 'nega_sig': nega_sig,
-            'lockdowns': lockdowns,
-            'mean_lockdown_time': mean_lockdown_time,
-            'posi_mu_age': posi_mu_age,
-            'posi_sig_age': posi_sig_age,
-            }
-
-    filepath = os.path.join('summaries', 'condensed_summaries', summary_path[:-3]+f'_extracted_data_acc={acc}.pk')
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    with open(filepath, 'wb') as fp:
-        pickle.dump(data, fp)
-    print(f'Data extraction successful.')
-    return acc
-
-
-def load_extracted_data(summary_path, acc=500):
-    with open(os.path.join('summaries', 'condensed_summaries', summary_path[:-3]+f'_extracted_data_acc={acc}.pk'), 'rb') as fp:
-        data = pickle.load(fp)
-    print('Loaded previously extracted data.')
-    return data
-
-
-def get_lockdown_times(summary):
-    interventions = []
-    for ml in summary.measure_list:
-        hist, t = None, 1
-        while hist is None:
-            # Search for active measure if conditional measure was not active initially
-            hist = list(ml.find(UpperBoundCasesBetaMultiplier, t=t).intervention_history)
-            t += TO_HOURS
-        try:
-            lockdowns = [hist[0][:2]]
-        except IndexError:
-            lockdowns = None
-        j = 0
-        for k in range(len(hist)):
-            if k > j:
-                # If the time between two lock down periods is less than 2 days we count it as one lockdown\n",
-                if hist[k][0] - lockdowns[j][1] < 2 * TO_HOURS:
-                    lockdowns[j] = (lockdowns[j][0], hist[k][1])
-                else:
-                    lockdowns.append(hist[k][0:2])
-                    j += 1
-        interventions.append(lockdowns)
-
-    lockdown_times = []
-    for run in interventions:
-        lockdown_time = 0
-        if run is not None:
-            for lockdown in run:
-                if lockdown is not None:
-                    lockdown_time += lockdown[1] - lockdown[0]
-            lockdown_times.append(lockdown_time)
-    mean_lockdown_time = np.mean(lockdown_times)
-    return interventions, mean_lockdown_time

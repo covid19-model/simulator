@@ -23,6 +23,7 @@ from lib.calibrationSettings import (
     calibration_testing_params, 
     calibration_lockdown_beta_multipliers,
     calibration_mob_paths)
+from lib.summary import *
 
 TO_HOURS = 24.0
 ROOT = 'summaries'
@@ -60,12 +61,6 @@ Simulation = namedtuple('Simulation', (
 ), defaults=(None, None))  # NOTE: `defaults` iterable is applied from back to front, i.e. just `beacon_config` and `thresholds_roc` has a default
 
 
-
-Result = namedtuple('Result', (
-    'metadata',    # metadata of simulation that was run, here a `Simulation` namedtuple
-    'summary',     # result summary of simulation
-))
-
 Plot = namedtuple('Plot', (
     'path',    # path to result file of this simulation containing pickled `Result` namedetuple
     'label',   # label of this plot on the legend
@@ -86,27 +81,6 @@ def get_properties(objs, property):
             raise ValueError(f'Unknown type of elements in `objs`. Type is {type(o).__name__}')
     return out
 
-
-def save_summary(obj, path):
-    '''Saves summary file'''
-    with open(os.path.join(ROOT, path), 'wb') as fp:
-        pickle.dump(obj, fp)
-
-def load_summary(path):
-    '''Loads summary file'''
-    with open(os.path.join(ROOT, path), 'rb') as fp:
-        obj = pickle.load(fp)
-    return obj
-
-def load_summary_list(paths):
-    '''Loads list of several summaries'''
-    objs = []
-    for p in paths:
-        try:
-            objs.append(load_summary(p))
-        except FileNotFoundError:
-            print(f'{p} not found.')
-    return objs
 
 def options_to_str(**options):
     return '-'.join(['{}={}'.format(k, v) for k, v in options.items()])
@@ -161,7 +135,8 @@ class Experiment(object):
         full_scale,
         verbose,
         cpu_count=None,
-        multi_beta_calibration=False):
+        multi_beta_calibration=False,
+        condensed_summary=False):
 
         self.experiment_info = experiment_info
         self.start_date = start_date
@@ -170,6 +145,7 @@ class Experiment(object):
         self.cpu_count = cpu_count if cpu_count else multiprocessing.cpu_count()
         self.full_scale = full_scale
         self.multi_beta_calibration = multi_beta_calibration
+        self.condensed_summary = condensed_summary
         self.verbose = verbose
 
         # list simulations of experiment
@@ -177,6 +153,14 @@ class Experiment(object):
 
     def get_sim_path(self, sim):
         return sim.experiment_info + '/' + sim.experiment_info + '-' + sim.simulation_info
+
+    def save_condensed_summary(self, sim, summary):
+        filepath = os.path.join('condensed_summaries', self.get_sim_path(sim) + '_condensed.pk')
+        condensed_summary = condense_summary(summary=summary, metadata=sim)
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        with open(filepath, 'wb') as fp:
+            pickle.dump(condensed_summary, fp)
+        return
 
     def save_run(self, sim, summary):
         filename = self.get_sim_path(sim) + '.pk'
@@ -407,7 +391,10 @@ class Experiment(object):
                 store_measure_bernoullis=sim.store_mob,
                 verbose=False)
 
-            self.save_run(sim, summary)
+            if self.condensed_summary is True:
+                self.save_condensed_summary(sim, summary)
+            else:
+                self.save_run(sim, summary)
 
             if self.verbose:
                 print(f'[Finished Sim] {self.get_sim_path(sim)}')

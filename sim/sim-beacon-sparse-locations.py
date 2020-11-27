@@ -29,6 +29,7 @@ if __name__ == '__main__':
     seed_summary_path = None
     set_initial_seeds_to = {}
     expected_daily_base_expo_per100k = 5 / 7
+    condensed_summary = True
 
     # contact tracing experiment parameters
     beacon_modes = ['visit_freq', 'random']
@@ -76,6 +77,7 @@ if __name__ == '__main__':
         random_repeats=random_repeats,
         cpu_count=cpu_count,
         full_scale=full_scale,
+        condensed_summary=condensed_summary,
         verbose=verbose,
     )
 
