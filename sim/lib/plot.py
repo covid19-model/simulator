@@ -1611,9 +1611,12 @@ class Plotter(object):
                 summaries = [load_condensed_summary(path) for path in paths]
 
         for i, summary in enumerate(summaries):
-            
-            print('exposed:', np.sum(summary.state_started_at['expo'] < np.inf, axis=1).mean())
-            tracing_stats = summary.tracing_stats
+
+            if paths: # If condensed summary
+                tracing_stats = summary['tracing_stats']
+            else:
+                print('exposed:', np.sum(summary.state_started_at['expo'] < np.inf, axis=1).mean())
+                tracing_stats = summary.tracing_stats
             thresholds = list(tracing_stats.keys())
 
             for j, (name, policy) in enumerate([('PanCast', 'sites'), ('SPECT', 'no_sites')]):
