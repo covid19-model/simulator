@@ -63,7 +63,7 @@ if __name__ == '__main__':
 
     # for debugging purposes
     if args.smoke_test:
-
+        # end_date = '2021-01-05'
         random_repeats = 1
         spread_factors = [8.0]
         full_scale = False
@@ -71,7 +71,6 @@ if __name__ == '__main__':
         beacon_configs = [dict(
             mode='all',
         )]
-        thresholds_roc = np.array([-0.01, 0.00, 0.25, 0.5, 0.75, 0.90, 0.95, 0.97, 0.99, 0.995, 0.999, 0.9999])
 
 
     # create experiment object

@@ -21,8 +21,7 @@ calibration_simulation = {
 }
 
 # parameter bounds
-# beta_upper_bound = 2.0 # for regular simulations
-beta_upper_bound = 15.0 # for lighly affected simulations
+beta_upper_bound = 3.0 
 
 calibration_model_param_bounds_single = {
     'beta_site': [0.0, beta_upper_bound],

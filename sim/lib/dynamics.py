@@ -178,6 +178,10 @@ class DiseaseModel(object):
         self.exposure_integral = self.make_exposure_int_eval()
         self.exposure_rate = self.make_exposure_rate_eval() # for sanity check
 
+        # DEBUG
+        self.risk_got_exposed = np.zeros(11)
+        self.risk_got_not_exposed = np.zeros(11)
+
 
     def initialize_states_for_seeds(self):
         """
@@ -306,6 +310,7 @@ class DiseaseModel(object):
 
         # define symbols in exposure rate
         beta_sp = Symbol('beta')
+        base_rate_sp = Symbol('base_rate')
         lower_sp = Symbol('lower')
         upper_sp = Symbol('upper')
         a_sp = Symbol('a')
@@ -317,17 +322,19 @@ class DiseaseModel(object):
         expo_int_symb = Max(integrate(
             beta_sp * 
             integrate(
-                Piecewise((1.0, (a_sp <= u_sp) & (u_sp <= b_sp)), (0.0, True)) * exp(- self.gamma * (t_sp - u_sp)), 
-                (u_sp, t_sp - self.delta, t_sp)),
-            (t_sp, lower_sp, upper_sp)
+                base_rate_sp *
+                Piecewise((1.0, (a_sp <= u_sp) & (u_sp <= b_sp)), (0.0, True)) * 
+                exp(- self.gamma * (t_sp - u_sp)), 
+            (u_sp, t_sp - self.delta, t_sp)),
+        (t_sp, lower_sp, upper_sp)
         ).simplify(), 0.0)
 
-        f_sp = lambdify((lower_sp, upper_sp, a_sp, b_sp, beta_sp), expo_int_symb, 'numpy')
+        f_sp = lambdify((lower_sp, upper_sp, a_sp, b_sp, beta_sp, base_rate_sp), expo_int_symb, 'numpy')
 
         # define function with named arguments
-        def f(*, j_from, j_to, inf_from, inf_to, beta_site):
+        def f(*, j_from, j_to, inf_from, inf_to, beta_site, base_rate):
             '''Shifts to 0.0 for numerical stability'''
-            return f_sp(0.0, j_to - j_from, inf_from - j_from, inf_to - j_from, beta_site)
+            return f_sp(0.0, j_to - j_from, inf_from - j_from, inf_to - j_from, beta_site, base_rate)
 
         return f
     
@@ -360,7 +367,6 @@ class DiseaseModel(object):
 
         # define function with named arguments
         def f(*, t, inf_from, inf_to):
-            '''Shifts to 0.0 for numerical stability'''
             return f_sp(t, inf_from, inf_to)
 
         return f
@@ -791,6 +797,9 @@ class DiseaseModel(object):
             self.__print(t, force=True)
 
 
+
+        # print('% exposed in risk buckets: ', 100.0 * self.risk_got_exposed / (self.risk_got_exposed + self.risk_got_not_exposed))
+   
         '''Compute ROC statistics'''
         # tracing_stats [threshold][policy][action][stat]
         self.tracing_stats = {}
@@ -799,11 +808,11 @@ class DiseaseModel(object):
                 self.tracing_stats[threshold] = self.compute_roc_stats(
                     threshold_isolate=threshold, threshold_test=threshold)
 
-        # stats = self.tracing_stats[self.thresholds_roc[0]]['sites']['isolate']
-        
-        # print(" P {:5.2f}  N {:5.2f}".format(
-        #     (stats['fn'] + stats['tp']), (stats['fp'] + stats['tn'])
-        # ))
+            # stats = self.tracing_stats[self.thresholds_roc[0]]['sites']['isolate']
+            
+            # print(" P {:5.2f}  N {:5.2f}".format(
+            #     (stats['fn'] + stats['tp']), (stats['fp'] + stats['tn'])
+            # ))
 
         # free memory
         self.valid_contacts_for_tracing = None
@@ -899,8 +908,7 @@ class DiseaseModel(object):
                 continue
 
             for policy in ['sites', 'no_sites']:
-                # for action in ['isolate', 'test']:
-                for action in ['isolate']:
+                for action in ['isolate', 'test']:
 
                     # each time `j` is traced after a contact
                     # for c_traced in c[policy][action][True][j]:
@@ -1203,7 +1211,7 @@ class DiseaseModel(object):
             # sample event with maximum possible rate (in hours)
             lambda_max = max(self.betas.values()) * base_rate * Z
             lambda_max = max(lambda_max, 1e-8) # lambda_max = 0 is invalid
-            tau += TO_HOURS * np.random.exponential(scale=1.0 / lambda_max)
+            tau += np.random.exponential(scale=1.0 / lambda_max)
 
             # thinning step: compute current lambda(tau) and do rejection sampling
             sampled_at_infectious_contact, sampled_at_contact = self.mob.is_in_contact(indiv_i=j, indiv_j=infector, t=tau, site=None)
@@ -1229,14 +1237,32 @@ class DiseaseModel(object):
 
             # accept w.prob. lambda(t) / lambda_max
             u = np.random.uniform()
-            if u <= p and tau < self.max_time:
-                
+            if u <= p and tau < min(tmax, self.max_time):
                 self.queue.push(
                     (tau, 'expo', j, infector, site, 
                     sampled_at_contact), # meta info: contact causing infection
                     priority=tau)
                 sampled_event = True
+        
+        # DEBUG
+        # all_contacts = []
+        # tdebug = t
+        # while self.mob.will_be_in_contact(indiv_i=j, indiv_j=infector, t=tdebug, site=None) and tdebug < min(tmax, self.max_time):
+        #     c = self.mob.next_contact(indiv_i=j, indiv_j=infector, t=tdebug, site=None)
+        #     all_contacts.append(c)
+        #     tdebug = c.t_to + 1e-3
 
+        # survival = self.__compute_empirical_survival_probability(
+        #     t=tdebug, i=infector, j=j, contacts_i_j=all_contacts, base_rate=base_rate, ignore_sites=False)
+
+        # risk = 1 - survival
+        # bucket = np.digitize(risk, np.linspace(0.0, 1.0, num=10, endpoint=False))
+        # if sampled_event:
+        #     self.risk_got_exposed[bucket] += 1
+        # else:
+        #     self.risk_got_not_exposed[bucket] += 1
+            
+            
     def __push_household_exposure_events(self, *, t, infector, base_rate, tmax):
         """
         Pushes all exposure events that person `i` causes
@@ -1739,7 +1765,7 @@ class DiseaseModel(object):
         # if all of the above checks passed, then contact is valid
         return True
 
-    def __compute_empirical_survival_probability(self, *, t, i, j, contacts_i_j, ignore_sites=False):
+    def __compute_empirical_survival_probability(self, *, t, i, j, contacts_i_j, base_rate=1.0, ignore_sites=False):
         """ Compute empirical survival probability of individual j due to node i at time t"""
         
         s = 0
@@ -1759,16 +1785,16 @@ class DiseaseModel(object):
             if self.mob.site_has_beacon[site] and not ignore_sites:
                 s += self.__survival_prob_contribution_with_site(
                     i=i, j=j, site=site, t=t, t_start=t_start, 
-                    t_end_direct=t_end_direct, t_end=t_end)
+                    t_end_direct=t_end_direct, t_end=t_end, base_rate=base_rate)
             else:
                 s += self.__survival_prob_contribution_no_site(
-                    t=t, t_start=t_start, t_end_direct=t_end_direct)
+                    t=t, t_start=t_start, t_end_direct=t_end_direct, base_rate=base_rate)
 
         # survival probability
         survival_prob = np.exp(-s)
         return survival_prob
 
-    def __survival_prob_contribution_no_site(self, *, t, t_start, t_end_direct):
+    def __survival_prob_contribution_no_site(self, *, t, t_start, t_end_direct, base_rate):
         """Computes empirical survival probability estimate when no site information
             such as non-contemporaneous contact is known.
 
@@ -1781,12 +1807,11 @@ class DiseaseModel(object):
         if min(t_end_direct, t) >= t_start:
             # assume infector was at site entire `delta` time window 
             # before j arrived by lack of information otherwise
-            return (min(t_end_direct, t) - t_start) * self.betas_weighted_mean * self.__kernel_term(- self.delta, 0.0, 0.0)
+            return (min(t_end_direct, t) - t_start) * base_rate * self.betas_weighted_mean * self.__kernel_term(- self.delta, 0.0, 0.0)
         else:
             return 0.0
 
-
-    def __survival_prob_contribution_with_site(self, *, i, j, site, t, t_start, t_end_direct, t_end):
+    def __survival_prob_contribution_with_site(self, *, i, j, site, t, t_start, t_end_direct, t_end, base_rate):
         """Computes exact empirical survival probability estimate when site information
             such as site-specific transmission rate and 
             such as non-contemporaneous contact is known.
@@ -1798,6 +1823,7 @@ class DiseaseModel(object):
             t_start:        start of contact
             t_end_direct:   end of direct contact
             t_end:          end of contact
+            base_rate:      base rate
         """
 
         # query visit of infector i that resulted in the contact
@@ -1832,6 +1858,7 @@ class DiseaseModel(object):
             j_to=min(j_to, t),
             inf_from=inf_from,
             inf_to=min(inf_to, t),
-            beta_site=beta_fact * self.betas[self.site_dict[self.site_type[site]]]
+            beta_site=beta_fact * self.betas[self.site_dict[self.site_type[site]]],
+            base_rate=base_rate,
         )
         return expo_int

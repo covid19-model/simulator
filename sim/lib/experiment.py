@@ -226,6 +226,9 @@ class Experiment(object):
 
             # Convert to individual base rate by dividing by population size; priority queue handles superposition
             lambda_base_expo_indiv = lambda_base_expo_population / num_people
+
+            # Poisson process with rate lambda: interarrival times are Exponential r.v. with mean = 1 / lambda
+            # Hence set rate of Expo r.v.s to 1 / (1 / lambda) = lambda
             distributions.lambda_0 = lambda_base_expo_indiv
 
         # Get initial seeds for simulation

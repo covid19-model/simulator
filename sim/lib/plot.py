@@ -1648,7 +1648,7 @@ class Plotter(object):
                     fprs = np.nan_to_num(fprs, nan=0.0)
                     fpr_mean.append(np.mean(fprs).item())
                     fpr_std.append(np.std(fprs).item())
-                    fpr_of_means.append(np.array(stats['fp']).mean() / (np.array(stats['fp']).mean() + np.array(stats['tn']).mean()))
+                    fpr_of_means.append(stats['fp'].mean() / (stats['fp'].mean() + stats['tn'].mean()))
 
                     for r in range(len(fpr_single_runs)):
                         fpr_single_runs[r].append(fprs[r])
@@ -1660,7 +1660,7 @@ class Plotter(object):
                     tprs = np.nan_to_num(tprs, nan=0.0)
                     tpr_mean.append(np.mean(tprs).item())
                     tpr_std.append(np.std(tprs).item())
-                    tpr_of_means.append(np.array(stats['tp']).mean() / (np.array(stats['tp']).mean() + np.array(stats['fn']).mean()))
+                    tpr_of_means.append(stats['tp'].mean() / (stats['tp'].mean() + stats['fn'].mean()))
 
                     for r in range(len(tpr_single_runs)):
                         tpr_single_runs[r].append(tprs[r])
@@ -1670,7 +1670,7 @@ class Plotter(object):
                     precs = np.nan_to_num(precs, nan=0.0)
                     precision_mean.append(np.mean(precs).item())
                     precision_std.append(np.std(precs).item())
-                    precision_of_means.append(np.array(stats['tp']).mean() / (np.array(stats['tp']).mean() + np.array(stats['fp']).mean()))
+                    precision_of_means.append(stats['tp'].mean() / (stats['tp'].mean() + stats['fp'].mean()))
 
                     # if i == 0:
                     print("{:1.3f}   TP {:5.2f} FP {:5.2f}  TN {:5.2f}  FN {:5.2f}".format(
