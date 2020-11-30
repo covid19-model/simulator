@@ -66,7 +66,7 @@ def load_condensed_summary(summary_path, acc=None):
 def condense_summary(summary, metadata=None, acc=500):
     result = Result(metadata=metadata, summary=summary)
     try:    # For compatibility reasons
-        n_age_groups = metadata['num_age_groups']
+        n_age_groups = metadata.num_age_groups
     except KeyError:
         n_age_groups = None
 

@@ -55,10 +55,11 @@ Simulation = namedtuple('Simulation', (
     'initial_seeds',            # Simulation seeds
 
     ## default arguments
+    'num_age_groups',           # Number of age groups
     'beacon_config',            # dictionary containing information regarding beacon implementation
-    'thresholds_roc',               # threshold values for ROC curve computation
+    'thresholds_roc',           # threshold values for ROC curve computation
 
-), defaults=(None, None))  # NOTE: `defaults` iterable is applied from back to front, i.e. just `beacon_config` and `thresholds_roc` has a default
+), defaults=(None, None, None))  # NOTE: `defaults` iterable is applied from back to front, i.e. just `beacon_config` and `thresholds_roc` and `num_age_groups` has a default
 
 
 Plot = namedtuple('Plot', (
@@ -330,7 +331,6 @@ class Experiment(object):
 
             # Mobility and measures
             mob_settings_file=mob_settings_file,
-            num_age_groups=num_age_groups,
             full_scale=full_scale,
             measure_list=measure_list,
             testing_params=testing_params,
