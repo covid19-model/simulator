@@ -59,7 +59,10 @@ if __name__ == '__main__':
         end_date = '2021-02-15'
         random_repeats = 1
         full_scale = False
-        ps_adoption = [0.5]
+        ps_adoption = [0.1, 0.9]
+        ps_adoption = [1.0]
+        sites_with_beacons = [1.0]
+        p_willing_to_share = 1.0
         ps_recall = [1.0]
         beacon_config = dict(
             mode='all',

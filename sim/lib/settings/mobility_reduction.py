@@ -14,20 +14,20 @@ https://www.gstatic.com/covid19/mobility/2020-11-22_CH_Mobility_Report_en.pdf
 mobility_reduction = {
     'GER' : {
         'TU' : {
-            'education' : 0.79,
-            'social' : 0.46,
-            'bus_stop': 0.59, 
-            'office' : 0.79,
-            'supermarket' : 0.86,
+            'education' : 0.21,
+            'social' : 0.54,
+            'bus_stop': 0.41, 
+            'office' : 0.21,
+            'supermarket' : 0.14,
         },
     },
     'CH': {
         'TI': {
-            'education': 0.87,
-            'social' : 0.72,
-            'bus_stop' : 0.77,
-            'office' : 0.87,
-            'supermarket' : 0.73,
+            'education': 0.13,
+            'social' : 0.28,
+            'bus_stop' : 0.23,
+            'office' : 0.13,
+            'supermarket' : 0.27,
         },
     },
 }

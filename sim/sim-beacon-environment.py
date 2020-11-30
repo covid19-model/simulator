@@ -64,7 +64,7 @@ if __name__ == '__main__':
     # for debugging purposes
     if args.smoke_test:
 
-        random_repeats = 16
+        random_repeats = 1
         spread_factors = [8.0]
         full_scale = False
         ps_adoption = [1.0]

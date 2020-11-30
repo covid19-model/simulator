@@ -209,7 +209,7 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
     # for r in repeat_ids:
     #     res.append(pp_launch(r, mob_setting_list[r], distributions_list[r], params_list[r],
     #                  initial_seeds_list[r], testing_params_list[r], measure_list_list[r], 
-    #                  max_time_list[r], thresholds_roc_list[r], store_mob_list[r]))
+    #                  max_time_list[r], thresholds_roc_list[r], store_mob_list[r], store_measure_bernoullis_list[r]))
 
     
     # collect all result (the fact that mob is still available here is due to the for loop)
