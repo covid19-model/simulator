@@ -83,8 +83,8 @@ if __name__ == '__main__':
 
     # contact tracing experiment for various options
     for beacon_mode in beacon_modes:
-        for beacon_proportion in sites_with_beacons:
-            for p_adoption in ps_adoption:
+        for p_adoption in ps_adoption:
+            for beacon_proportion in sites_with_beacons:
                 beacon_config = dict(mode=beacon_mode, proportion_with_beacon=beacon_proportion)
 
                 # measures
