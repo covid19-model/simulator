@@ -41,12 +41,12 @@ def load_summary_list(paths):
     return objs
 
 
-def create_condensed_summary_from_path(summary_path, acc=500, n_age_groups=None):
+def create_condensed_summary_from_path(summary_path, acc=500):
     print(f'Extracting data from summary: {summary_path}')
     result = load_summary(summary_path)
     metadata = result[0]
     summary = result[1]
-    cond_summary = condense_summary(summary, metadata, acc=acc, n_age_groups=n_age_groups)
+    cond_summary = condense_summary(summary, metadata, acc=acc)
 
     filepath = os.path.join('condensed_summaries', summary_path[:-3]+f'_condensed.pk')
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -63,8 +63,13 @@ def load_condensed_summary(summary_path, acc=None):
     return data
 
 
-def condense_summary(summary, metadata=None, acc=500, n_age_groups=None):
-    result = Result(metadata=metadata, summary=summary, )
+def condense_summary(summary, metadata=None, acc=500):
+    result = Result(metadata=metadata, summary=summary)
+    try:    # For compatibility reasons
+        n_age_groups = metadata['num_age_groups']
+    except KeyError:
+        n_age_groups = None
+
 
     if acc > summary.max_time:
         acc = int(summary.max_time)
