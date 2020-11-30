@@ -35,7 +35,7 @@ if __name__ == '__main__':
     beacon_modes = ['visit_freq', 'random']
     sites_with_beacons = [1.0, 0.5, 0.25, 0.10, 0.05]
     ps_adoption = [0.05, 0.10, 0.25]
-    p_recall = 1.0
+    # p_recall = 1.0
 
     # seed
     c = 0
@@ -83,8 +83,8 @@ if __name__ == '__main__':
 
     # contact tracing experiment for various options
     for beacon_mode in beacon_modes:
-        for beacon_proportion in sites_with_beacons:
-            for p_adoption in ps_adoption:
+        for p_adoption in ps_adoption:
+            for beacon_proportion in sites_with_beacons:
                 beacon_config = dict(mode=beacon_mode, proportion_with_beacon=beacon_proportion)
 
                 # measures
@@ -92,10 +92,10 @@ if __name__ == '__main__':
 
                 m = [
                     # beacon measures
-                    ManualTracingForAllMeasure(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_participate=.5,
-                        p_recall=p_recall),
+                    # ManualTracingForAllMeasure(
+                    #     t_window=Interval(0.0, TO_HOURS * max_days),
+                    #     p_participate=.5,
+                    #     p_recall=p_recall),
 
                     # mobility reduction since the beginning of the pandemic
                     SocialDistancingBySiteTypeForAllMeasure(
@@ -144,7 +144,7 @@ if __name__ == '__main__':
 
                 simulation_info = options_to_str(
                     p_adoption=p_adoption,
-                    p_recall=p_recall,
+                    # p_recall=p_recall,
                     beacon_mode=beacon_mode,
                     beacon_proportion=beacon_proportion
                 )

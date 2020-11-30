@@ -55,10 +55,11 @@ Simulation = namedtuple('Simulation', (
     'initial_seeds',            # Simulation seeds
 
     ## default arguments
+    'num_age_groups',           # Number of age groups
     'beacon_config',            # dictionary containing information regarding beacon implementation
-    'thresholds_roc',               # threshold values for ROC curve computation
+    'thresholds_roc',           # threshold values for ROC curve computation
 
-), defaults=(None, None))  # NOTE: `defaults` iterable is applied from back to front, i.e. just `beacon_config` and `thresholds_roc` has a default
+), defaults=(None, None, None))  # NOTE: `defaults` iterable is applied from back to front, i.e. just `beacon_config` and `thresholds_roc` and `num_age_groups` has a default
 
 
 Plot = namedtuple('Plot', (
@@ -205,7 +206,9 @@ class Experiment(object):
         mob_settings_file = calibration_mob_paths[country][area][1 if full_scale else 0]
         with open(mob_settings_file, 'rb') as fp:
             mob_settings = pickle.load(fp)
-        
+
+        num_age_groups = len(mob_settings['mob_rate_per_age_per_type'])
+
         # Obtain COVID19 case date for country and area to estimate testing capacity and heuristic seeds if necessary
         unscaled_area_cases = collect_data_from_df(country=country, area=area, datatype='new',
                                                 start_date_string=self.start_date, end_date_string=self.end_date)
