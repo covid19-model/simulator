@@ -34,7 +34,7 @@ if __name__ == '__main__':
     smart_tracing_stats_window = (31 * TO_HOURS, 100 * TO_HOURS)
     beacon_configs = [
         dict(mode='all'),
-        dict(mode='visit_freq', proportion_with_beacon=0.2),
+        dict(mode='visit_freq', proportion_with_beacon=0.25),
     ]
 
     # contact tracing experiment parameters
