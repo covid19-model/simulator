@@ -40,7 +40,6 @@ if __name__ == '__main__':
     # contact tracing experiment parameters
     ps_adoption = [1.0, 0.5, 0.25, 0.10, 0.05]
     spread_factors = [10.0, 5.0, 2.0, 1.0]
-    theta_sim = 0.9  # only p_risk > theta are traced
     thresholds_roc = np.linspace(-0.01, 1.01, num=103, endpoint=True)
 
     # seed
@@ -142,14 +141,12 @@ if __name__ == '__main__':
                     d['tests_per_batch'] = 100000
 
                     # isolation
-                    d['smart_tracing_policy_isolate'] = 'advanced-threshold'
-                    d['smart_tracing_isolation_threshold'] = theta_sim
+                    d['smart_tracing_policy_isolate'] = 'basic'
                     d['smart_tracing_isolated_contacts'] = 100000
                     d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
 
                     # testing
-                    d['smart_tracing_policy_test'] = 'advanced-threshold'
-                    d['smart_tracing_testing_threshold'] = theta_sim
+                    d['smart_tracing_policy_test'] = 'basic'
                     d['smart_tracing_tested_contacts'] = 100000
 
                     # time span during which ROC info is computed
