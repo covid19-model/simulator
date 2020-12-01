@@ -22,7 +22,7 @@ if __name__ == '__main__':
 
     name = 'beacon-environment'
     start_date = '2021-01-01'
-    end_date = '2021-01-28'
+    end_date = '2021-03-01'
     random_repeats = 48
     full_scale = True
     verbose = True
@@ -31,7 +31,7 @@ if __name__ == '__main__':
     expected_daily_base_expo_per100k = 5 / 7
     condensed_summary = True
 
-    smart_tracing_stats_window = (14 * TO_HOURS, 100 * TO_HOURS)
+    smart_tracing_stats_window = (31 * TO_HOURS, 100 * TO_HOURS)
     beacon_configs = [
         dict(mode='all'),
         dict(mode='visit_freq', proportion_with_beacon=0.5),
