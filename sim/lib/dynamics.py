@@ -801,7 +801,7 @@ class DiseaseModel(object):
 
 
 
-        print('% exposed in risk buckets: ', 100.0 * self.risk_got_exposed / (self.risk_got_exposed + self.risk_got_not_exposed))
+        # print('% exposed in risk buckets: ', 100.0 * self.risk_got_exposed / (self.risk_got_exposed + self.risk_got_not_exposed))
    
         '''Compute ROC statistics'''
         # tracing_stats [threshold][policy][action][stat]
@@ -811,11 +811,11 @@ class DiseaseModel(object):
                 self.tracing_stats[threshold] = self.compute_roc_stats(
                     threshold_isolate=threshold, threshold_test=threshold)
 
-            stats = self.tracing_stats[self.thresholds_roc[0]]['sites']['isolate']
+            # stats = self.tracing_stats[self.thresholds_roc[0]]['sites']['isolate']
             
-            print(" P {:5.2f}  N {:5.2f}".format(
-                (stats['fn'] + stats['tp']), (stats['fp'] + stats['tn'])
-            ))
+            # print(" P {:5.2f}  N {:5.2f}".format(
+            #     (stats['fn'] + stats['tp']), (stats['fp'] + stats['tn'])
+            # ))
 
         # free memory
         self.valid_contacts_for_tracing = None
