@@ -16,6 +16,12 @@ Interval = namedtuple('Interval', ('left', 'right'))
 # limit between two measures, because interlap works with closed intervals
 EPS = 1e-15
 
+# Small object remembering result and intended action of a test 
+TestResult = namedtuple('TestResult', (
+    'is_positive_test',             # Boolean of test result (True = positive)
+    'trigger_tracing_if_positive',  # Boolean of whether or not contact tracing should be triggered if positive
+))
+
 
 class Measure(metaclass=abc.ABCMeta):
 

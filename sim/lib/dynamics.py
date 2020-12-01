@@ -418,6 +418,7 @@ class DiseaseModel(object):
         self.smart_tracing_policy_test         = testing_params['smart_tracing_policy_test']
         self.smart_tracing_tested_contacts     = testing_params['smart_tracing_tested_contacts']
         self.smart_tracing_testing_threshold   = testing_params['smart_tracing_testing_threshold']
+        self.trigger_tracing_after_posi_trace_test = testing_params['trigger_tracing_after_posi_trace_test']
 
         self.smart_tracing_stats_window = testing_params.get(
             'smart_tracing_stats_window', (0.0, self.max_time))
@@ -800,7 +801,7 @@ class DiseaseModel(object):
 
 
 
-        # print('% exposed in risk buckets: ', 100.0 * self.risk_got_exposed / (self.risk_got_exposed + self.risk_got_not_exposed))
+        print('% exposed in risk buckets: ', 100.0 * self.risk_got_exposed / (self.risk_got_exposed + self.risk_got_not_exposed))
    
         '''Compute ROC statistics'''
         # tracing_stats [threshold][policy][action][stat]
@@ -810,11 +811,11 @@ class DiseaseModel(object):
                 self.tracing_stats[threshold] = self.compute_roc_stats(
                     threshold_isolate=threshold, threshold_test=threshold)
 
-            # stats = self.tracing_stats[self.thresholds_roc[0]]['sites']['isolate']
+            stats = self.tracing_stats[self.thresholds_roc[0]]['sites']['isolate']
             
-            # print(" P {:5.2f}  N {:5.2f}".format(
-            #     (stats['fn'] + stats['tp']), (stats['fp'] + stats['tn'])
-            # ))
+            print(" P {:5.2f}  N {:5.2f}".format(
+                (stats['fn'] + stats['tp']), (stats['fp'] + stats['tn'])
+            ))
 
         # free memory
         self.valid_contacts_for_tracing = None
@@ -1049,7 +1050,7 @@ class DiseaseModel(object):
 
         # testing
         if self.test_targets == 'isym' and apply_for_test:
-            self.__apply_for_testing(t=t, i=i, priority= -self.max_time + t)
+            self.__apply_for_testing(t=t, i=i, priority= -self.max_time + t, trigger_tracing_if_positive=True)
 
         # hospitalized?
         if self.bernoulli_is_hospi[i]:
@@ -1378,7 +1379,7 @@ class DiseaseModel(object):
         return is_home
 
 
-    def __apply_for_testing(self, *, t, i, priority=0.0):
+    def __apply_for_testing(self, *, t, i, priority, trigger_tracing_if_positive):
         """
         Checks whether person i of should be tested and if so adds test to the testing queue
         """
@@ -1387,14 +1388,14 @@ class DiseaseModel(object):
 
         # fifo: first in, first out
         if self.test_queue_policy == 'fifo':
-            self.testing_queue.push(i, priority=t)
+            self.testing_queue.push((i, trigger_tracing_if_positive), priority=t)
 
         # exposure-risk: has the following order of priority in queue:
         # 1) symptomatic tests, with `fifo` ordering (`priority = - max_time + t`)
         # 2) contact tracing tests: household members (`priority = 0.0`)
         # 3) contact tracing tests: contacts at sites (`priority` = lower empirical survival probability prioritized) 
         elif self.test_queue_policy == 'exposure-risk':
-            self.testing_queue.push(i, priority=priority)
+            self.testing_queue.push((i, trigger_tracing_if_positive), priority=priority)
 
         else:
             raise ValueError('Unknown queue policy')
@@ -1410,7 +1411,7 @@ class DiseaseModel(object):
 
             # get next individual to be tested
             ctr += 1
-            i = self.testing_queue.pop()
+            i, trigger_tracing_if_positive = self.testing_queue.pop()
 
             # determine test result preemptively, to account for the individual's state at the time of testing
             if self.state['expo'][i] or self.state['ipre'][i] or self.state['isym'][i] or self.state['iasy'][i]:
@@ -1429,7 +1430,9 @@ class DiseaseModel(object):
             # push test result with delay to the event queue
             if t + self.test_reporting_lag < self.max_time:
                 self.queue.push(
-                    (t + self.test_reporting_lag, 'test', i, None, None, is_positive_test), 
+                    (t + self.test_reporting_lag, 'test', i, None, None, 
+                     TestResult(is_positive_test=is_positive_test,
+                                trigger_tracing_if_positive=trigger_tracing_if_positive)),
                     priority=t + self.test_reporting_lag)
                 
             
@@ -1441,7 +1444,9 @@ class DiseaseModel(object):
         blood sample of the person tested.
         """
 
-        is_positive_test = metadata
+        # extract `TestResult` data
+        is_positive_test = metadata.is_positive_test
+        trigger_tracing_if_positive = metadata.trigger_tracing_if_positive
 
         # collect test result based on "blood sample" taken before via `is_positive_test`
         # ... if positive
@@ -1478,8 +1483,8 @@ class DiseaseModel(object):
         if is_positive_test:
             self.t_pos_tests.append(t)
 
-        # if the individual is tested positive, process contact tracing when active
-        if self.state['posi'][i] and (self.smart_tracing_actions != []):
+        # if the individual is tested positive, process contact tracing when active and intended
+        if self.state['posi'][i] and (self.smart_tracing_actions != []) and trigger_tracing_if_positive:
             self.__update_smart_tracing(t, i)
     
     def __update_smart_tracing(self, t, i):
@@ -1581,7 +1586,6 @@ class DiseaseModel(object):
             else:
                 raise ValueError('Invalid tracing test policy.')
             
-
         # record which contacts are being traced and which are not for later analysis
         self.__record_contacts_causing_trace_action(t=t, infector=i, contacts=valid_contacts_with_j)
 
@@ -1596,10 +1600,12 @@ class DiseaseModel(object):
         if 'test' in self.smart_tracing_actions:
             for j, _ in contacts_testing:
                 if self.smart_tracing_policy_test == 'basic':
-                    self.__apply_for_testing(t=t, i=j, priority=1.0)
+                    self.__apply_for_testing(t=t, i=j, priority=1.0, 
+                        trigger_tracing_if_positive=self.trigger_tracing_after_posi_trace_test)
                 elif self.smart_tracing_policy_test == 'advanced' \
                     or self.smart_tracing_policy_test == 'advanced-threshold':
-                    self.__apply_for_testing(t=t, i=j, priority=emp_survival_prob[j])
+                    self.__apply_for_testing(t=t, i=j, priority=emp_survival_prob[j], 
+                        trigger_tracing_if_positive=self.trigger_tracing_after_posi_trace_test)
                 else:
                     raise ValueError('Invalid smart tracing policy.')
         
@@ -1624,7 +1630,8 @@ class DiseaseModel(object):
                 if not self.state['posi'][j]:
                     # household members always treated as `empirical survival prob. = 0` for `exposure-risk` policy
                     # not relevant for `fifo` queue 
-                    self.__apply_for_testing(t=t, i=j, priority=0.0)
+                    self.__apply_for_testing(t=t, i=j, priority=0.0, 
+                        trigger_tracing_if_positive=self.trigger_tracing_after_posi_trace_test)
 
     def __tracing_policy_basic(self, contacts_with_j, budget):
         """

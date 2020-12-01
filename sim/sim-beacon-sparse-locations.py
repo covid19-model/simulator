@@ -139,6 +139,8 @@ if __name__ == '__main__':
                     # testing
                     d['smart_tracing_policy_test'] = 'basic'
                     d['smart_tracing_tested_contacts'] = 100000
+                    d['trigger_tracing_after_posi_trace_test'] = False
+
                     return d
 
 
