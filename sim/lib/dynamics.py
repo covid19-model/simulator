@@ -871,6 +871,12 @@ class DiseaseModel(object):
         # under the decision threshold `thres`, and record decision in `contacts_caused_tracing_...` arrays by individual
         for t, infector, valid_contacts_with_j in self.valid_contacts_for_tracing:
 
+            # inspect whether the infector was symptomatic or asymptomatic
+            if self.state_started_at['iasy'][infector] < np.inf:
+                base_rate_inf = self.mu
+            else:
+                base_rate_inf = 1.0
+
             # compute empirical survival probability
             emp_survival_prob = {
                 'sites' : dict(),
@@ -879,9 +885,9 @@ class DiseaseModel(object):
             for j, contacts_j in valid_contacts_with_j.items():
                 individuals_traced.add(j)
                 emp_survival_prob['sites'][j] = self.__compute_empirical_survival_probability(
-                    t=t, i=infector, j=j, contacts_i_j=contacts_j, ignore_sites=False)
+                    t=t, i=infector, j=j, contacts_i_j=contacts_j, base_rate=base_rate_inf, ignore_sites=False)
                 emp_survival_prob['no_sites'][j] = self.__compute_empirical_survival_probability(
-                    t=t, i=infector, j=j, contacts_i_j=contacts_j, ignore_sites=True)
+                    t=t, i=infector, j=j, contacts_i_j=contacts_j, base_rate=base_rate_inf, ignore_sites=True)
 
             # compute tracing decision
             for policy in ['sites', 'no_sites']:
@@ -1148,7 +1154,7 @@ class DiseaseModel(object):
 
     def __kernel_term(self, a, b, T):
         '''Computes
-        \int_a^b exp(self.gamma * (u - T)) du
+        \int_a^b gamma * exp(self.gamma * (u - T)) du
         =  exp(- self.gamma * T) (exp(self.gamma * b) - exp(self.gamma * a))
         '''
         return (np.exp(self.gamma * (b - T)) - np.exp(self.gamma * (a - T))) 
@@ -1514,10 +1520,18 @@ class DiseaseModel(object):
         # if needed, compute empirical survival probability for all contacts
         if ('isolate' in self.smart_tracing_actions and self.smart_tracing_policy_isolate != 'basic') or \
            ('test' in self.smart_tracing_actions and self.smart_tracing_policy_test != 'basic'):
+
+           # inspect whether the infector i was symptomatic or asymptomatic
+            if self.state_started_at['iasy'][i] < np.inf:
+                base_rate_i = self.mu
+            else:
+                base_rate_i = 1.0
+
+            # compute empirical survival probability
             emp_survival_prob = dict()
             for j, contacts_j in valid_contacts_with_j.items():
                 emp_survival_prob[j] = self.__compute_empirical_survival_probability(
-                    t=t, i=i, j=j, contacts_i_j=contacts_j)
+                    t=t, i=i, j=j, base_rate=base_rate_i, contacts_i_j=contacts_j)
 
         '''Select contacts (not) to be traced based on tracing policy'''
         # each list contains (j, contacts_j) tuples, i.e. a part of `valid_contacts_with_j`
