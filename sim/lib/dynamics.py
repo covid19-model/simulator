@@ -323,6 +323,7 @@ class DiseaseModel(object):
             beta_sp * 
             integrate(
                 base_rate_sp *
+                self.gamma *
                 Piecewise((1.0, (a_sp <= u_sp) & (u_sp <= b_sp)), (0.0, True)) * 
                 exp(- self.gamma * (t_sp - u_sp)), 
             (u_sp, t_sp - self.delta, t_sp)),
@@ -358,6 +359,7 @@ class DiseaseModel(object):
         # symbolically integrate term of the exposure rate over [lower_sp, upper_sp]
         expo_rate_symb = Max(
             integrate(
+                self.gamma * \
                 Piecewise((1.0, (a_sp <= u_sp) & (u_sp <= b_sp)), (0.0, True)) \
                     * exp(- self.gamma * (t_sp - u_sp)),
                 (u_sp, t_sp - self.delta, t_sp)).simplify(),
@@ -891,11 +893,9 @@ class DiseaseModel(object):
                         emp_survival_prob=emp_survival_prob[policy])
 
                     for j, contacts_j in contacts_action:
-                        # c[policy][action][True][j].append(set(contacts_j))
-                        c[policy][action][True][j].append(t)
+                        c[policy][action][True][j].append((t, set(contacts_j)))
                     for j, contacts_j in contacts_no_action:
-                        # c[policy][action][False][j].append(set(contacts_j))
-                        c[policy][action][False][j].append(t)
+                        c[policy][action][False][j].append((t, set(contacts_j)))
 
         # for each individual considered in tracing, compare label (contact exposure?) with classification (traced due to this contact?)
         for j in individuals_traced:
@@ -911,8 +911,7 @@ class DiseaseModel(object):
                 for action in ['isolate', 'test']:
 
                     # each time `j` is traced after a contact
-                    # for c_traced in c[policy][action][True][j]:
-                    for timing in c[policy][action][True][j]:
+                    for timing, c_traced in c[policy][action][True][j]:
                         
                         # ignore FP if there is no way of knowing
                         if self.state_started_at['expo'][j] < timing - self.smart_tracing_contact_delta:
@@ -932,8 +931,7 @@ class DiseaseModel(object):
                             stats[policy][action]['fp'] += 1
 
                     # each time `j` is not traced after a contact
-                    # for c_not_traced in c[policy][action][False][j]:
-                    for timing in c[policy][action][False][j]:
+                    for timing, c_not_traced in c[policy][action][False][j]:
 
                         # ignore TN if there is no way of knowing
                         if self.state_started_at['expo'][j] < timing - self.smart_tracing_contact_delta:
@@ -1151,9 +1149,9 @@ class DiseaseModel(object):
     def __kernel_term(self, a, b, T):
         '''Computes
         \int_a^b exp(self.gamma * (u - T)) du
-        =  exp(- self.gamma * T) (exp(self.gamma * b) - exp(self.gamma * a)) / self.gamma
+        =  exp(- self.gamma * T) (exp(self.gamma * b) - exp(self.gamma * a))
         '''
-        return (np.exp(self.gamma * (b - T)) - np.exp(self.gamma * (a - T))) / self.gamma
+        return (np.exp(self.gamma * (b - T)) - np.exp(self.gamma * (a - T))) 
 
 
     def __push_contact_exposure_events(self, *, t, infector, base_rate, tmax):
@@ -1292,13 +1290,12 @@ class DiseaseModel(object):
         """
 
         lambda_household = self.beta_household * base_rate
-        tau = t + TO_HOURS * np.random.exponential(scale=1.0 / lambda_household)
+        tau = t + np.random.exponential(scale=1.0 / lambda_household)
 
         # site = -1 means it is a household infection
         # thinning is done at exposure time if needed
         if tau < min(tmax, self.max_time):
-            self.queue.push(
-                (tau, 'expo', j, infector, -1, None), priority=tau)
+            self.queue.push((tau, 'expo', j, infector, -1, None), priority=tau)
 
 
     def reject_exposure_due_to_measure(self, t, k):

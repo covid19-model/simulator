@@ -21,7 +21,7 @@ calibration_simulation = {
 }
 
 # parameter bounds
-beta_upper_bound = 1.5 
+beta_upper_bound = 0.25
 
 calibration_model_param_bounds_single = {
     'beta_site': [0.0, beta_upper_bound],
@@ -149,7 +149,8 @@ calibration_start_dates = {
 # calibration states loaded for calibrated parameters
 calibration_states = {
     'GER': {
-        'TU': 'logs/calibration_tu0_state.pk',
+        # 'TU': 'logs/calibration_tu0_state.pk',
+        'TU': 'logs/calibration_tu0-beacon_state.pk',
         'KL': 'logs/calibration_kl0_state.pk',
         'RH': 'logs/calibration_rh0_state.pk',
         'TR': 'logs/calibration_tr0_state.pk',
@@ -157,7 +158,8 @@ calibration_states = {
     'CH': {
         'VD': 'logs/calibration_vd0_state.pk',
         'BE': 'logs/calibration_be0_state.pk',
-        'TI': 'logs/calibration_ti0_state.pk',
+        # 'TI': 'logs/calibration_ti0_state.pk',
+        'TI': 'logs/calibration_ti0-beacon_state.pk',
         'JU': 'logs/calibration_ju0_state.pk',
     }
 }
