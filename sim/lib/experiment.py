@@ -99,6 +99,8 @@ def process_command_line(return_parser=False):
                         help="update default number of cpus used for parallel simulation rollouts")
     parser.add_argument("--smoke_test", action="store_true",
                         help="flag to quickly finish runs to see if something breaks")
+    parser.add_argument("--p_adoption", type=float,
+                        help="only run experiment with a single adoption level")
     if return_parser:
         return parser
 

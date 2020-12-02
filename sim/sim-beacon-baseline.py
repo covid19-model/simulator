@@ -19,10 +19,16 @@ TO_HOURS = 24.0
 
 if __name__ == '__main__':
 
+    # command line parsing
+    args = process_command_line()
+    country = args.country
+    area = args.area
+    cpu_count = args.cpu_count
+
     name = 'beacon-baseline'
     start_date = '2021-01-01'
-    end_date = '2021-05-01'
-    random_repeats = 48
+    end_date = '2021-06-01'
+    random_repeats = 200
     full_scale = True
     verbose = True
     seed_summary_path = None
@@ -31,19 +37,16 @@ if __name__ == '__main__':
     condensed_summary = True
 
     # contact tracing experiment parameters
-    ps_adoption = [1.0, 0.5, 0.25, 0.10, 0.05]
     beacon_config = None
+    if args.p_adoption is not None:
+        ps_adoption = [args.p_adoption]
+    else:
+        ps_adoption = [0.25, 1.0, 0.05, 0.10, 0.5]
 
     # seed
     c = 0
     np.random.seed(c)
     rd.seed(c)
-
-    # command line parsing
-    args = process_command_line()
-    country = args.country
-    area = args.area
-    cpu_count = args.cpu_count
 
     # Load calibrated parameters up to `maxBOiters` iterations of BO
     maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
@@ -119,6 +122,8 @@ if __name__ == '__main__':
             # testing
             d['smart_tracing_policy_test'] = 'basic'
             d['smart_tracing_tested_contacts'] = 100000
+            d['trigger_tracing_after_posi_trace_test'] = False
+            
             return d
 
         simulation_info = options_to_str(

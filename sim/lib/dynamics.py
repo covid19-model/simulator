@@ -892,8 +892,7 @@ class DiseaseModel(object):
 
             # compute tracing decision
             for policy in ['sites', 'no_sites']:
-                # for action in ['isolate', 'test']:
-                for action in ['isolate']:
+                for action in ['isolate', 'test']:
                     contacts_action, contacts_no_action = self.__tracing_policy_advanced_threshold(
                         t=t, contacts_with_j=valid_contacts_with_j, 
                         threshold=threshold_isolate if action == 'isolate' else threshold_test,

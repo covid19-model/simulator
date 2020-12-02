@@ -19,10 +19,16 @@ TO_HOURS = 24.0
 
 if __name__ == '__main__':
 
+    # command line parsing
+    args = process_command_line()
+    country = args.country
+    area = args.area
+    cpu_count = args.cpu_count
+
     name = 'beacon-manual-tracing'
     start_date = '2021-01-01'
-    end_date = '2021-05-01'
-    random_repeats = 48
+    end_date = '2021-06-01'
+    random_repeats = 200
     full_scale = True
     verbose = True
     seed_summary_path = None
@@ -31,21 +37,19 @@ if __name__ == '__main__':
     condensed_summary = True
 
     # contact tracing experiment parameters
-    ps_adoption = [1.0, 0.5, 0.25, 0.10, 0.05]  # Compliance wrt. contact tracing technology
-    sites_with_beacons = [1.0, 0.5, 0.25, 0.10, 0.05]
-    ps_recall =   [1.0]#, 0.75, 0.5, 0.25]  # Proportion of visits tracing non-compliant person recalls in manual tracing interview
-    p_willing_to_share = 1.0                # Proportion of visits tracing compliant person is willing to share
+    sites_with_beacons = [0.001, 0.01, 0.02, 0.05, 0.1, 0.25, 1.0]
+    ps_recall =   [1.0]  # Proportion of visits tracing non-compliant person recalls in manual tracing interview
+    p_willing_to_share = 1.0   # Proportion of visits tracing compliant person is willing to share
+    
+    if args.p_adoption is not None:
+        ps_adoption = [args.p_adoption]
+    else:
+        ps_adoption = [0.25, 1.0, 0.05, 0.10, 0.5]
 
     # seed
     c = 0
     np.random.seed(c)
     rd.seed(c)
-
-    # command line parsing
-    args = process_command_line()
-    country = args.country
-    area = args.area
-    cpu_count = args.cpu_count
 
     # Load calibrated parameters up to `maxBOiters` iterations of BO
     maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
@@ -60,7 +64,6 @@ if __name__ == '__main__':
         random_repeats = 1
         full_scale = False
         ps_adoption = [0.1, 0.9]
-        ps_adoption = [1.0]
         sites_with_beacons = [1.0]
         p_willing_to_share = 1.0
         ps_recall = [1.0]

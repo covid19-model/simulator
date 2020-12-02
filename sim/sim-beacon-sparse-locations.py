@@ -20,10 +20,16 @@ TO_HOURS = 24.0
 
 if __name__ == '__main__':
 
+    # command line parsing
+    args = process_command_line()
+    country = args.country
+    area = args.area
+    cpu_count = args.cpu_count
+
     name = 'beacon-sparse-locations'
     start_date = '2021-01-01'
-    end_date = '2021-05-01'
-    random_repeats = 48
+    end_date = '2021-06-01'
+    random_repeats = 200
     full_scale = True
     verbose = True
     seed_summary_path = None
@@ -33,23 +39,18 @@ if __name__ == '__main__':
 
     # contact tracing experiment parameters
     beacon_modes = ['visit_freq', 'random']
-    sites_with_beacons = [1.0, 0.5, 0.25, 0.10, 0.05]
-    ps_adoption = [0.05, 0.10, 0.25]
-    # p_recall = 1.0
+    sites_with_beacons = [0.001, 0.01, 0.02, 0.05, 0.1, 0.25, 1.0]
+    if args.p_adoption is not None:
+        ps_adoption = [args.p_adoption]
+    else:
+        ps_adoption = [0.25, 1.0, 0.05, 0.10, 0.5]
 
     # seed
     c = 0
     np.random.seed(c)
     rd.seed(c)
 
-    # command line parsing
-    args = process_command_line()
-    country = args.country
-    area = args.area
-    cpu_count = args.cpu_count
-
-    ps_adoption = ps_adoption[::-1]
-
+    
     # Load calibrated parameters up to `maxBOiters` iterations of BO
     maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
     calibrated_params = get_calibrated_params(country=country, area=area,
@@ -64,9 +65,8 @@ if __name__ == '__main__':
         full_scale = False
         ps_adoption = [0.5]
         ps_recall = [1.0]
-        beacon_config = dict(
-            mode='all',
-        )
+        sites_with_beacons = [0.05]
+        beacon_modes = ['random']
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -82,9 +82,9 @@ if __name__ == '__main__':
     )
 
     # contact tracing experiment for various options
-    for beacon_mode in beacon_modes:
-        for p_adoption in ps_adoption:
-            for beacon_proportion in sites_with_beacons:
+    for beacon_proportion in sites_with_beacons:
+        for beacon_mode in beacon_modes:
+            for p_adoption in ps_adoption:
                 beacon_config = dict(mode=beacon_mode, proportion_with_beacon=beacon_proportion)
 
                 # measures

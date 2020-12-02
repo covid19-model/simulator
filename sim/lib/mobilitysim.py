@@ -464,10 +464,10 @@ class MobilitySimulator:
         
         elif beacon_config['mode'] == 'random':
             # extract mode specific information
-            p = beacon_config['p']
-            
+            proportion_with_beacon = beacon_config['proportion_with_beacon']
+
             # compute beacon locations
-            return np.random.binomial(1, p, size=self.num_sites).astype(np.bool)
+            return np.random.binomial(1, proportion_with_beacon, size=self.num_sites).astype(np.bool)
             
         elif beacon_config['mode'] == 'visit_freq':
             # extract mode specific information
