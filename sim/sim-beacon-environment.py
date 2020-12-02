@@ -38,14 +38,11 @@ if __name__ == '__main__':
     condensed_summary = True
 
     smart_tracing_stats_window = (31 * TO_HOURS, 1000 * TO_HOURS)
-    beacon_configs = [
-        dict(mode='all'),
-        dict(mode='visit_freq', proportion_with_beacon=0.1),
-    ]
 
     # contact tracing experiment parameters
     spread_factors = [10.0, 5.0, 2.0, 1.0]
     thresholds_roc = np.linspace(-0.01, 1.01, num=103, endpoint=True)
+    beacon_config = dict(mode='all')
     p_adoption = args.p_adoption or 1.0
 
     # seed
@@ -85,94 +82,93 @@ if __name__ == '__main__':
     )
 
     # contact tracing experiment for various options
-    for beacon_config in beacon_configs:
-        for fact in spread_factors:
+    for fact in spread_factors:
 
-            beta_multipliers = {
-                'education': 1.0,
-                'social': 1.0 * fact,
-                'bus_stop': 1.0 / fact,
-                'office': 1.0,
-                'supermarket': 1.0,
-            }
+        beta_multipliers = {
+            'education': 1.0,
+            'social': 1.0 * fact,
+            'bus_stop': 1.0 / fact,
+            'office': 1.0,
+            'supermarket': 1.0,
+        }
 
-            # measures
-            max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+        # measures
+        max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
-            m = [        
-                # beta scaling (direcly scales betas ahead of time, so upscaling is valid
-                APrioriBetaMultiplierMeasureByType(
-                    beta_multiplier=beta_multipliers),     
+        m = [        
+            # beta scaling (direcly scales betas ahead of time, so upscaling is valid
+            APrioriBetaMultiplierMeasureByType(
+                beta_multiplier=beta_multipliers),     
 
-                # mobility reduction since the beginning of the pandemic 
-                SocialDistancingBySiteTypeForAllMeasure(
-                    t_window=Interval(0.0, TO_HOURS * max_days),
-                    p_stay_home_dict=mobility_reduction[country][area]),
+            # mobility reduction since the beginning of the pandemic 
+            SocialDistancingBySiteTypeForAllMeasure(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_stay_home_dict=mobility_reduction[country][area]),
 
-                # standard tracing measures
-                ComplianceForAllMeasure(
-                    t_window=Interval(0.0, TO_HOURS * max_days),
-                    p_compliance=p_adoption),
-                SocialDistancingForSmartTracing(
-                    t_window=Interval(0.0, TO_HOURS * max_days), 
-                    p_stay_home=1.0, 
-                    smart_tracing_isolation_duration=TO_HOURS * 14.0),
-                SocialDistancingForSmartTracingHousehold(
-                    t_window=Interval(0.0, TO_HOURS * max_days),
-                    p_isolate=1.0,
-                    smart_tracing_isolation_duration=TO_HOURS * 14.0),
-                SocialDistancingSymptomaticAfterSmartTracing(
-                    t_window=Interval(0.0, TO_HOURS * max_days),
-                    p_stay_home=1.0,
-                    smart_tracing_isolation_duration=TO_HOURS * 14.0),
-                SocialDistancingSymptomaticAfterSmartTracingHousehold(
-                    t_window=Interval(0.0, TO_HOURS * max_days),
-                    p_isolate=1.0,
-                    smart_tracing_isolation_duration=TO_HOURS * 14.0),
-                ]
+            # standard tracing measures
+            ComplianceForAllMeasure(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_compliance=p_adoption),
+            SocialDistancingForSmartTracing(
+                t_window=Interval(0.0, TO_HOURS * max_days), 
+                p_stay_home=1.0, 
+                smart_tracing_isolation_duration=TO_HOURS * 14.0),
+            SocialDistancingForSmartTracingHousehold(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_isolate=1.0,
+                smart_tracing_isolation_duration=TO_HOURS * 14.0),
+            SocialDistancingSymptomaticAfterSmartTracing(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_stay_home=1.0,
+                smart_tracing_isolation_duration=TO_HOURS * 14.0),
+            SocialDistancingSymptomaticAfterSmartTracingHousehold(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_isolate=1.0,
+                smart_tracing_isolation_duration=TO_HOURS * 14.0),
+            ]
 
-            # set testing params via update function of standard testing parameters
-            def test_update(d):
-                d['smart_tracing_actions'] = ['isolate', 'test']
-                d['test_reporting_lag'] = 48.0
-                d['tests_per_batch'] = 100000
+        # set testing params via update function of standard testing parameters
+        def test_update(d):
+            d['smart_tracing_actions'] = ['isolate', 'test']
+            d['test_reporting_lag'] = 48.0
+            d['tests_per_batch'] = 100000
 
-                # isolation
-                d['smart_tracing_policy_isolate'] = 'basic'
-                d['smart_tracing_isolated_contacts'] = 100000
-                d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
+            # isolation
+            d['smart_tracing_policy_isolate'] = 'basic'
+            d['smart_tracing_isolated_contacts'] = 100000
+            d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
 
-                # testing
-                d['smart_tracing_policy_test'] = 'basic'
-                d['smart_tracing_tested_contacts'] = 100000
-                d['trigger_tracing_after_posi_trace_test'] = False
+            # testing
+            d['smart_tracing_policy_test'] = 'basic'
+            d['smart_tracing_tested_contacts'] = 100000
+            d['trigger_tracing_after_posi_trace_test'] = False
 
-                # time span during which ROC info is computed
-                d['smart_tracing_stats_window'] = smart_tracing_stats_window
+            # time span during which ROC info is computed
+            d['smart_tracing_stats_window'] = smart_tracing_stats_window
 
-                return d
+            return d
 
 
-            simulation_info = options_to_str(
-                beacon=beacon_config['mode'],
-                p_adoption=p_adoption,
-                x=fact,
-            )
-                
-            experiment.add(
-                simulation_info=simulation_info,
-                country=country,
-                area=area,
-                measure_list=m,
-                beacon_config=beacon_config,
-                thresholds_roc=thresholds_roc,
-                test_update=test_update,
-                seed_summary_path=seed_summary_path,
-                set_initial_seeds_to=set_initial_seeds_to,
-                set_calibrated_params_to=calibrated_params,
-                full_scale=full_scale,
-                lockdown_measures_active=False,
-                expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
+        simulation_info = options_to_str(
+            beacon=beacon_config['mode'],
+            p_adoption=p_adoption,
+            x=fact,
+        )
+            
+        experiment.add(
+            simulation_info=simulation_info,
+            country=country,
+            area=area,
+            measure_list=m,
+            beacon_config=beacon_config,
+            thresholds_roc=thresholds_roc,
+            test_update=test_update,
+            seed_summary_path=seed_summary_path,
+            set_initial_seeds_to=set_initial_seeds_to,
+            set_calibrated_params_to=calibrated_params,
+            full_scale=full_scale,
+            lockdown_measures_active=False,
+            expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
                 
     print(f'{experiment_info} configuration done.')
 
