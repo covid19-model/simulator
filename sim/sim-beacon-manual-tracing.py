@@ -37,7 +37,7 @@ if __name__ == '__main__':
     condensed_summary = True
 
     # contact tracing experiment parameters
-    sites_with_beacons = [0.05, 0.25, 0.01, 0.02, 0.1, 1.0]
+    sites_with_beacons = [0.05, 0.25, 0.01, 0.001, 0.02, 1.0]
     ps_recall =   [1.0]  # Proportion of visits tracing non-compliant person recalls in manual tracing interview
     p_willing_to_share = 1.0   # Proportion of visits tracing compliant person is willing to share
     

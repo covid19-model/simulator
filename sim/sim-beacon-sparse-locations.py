@@ -39,7 +39,7 @@ if __name__ == '__main__':
 
     # contact tracing experiment parameters
     beacon_modes = ['visit_freq', 'random']
-    sites_with_beacons = [0.05, 0.25, 0.01, 0.02, 0.1, 1.0]
+    sites_with_beacons = [0.05, 0.25, 0.01, 0.001, 0.02, 1.0]
     if args.p_adoption is not None:
         ps_adoption = [args.p_adoption]
     else:
