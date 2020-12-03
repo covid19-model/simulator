@@ -967,7 +967,19 @@ class ComplianceForAllMeasure(Measure):
         if self._is_init:
             self.bernoulli_compliant = None
             self._is_init = False
-    
+
+
+class ManualTracingComplianceForAllMeasure(ComplianceForAllMeasure):
+    """
+    Compliant people leave their contact details at social, educational and office sites and can thereby be traced.
+    """
+    @enforce_init_run
+    def is_compliant(self, *, site_type, j, t):
+        if site_type in ['education', 'social', 'office']:
+            return super().is_compliant(j=j, t=t)
+        else:
+            return False
+
 
 class ManualTracingForAllMeasure(Measure):
     """
@@ -981,7 +993,7 @@ class ManualTracingForAllMeasure(Measure):
     can be traced, even if i does not comply with contact tracing itself.
     """
 
-    def __init__(self, t_window, p_participate, p_recall):
+    def __init__(self, t_window, p_participate, p_recall, p_manually_tracable):
         """
 
         Parameters

@@ -485,6 +485,9 @@ class DiseaseModel(object):
         self.measure_list.init_run(ComplianceForAllMeasure,
                                    n_people=self.n_people)
 
+        self.measure_list.init_run(ManualTracingComplianceForAllMeasure,
+                                   n_people=self.n_people)
+
         self.measure_list.init_run(ManualTracingForAllMeasure,
                                    n_people=self.n_people,
                                    n_visits=max(self.mob.visit_counts))
@@ -1610,11 +1613,18 @@ class DiseaseModel(object):
         
         '''Execute contact tracing actions for _household members_'''
         for j in self.households[self.people_household[i]]:
-            
+
+            # Note: Compliance corresponds to the question if a person uses a tracing technology.
+            # Independently of any tracing technology household members of an infected person will know about
+            # the infection and are obliged by law to get quarantined
+
             # check that contact satisfies conditions
-            is_j_compliant = self.measure_list.is_compliant(
-                ComplianceForAllMeasure, t=max(t-self.smart_tracing_contact_delta, 0.0), j=j)
-            if self.state['dead'][j] or j == i or (not is_j_compliant):
+            # is_j_compliant = self.measure_list.is_compliant(
+            #     ComplianceForAllMeasure, t=max(t-self.smart_tracing_contact_delta, 0.0), j=j)
+            # if self.state['dead'][j] or j == i or (not is_j_compliant):
+            #     continue
+
+            if self.state['dead'][j]:
                 continue
             
             # contact tracing action
@@ -1708,11 +1718,8 @@ class DiseaseModel(object):
         j = contact.indiv_i
         site_id = contact.site
         j_visit_id, i_visit_id = contact.id_tup
+        site_type = self.mob.site_dict[self.mob.site_type[site_id]]
 
-        '''Check that site traces contact'''
-        if self.mob.beacon_config is not None:
-            if not self.mob.site_has_beacon[site_id]:
-                return False 
 
         '''Check status of both individuals'''
         i_has_valid_status = (
@@ -1764,9 +1771,21 @@ class DiseaseModel(object):
             ComplianceForAllMeasure, 
             # to be consistent with `is_i_compliant` check, don't use `start_contact`
             t=max(t - self.smart_tracing_contact_delta, 0.0), j=j)
+
+        is_j_manually_tracable = self.measure_list.is_compliant(
+            ManualTracingComplianceForAllMeasure,
+            site_type=site_type,
+            # to be consistent with `is_i_compliant` check, don't use `start_contact`
+            t=max(t - self.smart_tracing_contact_delta, 0.0), j=j)
         
-        if (not is_i_compliant_or_recalls) or (not is_j_compliant):
+        if (not is_i_compliant_or_recalls) or (not (is_j_compliant or is_j_manually_tracable)):
             return False
+
+        '''Check that site traces contact'''
+        if not is_j_manually_tracable:
+            if self.mob.beacon_config is not None:
+                if not self.mob.site_has_beacon[site_id]:
+                    return False
 
         '''Check SocialDistancing measures'''
         is_i_contained = self.is_person_home_from_visit_due_to_measure(
