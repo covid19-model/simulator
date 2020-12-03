@@ -109,9 +109,13 @@ def condense_summary(summary, metadata=None, acc=500):
     t0_range = [50 * 24.0]
     window_size = 10.0 * 24
     interval_range = [(t0, t0 + window_size) for t0 in t0_range]
-    nbinom_dist = compute_nbinom_distributions(result, x_range, interval_range)
-    nbinom_rts = estimate_daily_nbinom_rts(result, slider_size=24.0, window_size=24. * 7,
-                                                    end_cutoff=24. * 10)
+    try:
+        nbinom_dist = compute_nbinom_distributions(result, x_range, interval_range)
+        nbinom_rts = estimate_daily_nbinom_rts(result, slider_size=24.0, window_size=24. * 7,
+                                                        end_cutoff=24. * 10)
+    except KeyError:
+        print('Could not save secondary infection statistics due to the time window being to small.')
+        nbinom_dist, nbinom_rts = None, None
 
     data = {'metadata': metadata,
             'acc': acc,
