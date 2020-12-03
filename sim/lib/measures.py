@@ -993,7 +993,7 @@ class ManualTracingForAllMeasure(Measure):
     can be traced, even if i does not comply with contact tracing itself.
     """
 
-    def __init__(self, t_window, p_participate, p_recall, p_manually_tracable):
+    def __init__(self, t_window, p_participate, p_recall):
         """
 
         Parameters
