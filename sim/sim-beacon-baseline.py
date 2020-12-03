@@ -27,8 +27,8 @@ if __name__ == '__main__':
 
     name = 'beacon-baseline'
     start_date = '2021-01-01'
-    end_date = '2021-06-01'
-    random_repeats = 200
+    end_date = '2021-05-01'
+    random_repeats = 100
     full_scale = True
     verbose = True
     seed_summary_path = None
@@ -49,10 +49,9 @@ if __name__ == '__main__':
     rd.seed(c)
 
     # Load calibrated parameters up to `maxBOiters` iterations of BO
-    maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
     calibrated_params = get_calibrated_params(country=country, area=area,
                                               multi_beta_calibration=False,
-                                              maxiters=maxBOiters)
+                                              maxiters=None)
     # for debugging purposes
     if args.smoke_test:
         start_date = '2021-01-01'

@@ -28,8 +28,8 @@ if __name__ == '__main__':
 
     name = 'beacon-sparse-locations'
     start_date = '2021-01-01'
-    end_date = '2021-06-01'
-    random_repeats = 200
+    end_date = '2021-05-01'
+    random_repeats = 100
     full_scale = True
     verbose = True
     seed_summary_path = None
@@ -39,7 +39,7 @@ if __name__ == '__main__':
 
     # contact tracing experiment parameters
     beacon_modes = ['visit_freq', 'random']
-    sites_with_beacons = [0.001, 0.01, 0.02, 0.05, 0.1, 0.25, 1.0]
+    sites_with_beacons = [0.01, 0.02, 0.05, 0.1, 0.25, 1.0]
     if args.p_adoption is not None:
         ps_adoption = [args.p_adoption]
     else:
@@ -52,10 +52,9 @@ if __name__ == '__main__':
 
     
     # Load calibrated parameters up to `maxBOiters` iterations of BO
-    maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
     calibrated_params = get_calibrated_params(country=country, area=area,
                                               multi_beta_calibration=False,
-                                              maxiters=maxBOiters)
+                                              maxiters=None)
 
     # for debugging purposes
     if args.smoke_test:
