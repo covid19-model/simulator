@@ -60,7 +60,7 @@ class CovidDistributions(object):
         # self.lab_aerosol_halflife = 2.0
         # self.real_site_halflife_factor = 1.0  # 10-times shorter halflife at real sites
 
-        self.lab_aerosol_halflife = 1.1
+        self.lab_aerosol_halflife = 1.1 # hours
         self.real_site_halflife_factor = 0.1 # 10-times shorter halflife at real sites 
         self.real_site_aerosol_halflife = self.lab_aerosol_halflife * self.real_site_halflife_factor
 

@@ -52,7 +52,7 @@ class DiseaseModel(object):
         self.n_people = mob.num_people
         self.n_sites = mob.num_sites
         self.max_time = mob.max_time
-        
+
         # special state variables from mob object 
         self.people_age = mob.people_age
         self.num_age_groups = mob.num_age_groups
@@ -1298,7 +1298,7 @@ class DiseaseModel(object):
         will overlap for long periods of time at home
         """
 
-        lambda_household = self.beta_household * base_rate
+        lambda_household = self.beta_household * base_rate * self.__kernel_term(- self.delta, 0.0, 0.0)
         tau = t + np.random.exponential(scale=1.0 / lambda_household)
 
         # site = -1 means it is a household infection

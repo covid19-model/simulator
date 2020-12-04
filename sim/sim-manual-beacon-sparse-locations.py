@@ -45,6 +45,8 @@ if __name__ == '__main__':
         ps_adoption = [args.p_adoption]
     else:
         ps_adoption = [0.25, 1.0, 0.05, 0.10, 0.5]
+        
+    p_recall = 1.0
 
     # seed
     c = 0
@@ -92,10 +94,10 @@ if __name__ == '__main__':
 
                 m = [
                     # beacon measures
-                    # ManualTracingForAllMeasure(
-                    #     t_window=Interval(0.0, TO_HOURS * max_days),
-                    #     p_participate=.5,
-                    #     p_recall=p_recall),
+                    ManualTracingForAllMeasure(
+                        t_window=Interval(0.0, TO_HOURS * max_days),
+                        p_participate=1.0,
+                        p_recall=p_recall),
 
                     # mobility reduction since the beginning of the pandemic
                     SocialDistancingBySiteTypeForAllMeasure(
@@ -119,14 +121,6 @@ if __name__ == '__main__':
                         t_window=Interval(0.0, TO_HOURS * max_days),
                         p_isolate=1.0,
                         smart_tracing_isolation_duration=TO_HOURS * 14.0),
-                    SocialDistancingSymptomaticAfterSmartTracing(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_stay_home=1.0,
-                        smart_tracing_isolation_duration=TO_HOURS * 14.0),
-                    SocialDistancingSymptomaticAfterSmartTracingHousehold(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_isolate=1.0,
-                        smart_tracing_isolation_duration=TO_HOURS * 14.0),
                 ]
 
 
@@ -137,12 +131,14 @@ if __name__ == '__main__':
                     d['tests_per_batch'] = 100000
 
                     # isolation
-                    d['smart_tracing_policy_isolate'] = 'basic'
+                    d['smart_tracing_policy_isolate'] = 'advanced-threshold'
+                    d['smart_tracing_isolation_threshold'] = 0.1
                     d['smart_tracing_isolated_contacts'] = 100000
                     d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
 
                     # testing
-                    d['smart_tracing_policy_test'] = 'basic'
+                    d['smart_tracing_policy_test'] = 'advanced-threshold'
+                    d['smart_tracing_testing_threshold'] = 0.1
                     d['smart_tracing_tested_contacts'] = 100000
                     d['trigger_tracing_after_posi_trace_test'] = False
 
@@ -151,7 +147,6 @@ if __name__ == '__main__':
 
                 simulation_info = options_to_str(
                     p_adoption=p_adoption,
-                    # p_recall=p_recall,
                     beacon_mode=beacon_mode,
                     beacon_proportion=beacon_proportion
                 )

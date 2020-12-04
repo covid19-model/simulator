@@ -122,14 +122,6 @@ if __name__ == '__main__':
                 t_window=Interval(0.0, TO_HOURS * max_days),
                 p_isolate=1.0,
                 smart_tracing_isolation_duration=TO_HOURS * 14.0),
-            SocialDistancingSymptomaticAfterSmartTracing(
-                t_window=Interval(0.0, TO_HOURS * max_days),
-                p_stay_home=1.0,
-                smart_tracing_isolation_duration=TO_HOURS * 14.0),
-            SocialDistancingSymptomaticAfterSmartTracingHousehold(
-                t_window=Interval(0.0, TO_HOURS * max_days),
-                p_isolate=1.0,
-                smart_tracing_isolation_duration=TO_HOURS * 14.0),
             ]
 
         # set testing params via update function of standard testing parameters
@@ -139,12 +131,14 @@ if __name__ == '__main__':
             d['tests_per_batch'] = 100000
 
             # isolation
-            d['smart_tracing_policy_isolate'] = 'basic'
+            d['smart_tracing_policy_isolate'] = 'advanced-threshold'
+            d['smart_tracing_isolation_threshold'] = 0.1
             d['smart_tracing_isolated_contacts'] = 100000
             d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
 
             # testing
-            d['smart_tracing_policy_test'] = 'basic'
+            d['smart_tracing_policy_test'] = 'advanced-threshold'
+            d['smart_tracing_testing_threshold'] = 0.1
             d['smart_tracing_tested_contacts'] = 100000
             d['trigger_tracing_after_posi_trace_test'] = False
 

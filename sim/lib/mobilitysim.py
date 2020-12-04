@@ -436,7 +436,7 @@ class MobilitySimulator:
 
         self.beacon_config = beacon_config
         self.site_has_beacon = self.place_beacons(
-            beacon_config=beacon_config, rollouts=3, max_time=60)
+            beacon_config=beacon_config, rollouts=10, max_time=28 * TO_HOURS)
 
     '''Beacon information computed at test time'''
 
@@ -467,7 +467,12 @@ class MobilitySimulator:
             proportion_with_beacon = beacon_config['proportion_with_beacon']
 
             # compute beacon locations
-            return np.random.binomial(1, proportion_with_beacon, size=self.num_sites).astype(np.bool)
+            perm = np.random.permutation(self.num_sites)
+
+            site_has_beacon = np.zeros(self.num_sites, dtype=bool)
+            site_has_beacon[perm[:int(proportion_with_beacon * self.num_sites)]] = True
+
+            return site_has_beacon      
             
         elif beacon_config['mode'] == 'visit_freq':
             # extract mode specific information
