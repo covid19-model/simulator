@@ -38,7 +38,7 @@ if __name__ == '__main__':
     condensed_summary = True
 
     # contact tracing experiment parameters
-    p_manual_tracability = 0.1
+    p_manual_reachability = 0.1
     beacon_modes = ['visit_freq', 'random']
     sites_with_beacons = [0.05, 0.25, 0.01, 0.001, 0.02, 1.0]
     if args.p_adoption is not None:
@@ -93,21 +93,21 @@ if __name__ == '__main__':
                 max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
                 m = [
-                    # beacon measures
-                    ManualTracingForAllMeasure(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_participate=1.0,
-                        p_recall=p_recall),
-
                     # mobility reduction since the beginning of the pandemic
                     SocialDistancingBySiteTypeForAllMeasure(
                         t_window=Interval(0.0, TO_HOURS * max_days),
                         p_stay_home_dict=mobility_reduction[country][area]),
 
-                    # Manual contact tracing (without cooperation with digital tracing)
-                    ManualTracingComplianceForAllMeasure(
+                    # Manual contact tracing
+                    # infectors not compliant with digital tracing may reveal their mobility trace upon positive testing
+                    ManualTracingForAllMeasure(
                         t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_compliance=p_manual_tracability),
+                        p_participate=1.0,
+                        p_recall=p_recall),
+                    # contact persons not compliant with digital tracing may be reached via phone
+                    ManualTracingReachabilityForAllMeasure(
+                        t_window=Interval(0.0, TO_HOURS * max_days),
+                        p_reachable=p_manual_reachability),
 
                     # standard tracing measures
                     ComplianceForAllMeasure(
