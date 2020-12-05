@@ -110,11 +110,6 @@ if __name__ == '__main__':
                         t_window=Interval(0.0, TO_HOURS * max_days),
                         p_reachable=p_manual_reachability),
 
-                    # mobility reduction since the beginning of the pandemic
-                    SocialDistancingBySiteTypeForAllMeasure(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_stay_home_dict=mobility_reduction[country][area]),
-
                     # standard tracing measures
                     ComplianceForAllMeasure(
                         t_window=Interval(0.0, TO_HOURS * max_days),
