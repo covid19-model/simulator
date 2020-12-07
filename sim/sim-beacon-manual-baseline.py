@@ -26,7 +26,7 @@ if __name__ == '__main__':
     cpu_count = args.cpu_count
     continued_run = args.continued
 
-    name = 'beacon-baseline'
+    name = 'beacon-manual-baseline'
     start_date = '2021-01-01'
     end_date = '2021-05-01'
     random_repeats = 100
@@ -85,6 +85,17 @@ if __name__ == '__main__':
         max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
         m = [
+            # Manual contact tracing
+            # infectors not compliant with digital tracing may reveal their mobility trace upon positive testing
+            ManualTracingForAllMeasure(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_participate=1.0,
+                p_recall=p_recall),
+            # contact persons not compliant with digital tracing may be reached via phone
+            ManualTracingReachabilityForAllMeasure(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_reachable=p_manual_reachability),
+                
             # standard tracing measures
             ComplianceForAllMeasure(
                 t_window=Interval(0.0, TO_HOURS * max_days),

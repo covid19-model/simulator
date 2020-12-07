@@ -39,8 +39,8 @@ if __name__ == '__main__':
 
     # contact tracing experiment parameters
     p_manual_reachability = 0.1
-    sites_with_beacons = [0.05]
-    ps_recall =   [1.0]  # Proportion of visits tracing non-compliant person recalls in manual tracing interview
+    sites_with_beacons = [0.1]
+    ps_recall =   [0.5]  # Proportion of visits tracing non-compliant person recalls in manual tracing interview
     p_willing_to_share = 1.0   # Proportion of visits tracing compliant person is willing to share
     
     if args.p_adoption is not None:
