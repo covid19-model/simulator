@@ -26,7 +26,7 @@ if __name__ == '__main__':
     cpu_count = args.cpu_count
     continued_run = args.continued
 
-    name = 'manual-beacon-baseline'
+    name = 'beacon-baseline'
     start_date = '2021-01-01'
     end_date = '2021-05-01'
     random_repeats = 100
@@ -85,11 +85,6 @@ if __name__ == '__main__':
         max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
         m = [
-            # mobility reduction since the beginning of the pandemic
-            SocialDistancingBySiteTypeForAllMeasure(
-                t_window=Interval(0.0, TO_HOURS * max_days),
-                p_stay_home_dict=mobility_reduction[country][area]),
-
             # Manual contact tracing
             # infectors not compliant with digital tracing may reveal their mobility trace upon positive testing
             ManualTracingForAllMeasure(
@@ -113,6 +108,14 @@ if __name__ == '__main__':
                 t_window=Interval(0.0, TO_HOURS * max_days),
                 p_isolate=1.0,
                 smart_tracing_isolation_duration=TO_HOURS * 14.0),
+            ]
+        
+        if args.mobility_reduction:
+            m += [
+                # mobility reduction since the beginning of the pandemic
+                SocialDistancingBySiteTypeForAllMeasure(
+                    t_window=Interval(0.0, TO_HOURS * max_days),
+                    p_stay_home_dict=mobility_reduction[country][area]),
             ]
 
         # set testing params via update function of standard testing parameters

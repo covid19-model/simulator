@@ -1,5 +1,5 @@
-import sys, os
 
+import sys, os
 if '..' not in sys.path:
     sys.path.append('..')
 
@@ -11,8 +11,7 @@ import multiprocessing
 import argparse
 from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
-from lib.calibrationSettings import calibration_lockdown_dates, calibration_mob_paths, calibration_states, \
-    contact_tracing_adoption
+from lib.calibrationSettings import calibration_lockdown_dates, calibration_mob_paths, calibration_states, contact_tracing_adoption
 from lib.calibrationFunctions import get_calibrated_params
 from lib.settings.mobility_reduction import mobility_reduction
 
@@ -27,7 +26,7 @@ if __name__ == '__main__':
     cpu_count = args.cpu_count
     continued_run = args.continued
 
-    name = 'manual-beacon-sparse-locations'
+    name = 'beacon-manual-tracing'
     start_date = '2021-01-01'
     end_date = '2021-05-01'
     random_repeats = 100
@@ -40,21 +39,20 @@ if __name__ == '__main__':
 
     # contact tracing experiment parameters
     p_manual_reachability = 0.1
-    beacon_modes = ['visit_freq', 'random']
-    sites_with_beacons = [0.05, 0.25, 0.01, 0.001, 0.02, 1.0]
+    sites_with_beacons = [0.05]
+    ps_recall =   [1.0]  # Proportion of visits tracing non-compliant person recalls in manual tracing interview
+    p_willing_to_share = 1.0   # Proportion of visits tracing compliant person is willing to share
+    
     if args.p_adoption is not None:
         ps_adoption = [args.p_adoption]
     else:
         ps_adoption = [0.25, 1.0, 0.05, 0.10, 0.5]
-        
-    p_recall = 1.0
 
     # seed
     c = 0
     np.random.seed(c)
     rd.seed(c)
 
-    
     # Load calibrated parameters up to `maxBOiters` iterations of BO
     calibrated_params = get_calibrated_params(country=country, area=area,
                                               multi_beta_calibration=False,
@@ -63,13 +61,16 @@ if __name__ == '__main__':
     # for debugging purposes
     if args.smoke_test:
         start_date = '2021-01-01'
-        # end_date = '2021-01-15'
+        end_date = '2021-02-15'
         random_repeats = 1
         full_scale = False
-        ps_adoption = [0.5]
-        ps_recall = [1.0]
+        ps_adoption = [0.1, 0.9]
         sites_with_beacons = [0.05]
-        beacon_modes = ['random']
+        p_willing_to_share = 1.0
+        ps_recall = [1.0]
+        beacon_config = dict(
+            mode='all',
+        )
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -87,19 +88,14 @@ if __name__ == '__main__':
 
     # contact tracing experiment for various options
     for beacon_proportion in sites_with_beacons:
-        for beacon_mode in beacon_modes:
-            for p_adoption in ps_adoption:
-                beacon_config = dict(mode=beacon_mode, proportion_with_beacon=beacon_proportion)
+        for p_adoption in ps_adoption:
+            for p_recall in ps_recall:
+                beacon_config = dict(mode='visit_freq', proportion_with_beacon=beacon_proportion)
 
                 # measures
                 max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
                 m = [
-                    # mobility reduction since the beginning of the pandemic
-                    SocialDistancingBySiteTypeForAllMeasure(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_stay_home_dict=mobility_reduction[country][area]),
-
                     # Manual contact tracing
                     # infectors not compliant with digital tracing may reveal their mobility trace upon positive testing
                     ManualTracingForAllMeasure(
@@ -123,8 +119,15 @@ if __name__ == '__main__':
                         t_window=Interval(0.0, TO_HOURS * max_days),
                         p_isolate=1.0,
                         smart_tracing_isolation_duration=TO_HOURS * 14.0),
-                ]
+                    ]
 
+                if args.mobility_reduction:
+                    m += [
+                        # mobility reduction since the beginning of the pandemic
+                        SocialDistancingBySiteTypeForAllMeasure(
+                            t_window=Interval(0.0, TO_HOURS * max_days),
+                            p_stay_home_dict=mobility_reduction[country][area]),
+                    ]
 
                 # set testing params via update function of standard testing parameters
                 def test_update(d):
@@ -144,13 +147,16 @@ if __name__ == '__main__':
                     d['smart_tracing_tested_contacts'] = 100000
                     d['trigger_tracing_after_posi_trace_test'] = False
 
+                    # Tracing compliance
+                    d['p_willing_to_share'] = p_willing_to_share
                     return d
 
 
                 simulation_info = options_to_str(
                     p_adoption=p_adoption,
-                    beacon_mode=beacon_mode,
-                    beacon_proportion=beacon_proportion
+                    p_recall=p_recall,
+                    beacon_proportion=beacon_proportion,
+                    p_willing_to_share=p_willing_to_share,
                 )
 
                 experiment.add(
@@ -171,3 +177,4 @@ if __name__ == '__main__':
 
     # execute all simulations
     experiment.run_all()
+
