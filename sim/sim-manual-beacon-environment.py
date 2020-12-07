@@ -25,6 +25,7 @@ if __name__ == '__main__':
     country = args.country
     area = args.area
     cpu_count = args.cpu_count
+    continued_run = args.continued
 
     name = 'manual-beacon-environment'
     start_date = '2021-01-01'
@@ -79,6 +80,7 @@ if __name__ == '__main__':
         cpu_count=cpu_count,
         full_scale=full_scale,
         condensed_summary=condensed_summary,
+        continued_run=continued_run,
         verbose=verbose,
     )
 

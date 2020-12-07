@@ -101,6 +101,8 @@ def process_command_line(return_parser=False):
                         help="flag to quickly finish runs to see if something breaks")
     parser.add_argument("--p_adoption", type=float,
                         help="only run experiment with a single adoption level")
+    parser.add_argument("--continued", action="store_true",
+                        help="skips sub-experiments for which summaries already exist")
     if return_parser:
         return parser
 
@@ -139,7 +141,8 @@ class Experiment(object):
         verbose,
         cpu_count=None,
         multi_beta_calibration=False,
-        condensed_summary=False):
+        condensed_summary=False,
+        continued_run=False):
 
         self.experiment_info = experiment_info
         self.start_date = start_date
@@ -149,6 +152,7 @@ class Experiment(object):
         self.full_scale = full_scale
         self.multi_beta_calibration = multi_beta_calibration
         self.condensed_summary = condensed_summary
+        self.continued_run = continued_run
         self.verbose = verbose
 
         # list simulations of experiment
@@ -164,6 +168,10 @@ class Experiment(object):
         with open(filepath, 'wb') as fp:
             pickle.dump(condensed_summary, fp)
         return
+
+    def check_summary_existence(self, sim):
+        filepath = os.path.join('condensed_summaries', self.get_sim_path(sim) + '_condensed.pk')
+        return os.path.isfile(filepath)
 
     def save_run(self, sim, summary):
         filename = self.get_sim_path(sim) + '.pk'
@@ -355,10 +363,15 @@ class Experiment(object):
         if thresholds_roc is not None:
             sim_kwargs['thresholds_roc'] = thresholds_roc
 
-        self.sims.append(Simulation(**sim_kwargs))
+        sim = Simulation(**sim_kwargs)
 
-        if self.verbose:
-            print(f'[Added Sim] {self.get_sim_path(self.sims[-1])}')
+        if self.continued_run and self.check_summary_existence(sim):
+            if self.verbose:
+                print(f'[Skipped Sim] {self.get_sim_path(sim)}')
+        else:
+            self.sims.append(sim)
+            if self.verbose:
+                print(f'[Added Sim] {self.get_sim_path(self.sims[-1])}')
 
 
     def run_all(self):
