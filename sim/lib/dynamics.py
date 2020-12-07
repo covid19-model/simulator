@@ -615,8 +615,8 @@ class DiseaseModel(object):
                     infector_away_from_home = False
                     i_away_from_home = False
 
-                    infector_visits = self.mob.mob_traces[infector].find((t, t))
-                    i_visits = self.mob.mob_traces[i].find((t, t))
+                    infector_visits = self.mob.mob_traces_by_indiv[infector].find((t, t))
+                    i_visits = self.mob.mob_traces_by_indiv[i].find((t, t))
 
                     for v in infector_visits:
                         infector_away_from_home = \

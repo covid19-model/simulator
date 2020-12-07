@@ -56,9 +56,9 @@ if __name__ == '__main__':
     # for debugging purposes
     if args.smoke_test:
         start_date = '2021-01-01'
-        end_date = '2021-01-05'
-        random_repeats = 2
-        full_scale = False
+        end_date = '2021-05-01'
+        random_repeats = 8
+        full_scale = True
         ps_adoption = [0.5]
 
     # create experiment object

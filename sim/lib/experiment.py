@@ -101,6 +101,8 @@ def process_command_line(return_parser=False):
                         help="flag to quickly finish runs to see if something breaks")
     parser.add_argument("--p_adoption", type=float,
                         help="only run experiment with a single adoption level")
+    parser.add_argument("--no_mobility_reduction", action="store_true",
+                        help="flag to turn off mobility reduction")
     if return_parser:
         return parser
 

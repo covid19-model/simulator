@@ -28,7 +28,8 @@ def make_calibration_parser():
                         help="flag to calibrate an individual beta parameter for each site category/type")
     parser.add_argument("--per-age-group-objective", action="store_true",
                         help="flag to calibrate based on per age-group objective")
-
+    parser.add_argument("--log-objective", action="store_true",
+                        help="log-MSE instead of MSE")
     # data
     parser.add_argument("--mob", 
         help="update path to mobility settings for trace generation")

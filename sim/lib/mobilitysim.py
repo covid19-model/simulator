@@ -578,7 +578,9 @@ class MobilitySimulator:
                 )
 
         # Group mobility traces per indiv 
-        self.mob_traces = self._group_mob_traces(all_mob_traces)
+        self.mob_traces_by_indiv = self._group_mob_traces_by_indiv(all_mob_traces)
+        self.mob_traces_by_site = self._group_mob_traces_by_site(all_mob_traces)
+
         return all_mob_traces
 
     def _find_all_contacts(self):
@@ -614,35 +616,31 @@ class MobilitySimulator:
             # If used for infection simulation or used for tracing with beacons, capture also indirect contacts
             extended_time_window = self.delta
 
-        infector_traces = []
-        mob_traces_at_site = defaultdict(list)
         contacts = InterLap()
 
-        for v in self.all_mob_traces:
-            # Only consider visit if overlap with [tmin, tmax]
-            is_valid_contact = (tmin < v.t_to_shifted
-                                and (v.t_from < tmax if (tmax is not None) else True))
-            if is_valid_contact:
-                if v.indiv == indiv:
-                    infector_traces.append(v)
-                else:
-                    mob_traces_at_site[v.site].append(v)
+        # iterate over all visits of `indiv` intersecting with the interval [tmin, tmax]
+        infector_traces = self.mob_traces_by_indiv[indiv].find((tmin, tmax if (tmax is not None) else np.inf))
 
         for inf_visit in infector_traces:
+
+            # coin flip of whether infector `indiv` reveals their visit
             if tracing is True and np.random.uniform(low=0, high=1) > p_reveal_visit:
                 continue
-            if len(mob_traces_at_site[inf_visit.site]) == 0:
-                continue
 
-            inter = InterLap()
-            inter.update(mob_traces_at_site[inf_visit.site])
+            # find all contacts of `indiv` by querying visits of
+            # other individuals during visit time of `indiv` at the same site
+            # (including delta-contacts; if beacon_cache=0, delta-contacts get filtered out below)
+            inf_visit_time = (inf_visit.t_from, inf_visit.t_to_shifted)
+            concurrent_site_traces = self.mob_traces_by_site[inf_visit.site].find(inf_visit_time)
 
-            # Find all contacts including delta-contacts, if beacon_cache=0, delta-contacts get removed later
-            visit_time = (inf_visit.t_from, inf_visit.t_to_shifted)
-
-            for visit in list(inter.find(other=visit_time)):
-                # Ignore contacts with same individual
+            for visit in concurrent_site_traces:
+                # ignore visits of `indiv` since it is not a contact
                 if visit.indiv == inf_visit.indiv:
+                    continue
+
+                # ignore if begin of visit is after tmax
+                # this can happen if inf_visit starts just before tmax but continues way beyond tmax
+                if visit.t_from > tmax:
                     continue
 
                 # Compute contact time
@@ -660,10 +658,11 @@ class MobilitySimulator:
                                 duration=c_t_to - c_t_from,
                                 t_to_direct=c_t_to_direct)
                     contacts.update([c])
+
         return contacts
 
-    def _group_mob_traces(self, mob_traces):
-        """Group `mob_traces` by individual and for faster queries.
+    def _group_mob_traces_by_indiv(self, mob_traces):
+        """Group `mob_traces` by individual for faster queries.
         Returns a dict of dict of Interlap of the form:
 
             mob_traces_dict[i] = "Interlap of visits of indiv i"
@@ -671,6 +670,17 @@ class MobilitySimulator:
         mob_traces_dict = {i: InterLap() for i in range(self.num_people)}
         for v in mob_traces:
             mob_traces_dict[v.indiv].update([v])
+        return mob_traces_dict
+
+    def _group_mob_traces_by_site(self, mob_traces):
+        """Group `mob_traces` by site for faster queries.
+        Returns a dict of dict of Interlap of the form:
+
+            mob_traces_dict[k] = "Interlap of visits at site k"
+        """
+        mob_traces_dict = {k: InterLap() for k in range(self.num_sites)}
+        for v in mob_traces:
+            mob_traces_dict[v.site].update([v])
         return mob_traces_dict
 
     def simulate(self, max_time, seed=None): 
@@ -699,11 +709,9 @@ class MobilitySimulator:
         if self.verbose:
             print(f'Simulate mobility for {max_time:.2f} time units... ',
                   end='', flush=True)
-        all_mob_traces = self._simulate_mobility(max_time, seed)
-        self.all_mob_traces = all_mob_traces
 
-        if self.verbose:
-            print(f'Simulated {len(all_mob_traces)} visits.', flush=True)
+        # unprocessed all_mob_traces not needed
+        _ = self._simulate_mobility(max_time, seed)
 
         # Initialize empty contact array
         self.contacts = {i: defaultdict(InterLap) for i in range(self.num_people)}
@@ -714,7 +722,7 @@ class MobilitySimulator:
 
         The call 
 
-            self.mob_traces[indiv].find((t0, t1))
+            self.mob_traces_by_indiv[indiv].find((t0, t1))
 
         matches all visits on visit window [`t_from`, `t_to_shifted`].
         Since we only want to return real in-person visits, 
@@ -722,7 +730,7 @@ class MobilitySimulator:
         in the sense of "environemental contamination" 
         i.e. only matched on (`t_to`, `t_to_shifted`] 
         """
-        for visit in self.mob_traces[indiv].find((t0, t1)):
+        for visit in self.mob_traces_by_indiv[indiv].find((t0, t1)):
             if visit.t_to >= t0 and visit.site == site:
                 yield Interval(visit.t_from, visit.t_to)
 

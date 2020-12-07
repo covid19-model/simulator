@@ -562,6 +562,7 @@ def make_bayes_opt_functions(args):
     data_start_date = args.start or calibration_start_dates[data_country][data_area]
     data_end_date = args.end or calibration_lockdown_dates[args.country]['end']
     per_age_group_objective = args.per_age_group_objective
+    use_log_objective = args.log_objective
 
     # simulation settings
     n_init_samples = args.ninit
@@ -705,7 +706,12 @@ def make_bayes_opt_functions(args):
 
 
     # select objective function
-    objective = GenericMCObjective(composite_squared_loss)
+    if use_log_objective:
+        def log_mse_loss(G):
+            return - np.log((G - G_obs_aggregate).pow(2).sum(dim=-1) / n_days)
+        objective = GenericMCObjective(log_mse_loss)
+    else:
+        objective = GenericMCObjective(composite_squared_loss)
 
     def case_diff(preds):
         '''
