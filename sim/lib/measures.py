@@ -969,16 +969,67 @@ class ComplianceForAllMeasure(Measure):
             self._is_init = False
 
 
-class ManualTracingComplianceForAllMeasure(ComplianceForAllMeasure):
+class ManualTracingReachabilityForAllMeasure(Measure):
     """
-    Compliant people leave their contact details at social, educational and office sites and can thereby be traced.
+    Reachability measure. All the population has a probability of being reachable in
+    manual tracing. If an individual i complies with this measure and the infector participating in manual tracing
+    recalls a contact with i, i gets traced even if i does not comply with any digital tracing technology.
     """
+
+    def __init__(self, t_window, p_reachable):
+        """
+
+        Parameters
+        ----------
+        t_window : Interval
+            Time window during which the measure is active
+        p_participate : float
+            Probability that individual is participating with manual contact tracing, should be in [0,1]
+        p_recall : float
+            Probability that individual recalls a given visit, should be in [0,1]
+        """
+        # Init time window
+        super().__init__(t_window)
+
+        # Init probability of respecting measure
+        if (not isinstance(p_reachable, float)) or (p_reachable < 0):
+            raise ValueError("`p_reachable` should be a non-negative float")
+        self.p_reachable = p_reachable
+
+    def init_run(self, n_people, n_visits):
+        """Init the measure for this run by sampling the compliance of each individual
+
+        Parameters
+        ----------
+        n_people : int
+            Number of people in the population
+        n_visits : int
+            Maximum number of visits of an individual
+        """
+        # Sample the reachability outcome of the measure for each individual
+        self.bernoulli_reachable = np.random.binomial(1, self.p_reachable, size=(n_people, n_visits)).astype(np.bool)
+        self._is_init = True
+
     @enforce_init_run
-    def is_compliant(self, *, site_type, j, t):
+    def is_active(self, *, j, t, j_visit_id, site_type):
+        """
+        j : int
+            individual
+        t : float
+            time
+        site_type : str
+            type of site at which contact happened
+        """
         if site_type in ['education', 'social', 'office']:
-            return super().is_compliant(j=j, t=t)
+            return self.bernoulli_reachable[j, j_visit_id] and self._in_window(t)
         else:
             return False
+
+    def exit_run(self):
+        """ Deletes bernoulli array. """
+        if self._is_init:
+            self.bernoulli_reachable = None
+            self._is_init = False
 
 
 class ManualTracingForAllMeasure(Measure):

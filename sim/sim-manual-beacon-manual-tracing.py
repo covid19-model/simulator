@@ -24,6 +24,7 @@ if __name__ == '__main__':
     country = args.country
     area = args.area
     cpu_count = args.cpu_count
+    continued_run = args.continued
 
     name = 'manual-beacon-manual-tracing'
     start_date = '2021-01-01'
@@ -37,7 +38,7 @@ if __name__ == '__main__':
     condensed_summary = True
 
     # contact tracing experiment parameters
-    p_manual_tracability = 0.1
+    p_manual_reachability = 0.1
     sites_with_beacons = [0.05]
     ps_recall =   [1.0]  # Proportion of visits tracing non-compliant person recalls in manual tracing interview
     p_willing_to_share = 1.0   # Proportion of visits tracing compliant person is willing to share
@@ -81,6 +82,7 @@ if __name__ == '__main__':
         cpu_count=cpu_count,
         full_scale=full_scale,
         condensed_summary=condensed_summary,
+        continued_run=continued_run,
         verbose=verbose,
     )
 
@@ -94,21 +96,21 @@ if __name__ == '__main__':
                 max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
                 m = [
-                    # beacon measures
-                    ManualTracingForAllMeasure(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_participate=1.0,
-                        p_recall=p_recall),
-
-                    # Manual contact tracing (without cooperation with digital tracing)
-                    ManualTracingComplianceForAllMeasure(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_compliance=p_manual_tracability),
-
                     # mobility reduction since the beginning of the pandemic
                     SocialDistancingBySiteTypeForAllMeasure(
                         t_window=Interval(0.0, TO_HOURS * max_days),
                         p_stay_home_dict=mobility_reduction[country][area]),
+
+                    # Manual contact tracing
+                    # infectors not compliant with digital tracing may reveal their mobility trace upon positive testing
+                    ManualTracingForAllMeasure(
+                        t_window=Interval(0.0, TO_HOURS * max_days),
+                        p_participate=1.0,
+                        p_recall=p_recall),
+                    # contact persons not compliant with digital tracing may be reached via phone
+                    ManualTracingReachabilityForAllMeasure(
+                        t_window=Interval(0.0, TO_HOURS * max_days),
+                        p_reachable=p_manual_reachability),
 
                     # standard tracing measures
                     ComplianceForAllMeasure(

@@ -485,8 +485,9 @@ class DiseaseModel(object):
         self.measure_list.init_run(ComplianceForAllMeasure,
                                    n_people=self.n_people)
 
-        self.measure_list.init_run(ManualTracingComplianceForAllMeasure,
-                                   n_people=self.n_people)
+        self.measure_list.init_run(ManualTracingReachabilityForAllMeasure,
+                                   n_people=self.n_people,
+                                   n_visits=max(self.mob.visit_counts))
 
         self.measure_list.init_run(ManualTracingForAllMeasure,
                                    n_people=self.n_people,
@@ -739,11 +740,11 @@ class DiseaseModel(object):
                     # 4) check whether infectiousness got reduced due to site specific 
                     #    measures and as a consequence this event didn't occur
                     rejection_prob = self.reject_exposure_due_to_measure(t=t, k=k)
-                    site_avoided_infection =  (np.random.uniform() < rejection_prob)
+                    site_avoided_infection = (np.random.uniform() < rejection_prob)
 
                     # "thinning"
                     # if none of 1), 2), 3), 4) are true, the event is valid
-                    if  (not infector_recovered) and \
+                    if (not infector_recovered) and \
                         (not infector_contained) and \
                         (not i_contained) and \
                         (not site_avoided_infection):
@@ -1488,6 +1489,7 @@ class DiseaseModel(object):
         # if the individual is tested positive, process contact tracing when active and intended
         if self.state['posi'][i] and (self.smart_tracing_actions != []) and trigger_tracing_if_positive:
             self.__update_smart_tracing(t, i)
+            self.__update_smart_tracing_housholds(t, i)
     
     def __update_smart_tracing(self, t, i):
         '''
@@ -1610,23 +1612,14 @@ class DiseaseModel(object):
                         trigger_tracing_if_positive=self.trigger_tracing_after_posi_trace_test)
                 else:
                     raise ValueError('Invalid smart tracing policy.')
-        
+
+    def __update_smart_tracing_housholds(self, t, i):
         '''Execute contact tracing actions for _household members_'''
         for j in self.households[self.people_household[i]]:
 
-            # Note: Compliance corresponds to the question if a person uses a tracing technology.
-            # Independently of any tracing technology household members of an infected person will know about
-            # the infection and are obliged by law to get quarantined
-
-            # check that contact satisfies conditions
-            # is_j_compliant = self.measure_list.is_compliant(
-            #     ComplianceForAllMeasure, t=max(t-self.smart_tracing_contact_delta, 0.0), j=j)
-            # if self.state['dead'][j] or j == i or (not is_j_compliant):
-            #     continue
-
             if self.state['dead'][j]:
                 continue
-            
+
             # contact tracing action
             if 'isolate' in self.smart_tracing_actions:
                 self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=j)
@@ -1638,8 +1631,8 @@ class DiseaseModel(object):
                 # don't test positive people twice
                 if not self.state['posi'][j]:
                     # household members always treated as `empirical survival prob. = 0` for `exposure-risk` policy
-                    # not relevant for `fifo` queue 
-                    self.__apply_for_testing(t=t, i=j, priority=0.0, 
+                    # not relevant for `fifo` queue
+                    self.__apply_for_testing(t=t, i=j, priority=0.0,
                         trigger_tracing_if_positive=self.trigger_tracing_after_posi_trace_test)
 
     def __tracing_policy_basic(self, contacts_with_j, budget):
@@ -1754,8 +1747,9 @@ class DiseaseModel(object):
             is_i_compliant_or_recalls = True
         else:
             # if infector `i` not compliant with standard tracing, a contact can still be identified when
-            # (i) `i` participates in manual tracing, and 
-            # (ii) a bluetooth beacon is at the site
+            # (i) `i` participates in manual tracing, and either
+            # (iia) a bluetooth beacon is at the site
+            # (iib) or `j` is reachable over offline manual tracing
 
             # check if `i` recalls the visit and hence its site
             i_recalls_visit = self.measure_list.is_active(
@@ -1766,26 +1760,28 @@ class DiseaseModel(object):
 
             is_i_compliant_or_recalls = i_recalls_visit
 
-        # j can only be traced when complying with the system
+        # 1) j can be traced with digital tracing
         is_j_compliant = self.measure_list.is_compliant(
             ComplianceForAllMeasure, 
             # to be consistent with `is_i_compliant` check, don't use `start_contact`
             t=max(t - self.smart_tracing_contact_delta, 0.0), j=j)
 
-        is_j_manually_tracable = self.measure_list.is_compliant(
-            ManualTracingComplianceForAllMeasure,
-            site_type=site_type,
+        # 2) j can be traced with offline manual tracing
+        is_j_manually_tracable = self.measure_list.is_active(
+            ManualTracingReachabilityForAllMeasure,
             # to be consistent with `is_i_compliant` check, don't use `start_contact`
-            t=max(t - self.smart_tracing_contact_delta, 0.0), j=j)
-        
+            t=max(t - self.smart_tracing_contact_delta, 0.0), j=j,
+            j_visit_id=j_visit_id,
+            site_type=site_type)
+
+        # If either i or j does not comply with any tracing method (digital/offline)
         if (not is_i_compliant_or_recalls) or (not (is_j_compliant or is_j_manually_tracable)):
             return False
 
         '''Check that site traces contact'''
-        if not is_j_manually_tracable:
-            if self.mob.beacon_config is not None:
-                if not self.mob.site_has_beacon[site_id]:
-                    return False
+        if not is_j_manually_tracable and self.mob.beacon_config is not None:
+            if not self.mob.site_has_beacon[site_id]:
+                return False
 
         '''Check SocialDistancing measures'''
         is_i_contained = self.is_person_home_from_visit_due_to_measure(

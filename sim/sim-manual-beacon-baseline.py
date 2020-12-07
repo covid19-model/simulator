@@ -24,6 +24,7 @@ if __name__ == '__main__':
     country = args.country
     area = args.area
     cpu_count = args.cpu_count
+    continued_run = args.continued
 
     name = 'manual-beacon-baseline'
     start_date = '2021-01-01'
@@ -38,7 +39,9 @@ if __name__ == '__main__':
 
     # contact tracing experiment parameters
     beacon_config = None
-    p_manual_tracability = 0.1
+    p_manual_reachability = 0.1
+    p_recall = 0.5
+
     if args.p_adoption is not None:
         ps_adoption = [args.p_adoption]
     else:
@@ -71,6 +74,7 @@ if __name__ == '__main__':
         cpu_count=cpu_count,
         full_scale=full_scale,
         condensed_summary=condensed_summary,
+        continued_run=continued_run,
         verbose=verbose,
     )
 
@@ -86,10 +90,16 @@ if __name__ == '__main__':
                 t_window=Interval(0.0, TO_HOURS * max_days),
                 p_stay_home_dict=mobility_reduction[country][area]),
 
-            # Manual contact tracing (without cooperation with digital tracing)
-            ManualTracingComplianceForAllMeasure(
+            # Manual contact tracing
+            # infectors not compliant with digital tracing may reveal their mobility trace upon positive testing
+            ManualTracingForAllMeasure(
                 t_window=Interval(0.0, TO_HOURS * max_days),
-                p_compliance=p_manual_tracability),
+                p_participate=1.0,
+                p_recall=p_recall),
+            # contact persons not compliant with digital tracing may be reached via phone
+            ManualTracingReachabilityForAllMeasure(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_reachable=p_manual_reachability),
                 
             # standard tracing measures
             ComplianceForAllMeasure(
