@@ -41,12 +41,12 @@ if __name__ == '__main__':
     smart_tracing_stats_window = (31 * TO_HOURS, 1000 * TO_HOURS)
 
     # contact tracing experiment parameters
+    p_adoption = args.p_adoption or 1.0
+    p_recall = 1.0
     p_manual_reachability = 0.1
-    p_recall = 0.5
     spread_factors = [10.0, 5.0, 2.0, 1.0]
     thresholds_roc = np.linspace(-0.01, 1.01, num=103, endpoint=True)
     beacon_config = dict(mode='all')
-    p_adoption = args.p_adoption or 1.0
 
     # seed
     c = 0
