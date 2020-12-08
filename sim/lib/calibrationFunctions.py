@@ -708,7 +708,7 @@ def make_bayes_opt_functions(args):
     # select objective function
     if use_log_objective:
         def log_mse_loss(G):
-            return - np.log((G - G_obs_aggregate).pow(2).sum(dim=-1) / n_days)
+            return - torch.log((G - G_obs_aggregate).pow(2).sum(dim=-1) / n_days)
         objective = GenericMCObjective(log_mse_loss)
     else:
         objective = GenericMCObjective(composite_squared_loss)

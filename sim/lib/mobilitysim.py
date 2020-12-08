@@ -577,10 +577,6 @@ class MobilitySimulator:
                 seed=rd.randint(0, 2**32 - 1)
                 )
 
-        # Group mobility traces per indiv 
-        self.mob_traces_by_indiv = self._group_mob_traces_by_indiv(all_mob_traces)
-        self.mob_traces_by_site = self._group_mob_traces_by_site(all_mob_traces)
-
         return all_mob_traces
 
     def _find_all_contacts(self):
@@ -710,8 +706,11 @@ class MobilitySimulator:
             print(f'Simulate mobility for {max_time:.2f} time units... ',
                   end='', flush=True)
 
-        # unprocessed all_mob_traces not needed
-        _ = self._simulate_mobility(max_time, seed)
+        # simulate mobility traces
+        all_mob_traces = self._simulate_mobility(max_time, seed)
+
+        self.mob_traces_by_indiv = self._group_mob_traces_by_indiv(all_mob_traces)
+        self.mob_traces_by_site = self._group_mob_traces_by_site(all_mob_traces)
 
         # Initialize empty contact array
         self.contacts = {i: defaultdict(InterLap) for i in range(self.num_people)}
