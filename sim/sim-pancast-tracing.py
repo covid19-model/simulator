@@ -158,6 +158,7 @@ if __name__ == '__main__':
                     p_adoption=p_adoption,
                     p_recall=p_recall,
                     beacon_proportion=beacon_proportion,
+                    beacon_mode=beacon_mode,
                     p_willing_to_share=p_willing_to_share,
                 )
 
