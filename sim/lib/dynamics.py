@@ -1713,7 +1713,6 @@ class DiseaseModel(object):
         j_visit_id, i_visit_id = contact.id_tup
         site_type = self.mob.site_dict[self.mob.site_type[site_id]]
 
-
         '''Check status of both individuals'''
         i_has_valid_status = (
             # not dead
@@ -1737,36 +1736,27 @@ class DiseaseModel(object):
         if (not i_has_valid_status) or (not j_has_valid_status):
             return False
         
-        '''Check compliance'''
+        '''Check contact tracing channels'''
+        # check if i is complaint with digital tracing
         is_i_compliant = self.measure_list.is_compliant(
             ComplianceForAllMeasure, 
             # to be consistent with general `is_i_compliant` check outside, don't use `start_contact`
             t=max(t - self.smart_tracing_contact_delta, 0.0), j=i)
-            
-        if is_i_compliant:
-            is_i_compliant_or_recalls = True
-        else:
-            # if infector `i` not compliant with standard tracing, a contact can still be identified when
-            # (i) `i` participates in manual tracing, and either
-            # (iia) a bluetooth beacon is at the site
-            # (iib) or `j` is reachable over offline manual tracing
 
-            # check if `i` recalls the visit and hence its site
-            i_recalls_visit = self.measure_list.is_active(
-                ManualTracingForAllMeasure,
-                t=start_contact,  # t not needed for the visit, but only for whether measure is active
-                j=i,
-                j_visit_id=i_visit_id)  # `i_visit_id` queries whether `i` recalls this specific visit
-
-            is_i_compliant_or_recalls = i_recalls_visit
-
-        # 1) j can be traced with digital tracing
+        # check if j is compliant with digital tracing
         is_j_compliant = self.measure_list.is_compliant(
-            ComplianceForAllMeasure, 
+            ComplianceForAllMeasure,
             # to be consistent with `is_i_compliant` check, don't use `start_contact`
             t=max(t - self.smart_tracing_contact_delta, 0.0), j=j)
 
-        # 2) j can be traced with offline manual tracing
+        # check if i is compliant with manual tracing (offline/digital) and recalls site they visited
+        i_recalls_visit = self.measure_list.is_active(
+            ManualTracingForAllMeasure,
+            t=start_contact,  # t not needed for the visit, but only for whether measure is active
+            j=i,
+            j_visit_id=i_visit_id)  # `i_visit_id` queries whether `i` recalls this specific visit
+
+        # check if j can be traced with offline manual tracing
         is_j_manually_tracable = self.measure_list.is_active(
             ManualTracingReachabilityForAllMeasure,
             # to be consistent with `is_i_compliant` check, don't use `start_contact`
@@ -1774,14 +1764,28 @@ class DiseaseModel(object):
             j_visit_id=j_visit_id,
             site_type=site_type)
 
-        # If either i or j does not comply with any tracing method (digital/offline)
-        if (not is_i_compliant_or_recalls) or (not (is_j_compliant or is_j_manually_tracable)):
-            return False
+        # Check if site at which contact happened has a beacon for beacon tracing
+        if self.mob.beacon_config is not None:
+            site_has_beacon = self.mob.site_has_beacon[site_id]
+        else:
+            site_has_beacon = False
 
-        '''Check that site traces contact'''
-        if not is_j_manually_tracable and self.mob.beacon_config is not None:
-            if not self.mob.site_has_beacon[site_id]:
-                return False
+        # Contacts can be identified if one of the following is true:
+        # 1) i and j are compliant with digital tracing
+        # 2) i recalls visit in manual contact interview and j is offline manually reachable e.g. via phone
+        # 3) i recalls visit in manual contact interview and j is compliant with beacon tracing and the site at which
+        #    the contact happened has a beacon
+        # 4) i is compliant with beacon tracing and j is manually reachable
+        digital_tracable = is_i_compliant and is_j_compliant
+        offline_manual_tracable = i_recalls_visit and is_j_manually_tracable
+        manual_beacon_tracable = i_recalls_visit and is_j_compliant and site_has_beacon
+        beacon_manual_reachable = is_i_compliant and site_has_beacon and is_j_manually_tracable
+
+        contact_tracable = (digital_tracable or offline_manual_tracable or
+                            manual_beacon_tracable or beacon_manual_reachable)
+
+        if not contact_tracable:
+            return False
 
         '''Check SocialDistancing measures'''
         is_i_contained = self.is_person_home_from_visit_due_to_measure(

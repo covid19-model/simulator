@@ -26,7 +26,7 @@ if __name__ == '__main__':
     cpu_count = args.cpu_count
     continued_run = args.continued
 
-    name = 'beacon-spect-tracing'
+    name = 'spect-tracing'
     start_date = '2021-01-01'
     end_date = '2021-07-01'
     random_repeats = 100
@@ -38,8 +38,10 @@ if __name__ == '__main__':
     condensed_summary = True
 
     # contact tracing experiment parameters
-    p_recall = 1.0
-    p_manual_reachability = 0.1
+    p_recall = 0.1
+    p_manual_reachability = 0.5
+    p_willing_to_share = 1.0
+    smart_tracing_threshold = 0.05
     beacon_config = None
 
     if args.p_adoption is not None:
@@ -126,16 +128,18 @@ if __name__ == '__main__':
 
             # isolation
             d['smart_tracing_policy_isolate'] = 'advanced-threshold'
-            d['smart_tracing_isolation_threshold'] =  0.1
+            d['smart_tracing_isolation_threshold'] = smart_tracing_threshold
             d['smart_tracing_isolated_contacts'] = 100000
             d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
 
             # testing
             d['smart_tracing_policy_test'] = 'advanced-threshold'
-            d['smart_tracing_testing_threshold'] = 0.1
+            d['smart_tracing_testing_threshold'] = smart_tracing_threshold
             d['smart_tracing_tested_contacts'] = 100000
             d['trigger_tracing_after_posi_trace_test'] = False
-            
+
+            # Tracing compliance
+            d['p_willing_to_share'] = p_willing_to_share
             return d
 
         simulation_info = options_to_str(

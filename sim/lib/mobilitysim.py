@@ -620,7 +620,7 @@ class MobilitySimulator:
         for inf_visit in infector_traces:
 
             # coin flip of whether infector `indiv` reveals their visit
-            if tracing is True and np.random.uniform(low=0, high=1) > p_reveal_visit:
+            if tracing is True and np.random.uniform(low=0.0, high=1.0) > p_reveal_visit:
                 continue
 
             # find all contacts of `indiv` by querying visits of
