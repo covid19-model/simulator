@@ -1771,12 +1771,12 @@ class DiseaseModel(object):
             site_has_beacon = False
 
         # Contacts can be identified if one of the following is true:
-        # 1) i and j are compliant with digital tracing
+        # 1) i and j are compliant with digital tracing (require P2P tracing or location-based tracing with beacon at site)
         # 2) i recalls visit in manual contact interview and j is offline manually reachable e.g. via phone
         # 3) i recalls visit in manual contact interview and j is compliant with beacon tracing and the site at which
         #    the contact happened has a beacon
         # 4) i is compliant with beacon tracing and j is manually reachable
-        digital_tracable = is_i_compliant and is_j_compliant
+        digital_tracable = is_i_compliant and is_j_compliant and ((self.mob.beacon_config is None) or site_has_beacon)
         offline_manual_tracable = i_recalls_visit and is_j_manually_tracable
         manual_beacon_tracable = i_recalls_visit and is_j_compliant and site_has_beacon
         beacon_manual_reachable = is_i_compliant and site_has_beacon and is_j_manually_tracable
