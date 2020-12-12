@@ -1,20 +1,16 @@
 
-import sys, os
+import sys
 if '..' not in sys.path:
     sys.path.append('..')
 
-import numpy as np
 import random as rd
 import pandas as pd
-import pickle
-import pprint
-import multiprocessing
-import argparse
 from lib.measures import *
-from lib.experiment import Experiment, options_to_str, process_command_line, load_summary
-from lib.calibrationSettings import calibration_lockdown_dates, calibration_mob_paths, calibration_states, contact_tracing_adoption
+from lib.experiment import Experiment, options_to_str, process_command_line
 from lib.calibrationFunctions import get_calibrated_params
 from lib.settings.mobility_reduction import mobility_reduction
+from lib.settings.beta_dispersion import get_invariant_beta_multiplier
+
 
 TO_HOURS = 24.0
 
@@ -43,10 +39,10 @@ if __name__ == '__main__':
     # contact tracing experiment parameters
     p_recall = 0.1
     p_manual_reachability = 0.5
-    p_willing_to_share = 1.0
     smart_tracing_threshold = 0.05
     p_adoption = args.p_adoption or 1.0
-    spread_factors = [10.0, 5.0, 2.0, 1.0]
+    beta_dispersions = [10.0, 5.0, 2.0, 1.0]
+    mean_invariant_beta_scaling = True
     thresholds_roc = np.linspace(-0.01, 1.01, num=103, endpoint=True)
     beacon_config = dict(mode='all')
 
@@ -87,19 +83,14 @@ if __name__ == '__main__':
     )
 
     # contact tracing experiment for various options
-    for fact in spread_factors:
+    for beta_dispersion in beta_dispersions:
 
-        beta_multipliers = {
-            'education': 1.0,
-            'social': 1.0 * fact,
-            'bus_stop': 1.0 / fact,
-            'office': 1.0,
-            'supermarket': 1.0,
-        }
+        beta_multipliers = get_invariant_beta_multiplier(beta_dispersion, country, area,
+                                                         use_invariant_rescaling=mean_invariant_beta_scaling,
+                                                         verbose=True)
 
         # measures
         max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
-
         m = [        
             # beta scaling (direcly scales betas ahead of time, so upscaling is valid
             APrioriBetaMultiplierMeasureByType(
@@ -160,14 +151,14 @@ if __name__ == '__main__':
             d['smart_tracing_stats_window'] = smart_tracing_stats_window
 
             # Tracing compliance
-            d['p_willing_to_share'] = p_willing_to_share
+            d['p_willing_to_share'] = 1.0
             return d
 
 
         simulation_info = options_to_str(
             beacon=beacon_config['mode'],
             p_adoption=p_adoption,
-            x=fact,
+            beta_dispersion=beta_dispersion,
         )
             
         experiment.add(

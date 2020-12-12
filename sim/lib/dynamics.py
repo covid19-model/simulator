@@ -508,21 +508,18 @@ class DiseaseModel(object):
 
         self.measure_list.init_run(SocialDistancingForKGroups)
 
-        # if specified, scale optimized betas a priori
-        try:
-            apriori_beta = self.measure_list.find_first(APrioriBetaMultiplierMeasureByType)
-            for k in range(self.num_site_types):
-                self.betas[self.site_dict[k]] *= apriori_beta.beta_factor(typ=self.site_dict[k])
-        except:
-            pass
-
-        # for analysis purposes, compute mean of betas weighted by number of times each site type occurs
-        # i.e. mean(rel_occurrence_of_site_type[k] * beta[k])
+        # Store the original beta values
         self.betas_weighted_mean = sum([
-            self.betas[self.site_dict[k]] 
+            self.betas[self.site_dict[k]]
             * np.sum(self.site_type == k) / self.n_sites # relative frequency of site type k
             for k in range(self.num_site_types)
-        ]) 
+        ])
+
+        # if specified, scale optimized betas a priori
+        apriori_beta = self.measure_list.find_first(APrioriBetaMultiplierMeasureByType)
+        if apriori_beta:
+            for k in range(self.num_site_types):
+                self.betas[self.site_dict[k]] *= apriori_beta.beta_factor(typ=self.site_dict[k])
 
         # init state variables with seeds
         self.__init_run()

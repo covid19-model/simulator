@@ -9,6 +9,8 @@ import json
 
 from interlap import InterLap
 
+from lib.calibrationSettings import calibration_mob_paths
+
 TO_HOURS = 24.0
 
 # Tuple representing a vist of an individual at a site
@@ -220,6 +222,21 @@ def _simulate_real_mobility_traces(*, num_people, max_time, site_type, people_ag
         visit_counts.append(len(data_i))
 
     return data, visit_counts
+
+
+def compute_mean_invariant_beta_multipliers(beta_multipliers, country, area, max_time, full_scale=True,
+                                            weighting='integrated_contact_time', mode='rescale_all'):
+    # Load mob settings
+    mob_settings_file = calibration_mob_paths[country][area][1 if full_scale else 0]
+    with open(mob_settings_file, 'rb') as fp:
+        mob_settings = pickle.load(fp)
+
+    mob = MobilitySimulator(**mob_settings)
+    mob.simulate(max_time=max_time)
+    mean_invariant_multipliers = mob.compute_mean_invariant_beta_multiplier(beta_multiplier=beta_multipliers,
+                                                                            weighting=weighting,
+                                                                            mode=mode)
+    return mean_invariant_multipliers
 
 
 class MobilitySimulator:
@@ -440,12 +457,19 @@ class MobilitySimulator:
 
     '''Beacon information computed at test time'''
 
-    def compute_site_priority_by_frequency(self, rollouts, max_time):
+    def compute_site_priority(self, rollouts, max_time, beta_multipliers=None):
+        """Computes site priority by integrated visit time scaled with site specific beta."""
+        if beta_multipliers:
+            weights = beta_multipliers
+        else:
+            weights = {key: 1.0 for key in self.site_dict.values()}
+
         time_at_site = np.zeros(self.num_sites)
         for _ in range(rollouts):
-            all_mob_traces = self._simulate_mobility(max_time=max_time, seed=None)
+            all_mob_traces = self._simulate_mobility(max_time=max_time)
             for v in all_mob_traces:
-                time_at_site[v.site] += v.duration
+                site_type = self.site_dict[self.site_type[v.site]]
+                time_at_site[v.site] += v.duration * weights[site_type]
         temp = time_at_site.argsort()
         site_priority = np.empty_like(temp)
         site_priority[temp] = np.arange(len(time_at_site))
@@ -477,10 +501,15 @@ class MobilitySimulator:
         elif beacon_config['mode'] == 'visit_freq':
             # extract mode specific information
             proportion_with_beacon = beacon_config['proportion_with_beacon']
-            
+
+            try:
+                beta_multipliers = beacon_config['beta_multipliers']
+            except KeyError:
+                beta_multipliers = None
+
             # compute beacon locations
             site_has_beacon = np.zeros(self.num_sites, dtype=bool)
-            site_priority = self.compute_site_priority_by_frequency(rollouts, max_time)
+            site_priority = self.compute_site_priority(rollouts, max_time, beta_multipliers=beta_multipliers)
             for k in range(len(site_has_beacon)):
                 if site_priority[k] > max(site_priority) * (1 - proportion_with_beacon):
                     site_has_beacon[k] = True
@@ -488,6 +517,65 @@ class MobilitySimulator:
         
         else:
             raise ValueError('Invalid `beacon_config` mode.')
+
+    '''Methods to calculate beta multiplier scaling to keep course of epidemic invariant in presence of beta dispersion'''
+
+    def compute_integrated_visit_time_proportion_per_site_type(self, rollouts, max_time):
+        time_at_site_type = np.zeros(self.num_site_types)
+        for _ in range(rollouts):
+            all_mob_traces = self._simulate_mobility(max_time=max_time)
+            for v in all_mob_traces:
+                time_at_site_type[self.site_type[v.site]] += v.duration
+        return time_at_site_type / np.sum(time_at_site_type)
+
+    def compute_integrated_contact_time_proportion_per_site_type(self, average_n_people, max_time):
+        contact_time_at_site_type = np.zeros(self.num_site_types)
+        self.simulate(max_time=max_time)
+        random_people = np.random.uniform(0, self.num_people, average_n_people).astype(np.int)
+        for person in random_people:
+            contacts = self.find_contacts_of_indiv(person, tmin=0, tmax=max_time)
+            for contact in contacts:
+                contact_time_at_site_type[self.site_type[contact.site]] += contact.duration
+        return contact_time_at_site_type / np.sum(contact_time_at_site_type)
+
+    def compute_mean_invariant_beta_multiplier(self, beta_multiplier, weighting, mode):
+        """Computes normalized beta multipliers from `beta_multiplier` such that the weighted average over the
+        betas at all sites remains invariant. Depending on the quantity that is supposed to be kept invariant,
+        the weights are calculated in different ways."""
+
+        n_sites_per_type = np.asarray([(np.array(self.site_type) == i).sum() for i in range(self.num_site_types)])
+        beta_multiplier_array = np.asarray(list(beta_multiplier.values()))
+
+        if weighting == 'sites_per_type':
+            numerator = n_sites_per_type
+            denominator = n_sites_per_type * beta_multiplier_array
+        elif weighting == 'integrated_visit_time':
+            integrated_visit_time = self.compute_integrated_visit_time_proportion_per_site_type(
+                max_time=28 * TO_HOURS, rollouts=1)
+            numerator = integrated_visit_time
+            denominator = integrated_visit_time * beta_multiplier_array
+        elif weighting == 'integrated_contact_time':
+            integrated_contact_time = self.compute_integrated_contact_time_proportion_per_site_type(
+                max_time=28 * TO_HOURS, average_n_people=int(self.num_people/10))
+            numerator = integrated_contact_time
+            denominator = integrated_contact_time * beta_multiplier_array
+        else:
+            numerator, denominator = None, None
+            NotImplementedError('Invalid beta weighting method specified')
+
+        if mode == 'rescale_all':
+            # [beta, x*beta, 1/x * beta, beta, beta] -> scaling * np.asarray([beta, x*beta, 1/x * beta, beta, beta])
+            scaling = np.sum(numerator) / np.sum(denominator)
+            beta_multiplier_array *= scaling
+        elif mode == 'rescale_scaled':
+            # [beta, x*beta, 1/x * beta, beta, beta] -> [beta, scaling * x*beta, scaling * 1/x * beta, beta, beta]
+            is_sitetype_scaled = np.where(beta_multiplier_array != 1.0)
+            scaling = np.sum(numerator[is_sitetype_scaled]) / np.sum(denominator[is_sitetype_scaled])
+            beta_multiplier_array[is_sitetype_scaled] *= scaling
+
+        for k, key in enumerate(beta_multiplier.keys()):
+            beta_multiplier[key] = beta_multiplier_array[k]
+        return beta_multiplier
 
     '''Class methods'''
 

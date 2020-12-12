@@ -1,5 +1,8 @@
 
 import sys, os
+
+from lib.settings.beta_dispersion import get_invariant_beta_multiplier
+
 if '..' not in sys.path:
     sys.path.append('..')
 
@@ -40,9 +43,10 @@ if __name__ == '__main__':
     # contact tracing experiment parameters
     p_recall = 0.1
     p_manual_reachability = 0.5
-    p_willing_to_share = 1.0
     smart_tracing_threshold = 0.05
     beacon_config = None
+    beta_dispersions = [10.0, 5.0, 2.0, 1.0]
+    mean_invariant_beta_scaling = True
 
     if args.p_adoption is not None:
         ps_adoption = [args.p_adoption]
@@ -80,87 +84,93 @@ if __name__ == '__main__':
         verbose=verbose,
     )
 
-    # contact tracing experiment for various options
-    for p_adoption in ps_adoption:
+    for beta_dispersion in beta_dispersions:
+        beta_multipliers = get_invariant_beta_multiplier(beta_dispersion, country, area,
+                                                         use_invariant_rescaling=mean_invariant_beta_scaling,
+                                                         verbose=True)
 
-        # measures
-        max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+        # contact tracing experiment for various options
+        for p_adoption in ps_adoption:
 
-        m = [
-            # Manual contact tracing
-            # infectors not compliant with digital tracing may reveal their mobility trace upon positive testing
-            ManualTracingForAllMeasure(
-                t_window=Interval(0.0, TO_HOURS * max_days),
-                p_participate=1.0,
-                p_recall=p_recall),
-            # contact persons not compliant with digital tracing may be reached via phone
-            ManualTracingReachabilityForAllMeasure(
-                t_window=Interval(0.0, TO_HOURS * max_days),
-                p_reachable=p_manual_reachability),
-                
-            # standard tracing measures
-            ComplianceForAllMeasure(
-                t_window=Interval(0.0, TO_HOURS * max_days),
-                p_compliance=p_adoption),
-            SocialDistancingForSmartTracing(
-                t_window=Interval(0.0, TO_HOURS * max_days), 
-                p_stay_home=1.0, 
-                smart_tracing_isolation_duration=TO_HOURS * 14.0),
-            SocialDistancingForSmartTracingHousehold(
-                t_window=Interval(0.0, TO_HOURS * max_days),
-                p_isolate=1.0,
-                smart_tracing_isolation_duration=TO_HOURS * 14.0),
-            ]
-        
-        if args.mobility_reduction:
-            m += [
-                # mobility reduction since the beginning of the pandemic
-                SocialDistancingBySiteTypeForAllMeasure(
+            # measures
+            max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+
+            m = [
+                # Manual contact tracing
+                # infectors not compliant with digital tracing may reveal their mobility trace upon positive testing
+                ManualTracingForAllMeasure(
                     t_window=Interval(0.0, TO_HOURS * max_days),
-                    p_stay_home_dict=mobility_reduction[country][area]),
-            ]
+                    p_participate=1.0,
+                    p_recall=p_recall),
+                # contact persons not compliant with digital tracing may be reached via phone
+                ManualTracingReachabilityForAllMeasure(
+                    t_window=Interval(0.0, TO_HOURS * max_days),
+                    p_reachable=p_manual_reachability),
 
-        # set testing params via update function of standard testing parameters
-        def test_update(d):
-            d['smart_tracing_actions'] = ['isolate', 'test']
-            d['test_reporting_lag'] = 48.0
-            d['tests_per_batch'] = 100000
+                # standard tracing measures
+                ComplianceForAllMeasure(
+                    t_window=Interval(0.0, TO_HOURS * max_days),
+                    p_compliance=p_adoption),
+                SocialDistancingForSmartTracing(
+                    t_window=Interval(0.0, TO_HOURS * max_days),
+                    p_stay_home=1.0,
+                    smart_tracing_isolation_duration=TO_HOURS * 14.0),
+                SocialDistancingForSmartTracingHousehold(
+                    t_window=Interval(0.0, TO_HOURS * max_days),
+                    p_isolate=1.0,
+                    smart_tracing_isolation_duration=TO_HOURS * 14.0),
+                ]
 
-            # isolation
-            d['smart_tracing_policy_isolate'] = 'advanced-threshold'
-            d['smart_tracing_isolation_threshold'] = smart_tracing_threshold
-            d['smart_tracing_isolated_contacts'] = 100000
-            d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
+            if args.mobility_reduction:
+                m += [
+                    # mobility reduction since the beginning of the pandemic
+                    SocialDistancingBySiteTypeForAllMeasure(
+                        t_window=Interval(0.0, TO_HOURS * max_days),
+                        p_stay_home_dict=mobility_reduction[country][area]),
+                ]
 
-            # testing
-            d['smart_tracing_policy_test'] = 'advanced-threshold'
-            d['smart_tracing_testing_threshold'] = smart_tracing_threshold
-            d['smart_tracing_tested_contacts'] = 100000
-            d['trigger_tracing_after_posi_trace_test'] = False
+            # set testing params via update function of standard testing parameters
+            def test_update(d):
+                d['smart_tracing_actions'] = ['isolate', 'test']
+                d['test_reporting_lag'] = 48.0
+                d['tests_per_batch'] = 100000
 
-            # Tracing compliance
-            d['p_willing_to_share'] = p_willing_to_share
-            return d
+                # isolation
+                d['smart_tracing_policy_isolate'] = 'advanced-threshold'
+                d['smart_tracing_isolation_threshold'] = smart_tracing_threshold
+                d['smart_tracing_isolated_contacts'] = 100000
+                d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
 
-        simulation_info = options_to_str(
-            p_adoption=p_adoption,
-        )
-            
-        experiment.add(
-            simulation_info=simulation_info,
-            country=country,
-            area=area,
-            measure_list=m,
-            beacon_config=None, 
-            test_update=test_update,
-            seed_summary_path=seed_summary_path,
-            set_initial_seeds_to=set_initial_seeds_to,
-            set_calibrated_params_to=calibrated_params,
-            full_scale=full_scale,
-            lockdown_measures_active=False,
-            expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
-                
-    print(f'{experiment_info} configuration done.')
+                # testing
+                d['smart_tracing_policy_test'] = 'advanced-threshold'
+                d['smart_tracing_testing_threshold'] = smart_tracing_threshold
+                d['smart_tracing_tested_contacts'] = 100000
+                d['trigger_tracing_after_posi_trace_test'] = False
+
+                # Tracing compliance
+                d['p_willing_to_share'] = 1.0
+                return d
+
+            simulation_info = options_to_str(
+                p_adoption=p_adoption,
+                beta_dispersion=beta_dispersion,
+            )
+
+            experiment.add(
+                simulation_info=simulation_info,
+                country=country,
+                area=area,
+                measure_list=m,
+                beacon_config=None,
+                test_update=test_update,
+                seed_summary_path=seed_summary_path,
+                set_initial_seeds_to=set_initial_seeds_to,
+                set_calibrated_params_to=calibrated_params,
+                full_scale=full_scale,
+                lockdown_measures_active=False,
+                expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
+
+        print(f'{experiment_info} configuration done.')
 
     # execute all simulations
     experiment.run_all()
