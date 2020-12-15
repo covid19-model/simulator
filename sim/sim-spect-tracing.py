@@ -41,6 +41,7 @@ if __name__ == '__main__':
     condensed_summary = True
 
     # contact tracing experiment parameters
+    ps_adoption = [1.0, 0.5, 0.25, 0.1, 0.05, 0.0]
     p_recall = 0.1
     p_manual_reachability = 0.5
     smart_tracing_threshold = 0.05
@@ -50,8 +51,9 @@ if __name__ == '__main__':
 
     if args.p_adoption is not None:
         ps_adoption = [args.p_adoption]
-    else:
-        ps_adoption = [1.0, 0.5, 0.25, 0.1, 0.05, 0.0]
+
+    if args.beta_dispersion is not None:
+        beta_dispersions = [args.beta_dispersion]
 
     # seed
     c = 0

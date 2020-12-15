@@ -40,11 +40,17 @@ if __name__ == '__main__':
     p_recall = 0.1
     p_manual_reachability = 0.5
     smart_tracing_threshold = 0.05
-    p_adoption = args.p_adoption or 1.0
+    p_adoption = 1.0
     beta_dispersions = [10.0, 5.0, 2.0, 1.0]
     mean_invariant_beta_scaling = True
     thresholds_roc = np.linspace(-0.01, 1.01, num=103, endpoint=True)
     beacon_config = dict(mode='all')
+
+    if args.p_adoption is not None:
+        p_adoption = args.p_adoption
+
+    if args.beta_dispersion is not None:
+        beta_dispersions = [args.beta_dispersion]
 
     # seed
     c = 0
@@ -61,7 +67,6 @@ if __name__ == '__main__':
         end_date = '2021-01-10'
         smart_tracing_stats_window = (0 * TO_HOURS, 1000 * TO_HOURS)
         random_repeats = 1
-        spread_factors = [10.0]
         full_scale = False
         beacon_configs = [dict(
             mode='all',

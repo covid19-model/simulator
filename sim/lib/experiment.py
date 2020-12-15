@@ -99,8 +99,16 @@ def process_command_line(return_parser=False):
                         help="update default number of cpus used for parallel simulation rollouts")
     parser.add_argument("--smoke_test", action="store_true",
                         help="flag to quickly finish runs to see if something breaks")
+
     parser.add_argument("--p_adoption", type=float,
                         help="only run experiment with a single adoption level")
+    parser.add_argument("--beta_dispersion", type=float,
+                        help="only run experiment with a single beta dispersion level")
+    parser.add_argument("--beacon_proportion", type=float,
+                        help="only run experiment with a single beacon proportion")
+    parser.add_argument("--beacon_mode",
+                        help="only run experiment with a single beacon mode")
+                        
     parser.add_argument("--mobility_reduction", action="store_true",
                         help="flag to turn off mobility reduction")
     parser.add_argument("--continued", action="store_true",

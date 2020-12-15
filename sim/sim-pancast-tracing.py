@@ -41,7 +41,7 @@ if __name__ == '__main__':
     condensed_summary = True
 
     # contact tracing experiment parameters
-    p_adoption = [1.0, 0.5, 0.25, 0.1, 0.05]
+    ps_adoption = [1.0, 0.5, 0.25, 0.1, 0.05]
     p_recall = 0.1
     p_manual_reachability = 0.5
     smart_tracing_threshold = 0.05
@@ -52,8 +52,16 @@ if __name__ == '__main__':
 
     if args.p_adoption is not None:
         ps_adoption = [args.p_adoption]
-    else:
-        ps_adoption = [1.0, 0.5, 0.25, 0.1, 0.05]
+
+    if args.beta_dispersion is not None:
+        beta_dispersions = [args.beta_dispersion]
+
+    if args.beacon_proportion is not None:
+        sites_with_beacons = [args.beacon_proportion]
+
+    if args.beacon_mode is not None:
+        beacon_modes = [args.beacon_mode]
+
 
     # seed
     c = 0
