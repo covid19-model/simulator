@@ -14,6 +14,10 @@ from matplotlib.dates import date2num, num2date
 from matplotlib.backends.backend_pgf import FigureCanvasPgf
 from matplotlib.colors import ListedColormap
 
+from scipy.interpolate import griddata
+import matplotlib.colors as colors
+
+
 from lib.rt import compute_daily_rts, R_T_RANGE
 import lib.rt_nbinom
 from lib.summary import *
@@ -1642,7 +1646,7 @@ class Plotter(object):
                     stats = tracing_stats[thres][policy][action]
 
 
-                    # FPR = FP/(FP + TN)
+                    # FPR = FP/(FP + TN) [isolate + not infected / not infected]
                     # [if FP = 0 and TN = 0, set to 0]
                     fprs = stats['fp'] / (stats['fp'] + stats['tn'])
                     fprs = np.nan_to_num(fprs, nan=0.0)
@@ -1653,7 +1657,7 @@ class Plotter(object):
                     for r in range(len(fpr_single_runs)):
                         fpr_single_runs[r].append(fprs[r])
 
-                    # TPR = TP/(TP + FN) 
+                    # TPR = TP/(TP + FN) [isolate + infected / infected]
                     # = RECALL
                     # [if TP = 0 and FN = 0, set to 0]
                     tprs = stats['tp'] / (stats['tp'] + stats['fn'])
@@ -1715,6 +1719,96 @@ class Plotter(object):
         plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
                     dpi=DPI, bbox_inches='tight')
         plt.tight_layout()
+        if NO_PLOT:
+            plt.close()
+        return
+
+    def reff_heatmap(self, xlabel, ylabel, paths, path_labels, figformat='double',
+                     filename='reff_heatmap_0', figsize=None, acc=500, 
+                     relative_window=(0.25, 0.75)):
+        ''''
+        Plots heatmap of average R_t
+            paths:              list with tuples (x, y, path)
+            relative_window:    relative range of max_time used for R_t average
+        '''
+        # set double figure format
+        self._set_matplotlib_params(format=figformat)
+
+        # draw figure
+        fig, axs = plt.subplots(1, 2, figsize=figsize)
+
+        # extract data
+        reff_means_all = []
+        for p in paths:
+
+            reff_means = []
+            for xval, yval, path in p:
+
+                try:
+                    data = load_condensed_summary(path, acc)
+                except FileNotFoundError:
+                    acc = create_condensed_summary_from_path(sim, acc=acc)
+                    data = load_condensed_summary(sim, acc)
+
+                rtdata = data['nbinom_rts']
+                n_rollouts = data['metadata'].random_repeats
+                max_time = data['max_time']
+
+                l_max_time = relative_window[0] * max_time 
+                r_max_time = relative_window[1] * max_time
+
+                # filter time window
+                rtdata_window = rtdata.loc[(l_max_time <= rtdata['t0']) & (rtdata['t1'] <= r_max_time)]
+                reff_mean = np.mean(rtdata_window["Rt"])
+        
+                reff_means.append((xval, yval, reff_mean))
+
+            reff_means_all.append(reff_means)
+
+        # find min and max for both plots
+        zmins, zmaxs = [], []
+        for reff_means in reff_means_all:
+            x, y, z = zip(*reff_means)
+            zmins.append(min(z))
+            zmaxs.append(max(z))
+
+        zmin, zmax = min(zmins), max(zmaxs)
+
+        # generate heatmaps
+        for t, title in enumerate(path_labels):
+            
+            x, y, z = zip(*reff_means_all[t])
+            xbounds = min(x), max(x)
+            ybounds = min(y), max(y)
+
+            # contour interpolation
+            xi = np.linspace(xbounds[0], xbounds[1], 100)
+            yi = np.linspace(ybounds[0], ybounds[1], 100)
+            zi = griddata((x, y), z, (xi[None,:], yi[:,None]), method='cubic')
+
+            n_bins = 15
+            axs[t].contour(xi, yi, zi, n_bins, linewidths=0.5, colors='k', norm=colors.Normalize(vmin=zmin, vmax=zmax))
+
+            if t == 0:
+                contourplot = axs[t].contourf(xi, yi, zi, n_bins, cmap=plt.cm.jet, norm=colors.Normalize(vmin=zmin, vmax=zmax))
+            else:
+                _ = axs[t].contourf(xi, yi, zi, n_bins, cmap=plt.cm.jet, norm=colors.Normalize(vmin=zmin, vmax=zmax))
+
+            axs[t].set_xlabel(xlabel)
+            if t == 0:
+                axs[t].set_ylabel(ylabel)
+            axs[t].set_xlim(xbounds)
+            axs[t].set_ylim(ybounds)
+            axs[t].set_title(title)
+
+        fig.subplots_adjust(right=0.8)
+        cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+        fig.colorbar(contourplot, cax=cbar_ax)
+
+
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+                    dpi=DPI, bbox_inches='tight')
+
         if NO_PLOT:
             plt.close()
         return
