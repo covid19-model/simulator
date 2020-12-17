@@ -1452,17 +1452,24 @@ class Plotter(object):
         if NO_PLOT:
             plt.close()
 
-    def plot_daily_nbinom_rts(self, result=None, filename='', df=None,
+    def plot_daily_nbinom_rts(self, path, filename='daily_nbinom_rts_0',
                               slider_size=24.0, window_size=24.*7, end_cutoff=24.*10,
-                              figsize=None, figformat='double', ymax=None,
+                              figsize=None, figformat='double', ymax=None, acc=500,
                               cmap_range=(0.5, 1.5), subplots_adjust={'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96},
                               lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
                               x_axis_dates=True, xtick_interval=2, xlim=None):
         # Set this plot with double figures parameters
         self._set_matplotlib_params(format=figformat)
-        # Compute data if not provided
-        if df is None:
-            df = lib.rt_nbinom.estimate_daily_nbinom_rts(result, slider_size, window_size, end_cutoff)
+
+        # Compute statistics
+        try:
+            data = load_condensed_summary(path, acc)
+        except FileNotFoundError:
+            acc = create_condensed_summary_from_path(sim, acc=acc)
+            data = load_condensed_summary(sim, acc)
+
+        df = data['nbinom_rts']
+            
         # Format dates
         if x_axis_dates:
             # Cast time of end of interval to datetime
@@ -1536,17 +1543,27 @@ class Plotter(object):
         if NO_PLOT:
             plt.close()
 
-    def plot_nbinom_distributions(self, *, result=None, df=None, x_range=None,
-                                  figsize=FIG_SIZE_TRIPLE_TALL, figformat='triple',
-                                  t0_range=[], label_range=[], window_size=10.*24, ymax=None, filename=''):
+    def plot_nbinom_distributions(self, *, path, acc=500, figsize=FIG_SIZE_TRIPLE_TALL, figformat='triple',
+                                  label_range=[], ymax=None, filename='nbinom_dist_0'):
         """
         Plot the distribution of number of secondary cases along with their Negative-Binomial fits
         for the experiment summary in `result` for several ranges of times.
         A pre-computed dataframe `df` can also be provided
         """
-        if df is None:
-            interval_range = [(t0, t0 + window_size) for t0 in t0_range]
-            df = lib.rt_nbinom.compute_nbinom_distributions(result, x_range, interval_range)
+
+        # Compute statistics
+        try:
+            data = load_condensed_summary(path, acc)
+        except FileNotFoundError:
+            acc = create_condensed_summary_from_path(sim, acc=acc)
+            data = load_condensed_summary(sim, acc)
+
+        x_range = np.arange(0, 20)
+        t0_range = [50 * 24.0]
+        window_size = 10.0 * 24
+        interval_range = [(t0, t0 + window_size) for t0 in t0_range]
+        df = data['nbinom_dist']
+            
         # Aggregate results by time
         df_agg = df.groupby('t0').agg({'nbinom_pmf': list,
                                     'Rt': ['mean', 'std'],
