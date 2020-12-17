@@ -2,6 +2,7 @@ import sys, os
 if '..' not in sys.path:
     sys.path.append('..')
 
+import subprocess
 import pickle, multiprocessing, copy
 import pandas as pd
 import numpy as np
@@ -133,6 +134,9 @@ def process_command_line(return_parser=False):
         exit(1)
     return args
 
+def get_version_tag():
+    git_commit = subprocess.check_output(["git", "describe", "--always"]).strip().decode(sys.stdout.encoding) 
+    return git_commit
 
 """Experiment class for structured experimentation with simulations"""
 
@@ -169,7 +173,8 @@ class Experiment(object):
         self.sims = []
 
     def get_sim_path(self, sim):
-        return sim.experiment_info + '/' + sim.experiment_info + '-' + sim.simulation_info
+        version_tag = get_version_tag()
+        return sim.experiment_info + '-' + version_tag + '/' + sim.experiment_info + '-' + sim.simulation_info
 
     def save_condensed_summary(self, sim, summary):
         filepath = os.path.join('condensed_summaries', self.get_sim_path(sim) + '_condensed.pk')
