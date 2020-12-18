@@ -39,7 +39,7 @@ if __name__ == '__main__':
     # contact tracing experiment parameters
     p_recall = 0.1
     p_manual_reachability = 0.5
-    smart_tracing_threshold = 0.05
+    smart_tracing_threshold = 0.016
     p_adoption = 1.0
     beta_dispersions = [10.0, 5.0, 2.0, 1.0]
     mean_invariant_beta_scaling = True
