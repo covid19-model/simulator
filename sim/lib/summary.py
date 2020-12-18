@@ -217,7 +217,7 @@ def comp_daily_new(summary, states):
             restarts.append(new_cases)
             old_cases = cases_at_t
 
-        ts.append(t / TO_HOURS)
+        ts.append(t)
         means.append(np.mean(restarts))
         stds.append(np.std(restarts))
     return np.array(ts), np.array(means), np.array(stds)
