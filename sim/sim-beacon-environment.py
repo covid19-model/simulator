@@ -41,7 +41,7 @@ if __name__ == '__main__':
     p_manual_reachability = 0.5
     smart_tracing_threshold = 0.016
     p_adoption = 1.0
-    beta_dispersions = [10.0, 5.0, 2.0, 1.0]
+    beta_dispersions = [30.0, 20.0, 15.0, 10.0, 5.0, 2.0, 1.0]
     mean_invariant_beta_scaling = True
     thresholds_roc = np.linspace(-0.01, 1.01, num=103, endpoint=True)
     beacon_config = dict(mode='all')
