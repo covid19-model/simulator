@@ -46,7 +46,7 @@ if __name__ == '__main__':
     p_manual_reachability = 0.5
     smart_tracing_threshold = 0.05
     beacon_config = None
-    beta_dispersions = [10.0, 5.0, 2.0, 1.0]
+    beta_dispersions = [1.0]    # [10.0, 5.0, 2.0, 1.0]
     mean_invariant_beta_scaling = True
 
     if args.p_adoption is not None:
@@ -67,10 +67,11 @@ if __name__ == '__main__':
     # for debugging purposes
     if args.smoke_test:
         start_date = '2021-01-01'
-        end_date = '2021-02-01'
+        end_date = '2021-07-01'
         random_repeats = 2
         full_scale = False
         ps_adoption = [0.5]
+        beta_dispersions = [1.0]
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'

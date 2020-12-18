@@ -721,48 +721,35 @@ class Plotter(object):
         to compare different measures/interventions taken. Colors taken as defined in __init__, and
         averaged over random restarts, using error bars for std-dev
         '''
+
+        assert isinstance(sims[0], str), '`sims` must be list of filepaths'
+
         # Set double figure format
         self._set_matplotlib_params(format=figformat)
         # Draw figure
         fig, ax = plt.subplots(1, 1, figsize=figsize)
         for i, sim in enumerate(sims):
-            if isinstance(sim, str):
-                is_conditional = True if i == conditional_measures else False
-                try:
-                    data = load_condensed_summary(sim, acc)
-                except FileNotFoundError:
-                    acc = create_condensed_summary_from_path(sim, acc=acc)
-                    data = load_condensed_summary(sim, acc)
-                acc = data['acc']
-                ts = data['ts']
+            is_conditional = True if i == conditional_measures else False
+            try:
+                data = load_condensed_summary(sim, acc)
+            except FileNotFoundError:
+                acc = create_condensed_summary_from_path(sim, acc=acc)
+                data = load_condensed_summary(sim, acc)
+
+            ts = data['ts']
+            lockdown_at = data['lockdowns'] if is_conditional else lockdown_at
+            if x_axis_dates:
+                # Convert x-axis into posix timestamps and use pandas to plot as dates
+                ts = days_to_datetime(ts, start_date=start_date)
+
+            if not show_single_runs:
                 iasy_mu = data['iasy_mu']
                 iasy_sig = data['iasy_sig']
                 ipre_mu = data['ipre_mu']
                 ipre_sig = data['ipre_sig']
                 isym_mu = data['isym_mu']
                 isym_sig = data['isym_sig']
-                posi_mu = data['posi_mu']
-                posi_sig = data['posi_sig']
-                lockdown_at = data['lockdowns'] if is_conditional else lockdown_at
-                loaded_extracted_data = True
-            else:
-                loaded_extracted_data = False
 
-            if not show_single_runs:
-                if not loaded_extracted_data:
-                    if acc > sim.max_time:
-                        acc = int(sim.max_time)
-
-                    ts, iasy_mu, iasy_sig = comp_state_over_time(sim, 'iasy', acc)
-                    _,  ipre_mu, ipre_sig = comp_state_over_time(sim, 'ipre', acc)
-                    _,  isym_mu, isym_sig = comp_state_over_time(sim, 'isym', acc)
-                    _,  posi_mu, posi_sig = comp_state_over_time(sim, 'posi', acc)
-
-                if x_axis_dates:
-                    # Convert x-axis into posix timestamps and use pandas to plot as dates
-                    ts = days_to_datetime(ts, start_date=start_date)
-
-                line_xaxis = np.zeros(ts.shape)
                 line_infected = iasy_mu + ipre_mu + isym_mu
                 error_infected = np.sqrt(np.square(iasy_sig) + np.square(ipre_sig) + np.square(isym_sig))
 
@@ -770,25 +757,11 @@ class Plotter(object):
                 ax.plot(ts, line_infected, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
                 ax.fill_between(ts, np.maximum(line_infected - 2 * error_infected, 0), line_infected + 2 * error_infected,
                                 color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
-
             else:
-                if not loaded_extracted_data:
-                    if acc > sim.max_time:
-                        acc = int(sim.max_time)
+                iasy = data['iasy']
+                ipre = data['ipre']
+                isym = data['isym']
 
-                    ts, iasy, iasy_sig = comp_state_over_time(sim, 'iasy', acc, return_single_runs=True)
-                    _,  ipre, ipre_sig = comp_state_over_time(sim, 'ipre', acc, return_single_runs=True)
-                    _,  isym, isym_sig = comp_state_over_time(sim, 'isym', acc, return_single_runs=True)
-                else:
-                    iasy = data['iasy']
-                    ipre = data['ipre']
-                    isym = data['isym']
-
-                if x_axis_dates:
-                    # Convert x-axis into posix timestamps and use pandas to plot as dates
-                    ts = days_to_datetime(ts, start_date=start_date)
-
-                line_xaxis = np.zeros(ts.shape)
                 lines_infected = iasy + ipre + isym
 
                 # lines
@@ -824,7 +797,8 @@ class Plotter(object):
             fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
         else:
             ax.set_xlabel(r'$t$ [days]')
-        ax.set_ylabel('People')
+
+        ax.set_ylabel('Infected')
 
         if not isinstance(lockdown_at, list):
             if lockdown_at is not None:
@@ -832,6 +806,111 @@ class Plotter(object):
                                 lockdown_label_y,
                                 lockdown_label,
                                 xshift=lockdown_xshift)
+
+        # Set default axes style
+        self._set_default_axis_settings(ax=ax)
+
+        if show_legend:
+            # legend
+            if legend_is_left:
+                leg = ax.legend(loc='upper left',
+                          bbox_to_anchor=(0.001, 0.999),
+                          bbox_transform=ax.transAxes,
+                        #   prop={'size': 5.6}
+                          )
+            else:
+                leg = ax.legend(loc='upper right',
+                          bbox_to_anchor=(0.999, 0.999),
+                          bbox_transform=ax.transAxes,
+                        #   prop={'size': 5.6}
+                          )
+
+        subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
+        plt.subplots_adjust(**subplot_adjust)
+
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+                    dpi=DPI, bbox_inches='tight')
+
+        if NO_PLOT:
+            plt.close()
+        return
+
+    def compare_quantity(self, sims, titles, quantity='infected', mode='total', ymax=None,
+                          start_date='1970-01-01', xtick_interval=3, x_axis_dates=False,
+                          figformat='double', filename='compare_epidemics', figsize=None,
+                          lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
+                          show_legend=True, legend_is_left=False, subplot_adjust=None):
+        ''''
+        Plots `quantity` in `mode` for each simulation, named as provided by `titles`
+        to compare different measures/interventions taken. Colors taken as defined in __init__, and
+        averaged over random restarts, using error bars for std-dev
+        '''
+
+        assert isinstance(sims[0], str), '`sims` must be list of filepaths'
+        assert mode in ['total', 'daily', 'cumulative']
+        assert quantity in ['infected', 'hosp', 'dead']
+
+        labeldict = {'infected': 'Infections', 'hosp': 'Hospitalizations', 'dead': 'Fatalities'}
+
+        # Set double figure format
+        self._set_matplotlib_params(format=figformat)
+        # Draw figure
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+        for i, sim in enumerate(sims):
+            data = load_condensed_summary_compat(sim)
+            ts = data['ts'] if not x_axis_dates else days_to_datetime(data['ts'], start_date=start_date)
+
+            if mode == 'daily':
+                line_cases = data[f'new_{quantity}_mu']
+                error_cases = data[f'new_{quantity}_sig']
+                ts = np.arange(0, len(line_cases), 1)
+                ylabel = f'Daily {labeldict[quantity]}'
+            elif mode == 'cumulative':
+                line_cases = data[f'cumu_{quantity}_mu']
+                error_cases = data[f'cumu_{quantity}_sig']
+                ylabel = f'Cumulative {labeldict[quantity]}'
+            elif mode == 'total':
+                if quantity == 'infected':
+                    line_cases = data['iasy_mu'] + data['ipre_mu'] + data['isym_mu']
+                    error_cases = np.sqrt(np.square(data['iasy_sig']) +
+                                             np.square(data['ipre_sig']) +
+                                             np.square(data['isym_sig']))
+                    ylabel = 'Infected'
+                else:
+                    line_cases = data[f'{quantity}_mu']
+                    error_cases = data[f'{quantity}_sig']
+                    ylabel = labeldict[quantity]
+            else:
+                line_cases, error_cases, ylabel = None, None, None
+                NotImplementedError()
+
+            # lines
+            ax.plot(ts, line_cases, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
+            ax.fill_between(ts, np.maximum(line_cases - 2 * error_cases, 0), line_cases + 2 * error_cases,
+                            color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
+
+        # axis
+        ax.set_xlim(left=np.min(ts))
+        if ymax is None:
+            ymax = 1.5 * np.max(line_cases)
+        ax.set_ylim((0, ymax))
+
+        if x_axis_dates:
+            # set xticks every week
+            ax.xaxis.set_minor_locator(mdates.WeekdayLocator(byweekday=1, interval=1))
+            ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=1, interval=xtick_interval))
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+            fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
+        else:
+            ax.set_xlabel(r'$t$ [days]')
+
+        ax.set_ylabel(ylabel)
+
+        if lockdown_at is not None:
+            lockdown_widget(ax, lockdown_at, start_date,
+                            lockdown_label_y,
+                            lockdown_label,
+                            xshift=lockdown_xshift)
 
         # Set default axes style
         self._set_default_axis_settings(ax=ax)

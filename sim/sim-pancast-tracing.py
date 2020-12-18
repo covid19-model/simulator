@@ -47,7 +47,7 @@ if __name__ == '__main__':
     smart_tracing_threshold = 0.05
     beacon_modes = ['visit_freq', 'random']
     sites_with_beacons = [0.02, 0.05, 0.1, 0.25, 1.0]
-    beta_dispersions = [10.0, 5.0, 2.0, 1.0]
+    beta_dispersions = [1.0]    # [10.0, 5.0, 2.0, 1.0]
     mean_invariant_beta_scaling = True
 
     if args.p_adoption is not None:

@@ -63,13 +63,23 @@ def load_condensed_summary(summary_path, acc=None):
     return data
 
 
+def load_condensed_summary_compat(summary_path):
+    """ Compatibility mode version for `load_condensed_summary` handling the case of having to extract
+     condensed summary from full summary"""
+    try:
+        data = load_condensed_summary(summary_path)
+    except FileNotFoundError:
+        _ = create_condensed_summary_from_path(summary_path, acc=500)
+        data = load_condensed_summary(summary_path)
+    return data
+
+
 def condense_summary(summary, metadata=None, acc=500):
     result = Result(metadata=metadata, summary=summary)
     try:    # For compatibility reasons
         n_age_groups = metadata.num_age_groups
     except KeyError:
         n_age_groups = None
-
 
     if acc > summary.max_time:
         acc = int(summary.max_time)
@@ -81,11 +91,22 @@ def condense_summary(summary, metadata=None, acc=500):
     _, posi_mu, posi_sig = comp_state_over_time(summary, 'posi', acc)
     _, hosp_mu, hosp_sig = comp_state_over_time(summary, 'hosp', acc)
     _, dead_mu, dead_sig = comp_state_over_time(summary, 'dead', acc)
+    _, resi_mu, resi_sig = comp_state_over_time(summary, 'resi', acc)
     _, posi_mu, posi_sig = comp_state_over_time(summary, 'posi', acc)
     _, nega_mu, nega_sig = comp_state_over_time(summary, 'nega', acc)
     _, iasy, _ = comp_state_over_time(summary, 'iasy', acc, return_single_runs=True)
     _, ipre, _ = comp_state_over_time(summary, 'ipre', acc, return_single_runs=True)
     _, isym, _ = comp_state_over_time(summary, 'isym', acc, return_single_runs=True)
+
+    # Daily new infections/hospitalizations/deaths
+    _, new_infected_mu, new_infected_sig = comp_daily_new(summary, states=['iasy', 'isym'])
+    _, new_hosp_mu, new_hosp_sig = comp_daily_new(summary, states=['hosp'])
+    _, new_dead_mu, new_dead_sig = comp_daily_new(summary, states=['dead'])
+
+    # Cumulative statistics
+    _, cumu_infected_mu, cumu_infected_sig = comp_state_cumulative(summary, state=['iasy', 'isym'], acc=acc)
+    _, cumu_hosp_mu, cumu_hosp_sig = comp_state_cumulative(summary, state=['hosp'], acc=acc)
+    _, cumu_dead_mu, cumu_dead_sig = comp_state_cumulative(summary, state=['dead'], acc=acc)
 
     # lockdowns = None
     # mean_lockdown_time = 0
@@ -126,8 +147,15 @@ def condense_summary(summary, metadata=None, acc=500):
             'isym': isym, 'isym_mu': isym_mu, 'isym_sig': isym_sig,
             'hosp_mu': hosp_mu, 'hosp_sig': hosp_sig,
             'dead_mu': dead_mu, 'dead_sig': dead_sig,
+            'resi_mu': resi_mu, 'resi_sig': resi_sig,
             'posi_mu': posi_mu, 'posi_sig': posi_sig,
             'nega_mu': nega_mu, 'nega_sig': nega_sig,
+            'new_infected_mu': new_infected_mu, 'new_infected_sig': new_infected_sig,
+            'new_hosp_mu': new_hosp_mu, 'new_hosp_sig': new_hosp_sig,
+            'new_dead_mu': new_dead_mu, 'new_dead_sig': new_dead_sig,
+            'cumu_infected_mu': cumu_infected_mu, 'cumu_infected_sig': cumu_infected_sig,
+            'cumu_hosp_mu': cumu_hosp_mu, 'cumu_hosp_sig': cumu_hosp_sig,
+            'cumu_dead_mu': cumu_dead_mu, 'cumu_dead_sig': cumu_dead_sig,
             'lockdowns': lockdowns,
             'mean_lockdown_time': mean_lockdown_time,
             'posi_mu_age': posi_mu_age,
@@ -149,9 +177,9 @@ def is_state_at(summary, r, state, t):
 
 def state_started_before(summary, r, state, t):
     if state == 'posi' or state == 'nega':
-        return (summary.state_started_at[state][r] - TEST_LAG <= t)
+        return summary.state_started_at[state][r] - TEST_LAG <= t
     else:
-        return (summary.state_started_at[state][r] <= t)
+        return summary.state_started_at[state][r] <= t
 
 
 def is_contained_at(summary, r, measure, t):
@@ -175,14 +203,37 @@ def is_contained_at(summary, r, measure, t):
     return contained
 
 
+def comp_daily_new(summary, states):
+    ts, means, stds = [], [], []
+    days = int(summary.max_time // TO_HOURS)
+    old_cases = 0
+    for t in range(days):
+        restarts = []
+        for r in range(summary.random_repeats):
+            cases_at_t = 0
+            for state in states:
+                cases_at_t += np.sum(state_started_before(summary, r, state, TO_HOURS*t))
+            new_cases = cases_at_t - old_cases
+            restarts.append(new_cases)
+            old_cases = cases_at_t
+
+        ts.append(t / TO_HOURS)
+        means.append(np.mean(restarts))
+        stds.append(np.std(restarts))
+    return np.array(ts), np.array(means), np.array(stds)
+
+
 def comp_state_cumulative(summary, state, acc):
     '''
     Computes `state` variable over time [0, self.max_time] with given accuracy `acc
     '''
     ts, means, stds = [], [], []
+    state = state if isinstance(state, list) else [state]
     for t in np.linspace(0.0, summary.max_time, num=acc, endpoint=True):
-        restarts = [np.sum(state_started_before(summary, r, state, t))
-            for r in range(summary.random_repeats)]
+        restarts = np.zeros(summary.random_repeats)
+        for stat in state:
+            restarts += np.asarray([np.sum(state_started_before(summary, r, stat, t))
+                                    for r in range(summary.random_repeats)])
         ts.append(t/TO_HOURS)
         means.append(np.mean(restarts))
         stds.append(np.std(restarts))
