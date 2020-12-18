@@ -44,7 +44,7 @@ if __name__ == '__main__':
     ps_adoption = [1.0, 0.5, 0.25, 0.1, 0.05]
     p_recall = 0.1
     p_manual_reachability = 0.5
-    smart_tracing_threshold = 0.05
+    smart_tracing_threshold = 0.016
     beacon_modes = ['visit_freq', 'random']
     sites_with_beacons = [0.02, 0.05, 0.1, 0.25, 1.0]
     beta_dispersions = [1.0]    # [10.0, 5.0, 2.0, 1.0]
