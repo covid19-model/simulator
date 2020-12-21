@@ -287,6 +287,18 @@ def target_widget(show_target,start_date, ax, zorder=None, ms=4.0, label='COVID-
             color='black', label=label, zorder=zorder)
 
 
+class CustomSitesProportionFixedLocator(plt.Locator):
+    """
+    Custom locator to avoid tick font bug of matplotlib
+    """
+
+    def __init__(self):
+        pass
+
+    def __call__(self):
+        return np.log(np.array([2, 5, 10, 25, 50, 100]))
+
+
 class Plotter(object):
     """
     Plotting class
@@ -1910,6 +1922,143 @@ class Plotter(object):
         if NO_PLOT:
             plt.close()
         return
+    
+    def relative_quantity_heatmap(self, mode, xlabel, ylabel, paths, path_labels, baseline_path, figformat='double',
+                     filename='reff_heatmap_0', figsize=None, acc=500, interpolate='linear', # or `cubic`
+                     width_ratio=4, cmap='jet'):
+        ''''
+        Plots heatmap of average R_t
+            paths:              list with tuples (x, y, path)
+            relative_window:    relative range of max_time used for R_t average
+        '''
+        if mode == 'cumu_infected':
+            key = 'cumu_infected_'
+            colorbar_label = r'\% reduction of infections'
+        elif mode == 'hosp':
+            key = 'hosp_'
+            colorbar_label = r'\% reduction of peak hosp.'
+        elif mode == 'dead':
+            key = 'cumu_dead_'
+            colorbar_label = r'\% reduction of deaths'
+
+        # set double figure format
+        self._set_matplotlib_params(format=figformat)
+
+        # draw figure
+        fig, axs = plt.subplots(1, 2, figsize=figsize,  gridspec_kw={'width_ratios': [1, width_ratio]})
+
+        baseline_data = load_condensed_summary(baseline_path)
+        baseline_series = baseline_data[key + 'mu']
+
+        # extract data
+        zval_means_all = []
+        for p in paths:
+
+            zval_means = []
+            for xval, yval, path in p:
+
+                try:
+                    data = load_condensed_summary(path, acc)
+                except FileNotFoundError:
+                    acc = create_condensed_summary_from_path(sim, acc=acc)
+                    data = load_condensed_summary(sim, acc)
+
+                # extract z value given (x, y)
+                series = data[key + 'mu']
+                if 'cumu' in key:
+                    # last
+                    zval = (1 - series[-1] / baseline_series[-1]) * 100
+                else:
+                    # peak
+                    zval = (1 - series.max() / baseline_series.max()) * 100
+        
+                zval_means.append(((xval * 100 if xval is not None else xval), yval * 100, zval.item()))
+
+            zval_means_all.append(zval_means)
+
+        # define min and max for both plots
+        zmin, zmax_color, zmax_colorbar = 0, 90, 90
+        stepsize = 5
+        norm = colors.Normalize(vmin=zmin, vmax=zmax_color)
+        levels = np.arange(zmin, zmax_colorbar + stepsize, stepsize)
+
+        # generate heatmaps
+        for t, title in enumerate(path_labels):
+            
+            x, y, z = zip(*zval_means_all[t])
+
+            if x[0] is None:
+                # move 1D data on a 2D manifold for plotting
+                xbounds = (-0.1, 0.1)
+                ybounds = min(y), max(y)   
+
+                x = [xbounds[0] for _ in y] + [xbounds[1] for _ in y]
+                y = y + y
+                z = z + z
+
+                axs[t].xaxis.set_major_formatter(plt.NullFormatter())
+                axs[t].xaxis.set_minor_formatter(plt.NullFormatter())
+                axs[t].xaxis.set_major_locator(plt.NullLocator())
+                axs[t].xaxis.set_minor_locator(plt.NullLocator())
+                
+            else:
+                x = np.log(x)
+                xbounds = min(x), max(x)
+                ybounds = min(y), max(y)        
+
+                axs[t].set_xlabel(xlabel)
+
+                # x ticks
+                @ticker.FuncFormatter
+                def major_formatter(x_, pos):
+                    return r"{:3.0f}".format(np.exp(x_))
+        
+                # for some reason, FixedLocator makes tick labels falsely bold
+                # axs[t].xaxis.set_major_locator(ticker.FixedLocator(x)) 
+                axs[t].xaxis.set_major_locator(CustomSitesProportionFixedLocator())
+                axs[t].xaxis.set_major_formatter(major_formatter)
+                                        
+            # contour interpolation
+            xi = np.linspace(xbounds[0], xbounds[1], 100)
+            yi = np.linspace(ybounds[0], ybounds[1], 100)
+            zi = griddata((x, y), z, (xi[None,:], yi[:,None]), method=interpolate)
+
+            # contour plot
+            axs[t].contour(xi, yi, zi, linewidths=0.5, colors='k', norm=norm, levels=levels)
+            contourplot = axs[t].contourf(xi, yi, zi, cmap=cmap, norm=norm, levels=levels)
+
+            # axis
+            axs[t].set_xlim(xbounds)
+            axs[t].set_ylim(ybounds)
+            axs[t].set_title(title)
+
+            if t == 0:
+                axs[t].set_ylabel(ylabel)
+            else:
+                pass
+
+        # layout and color bar
+        fig.tight_layout()
+        fig.subplots_adjust(right=0.8)
+
+        # [left, bottom, width, height]
+        cbar_ax = fig.add_axes([0.87, 0.17, 0.05, 0.7])
+        cbar = matplotlib.colorbar.ColorbarBase(
+            cbar_ax, cmap=plt.cm.RdYlGn,
+            norm=norm,
+            boundaries=levels,
+            ticks=levels[::2],
+            orientation='vertical')
+        cbar.set_label(colorbar_label, labelpad=5.0)
+
+        # save
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+                    dpi=DPI, bbox_inches='tight')
+
+        if NO_PLOT:
+            plt.close()
+        return
+
 
     def compare_peak_reduction(self, path_dict, baseline_path, ps_adoption, titles,
                                mode='cumu_infected', ymax=1.0,
