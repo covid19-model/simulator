@@ -3,7 +3,8 @@ from collections import namedtuple
 
 import numpy as np
 from lib.measures import UpperBoundCasesBetaMultiplier, SocialDistancingForAllMeasure, SocialDistancingForSmartTracing, \
-    SocialDistancingByAgeMeasure, SocialDistancingForPositiveMeasure
+    SocialDistancingByAgeMeasure, SocialDistancingForPositiveMeasure, SocialDistancingForSmartTracingHousehold, \
+    SocialDistancingSymptomaticAfterSmartTracing, SocialDistancingSymptomaticAfterSmartTracingHousehold
 import pickle
 from lib.rt_nbinom import estimate_daily_nbinom_rts, compute_nbinom_distributions
 
@@ -88,7 +89,6 @@ def condense_summary(summary, metadata=None, acc=500):
     ts, iasy_mu, iasy_sig = comp_state_over_time(summary, 'iasy', acc)
     _, ipre_mu, ipre_sig = comp_state_over_time(summary, 'ipre', acc)
     _, isym_mu, isym_sig = comp_state_over_time(summary, 'isym', acc)
-    _, posi_mu, posi_sig = comp_state_over_time(summary, 'posi', acc)
     _, hosp_mu, hosp_sig = comp_state_over_time(summary, 'hosp', acc)
     _, dead_mu, dead_sig = comp_state_over_time(summary, 'dead', acc)
     _, resi_mu, resi_sig = comp_state_over_time(summary, 'resi', acc)
@@ -107,6 +107,11 @@ def condense_summary(summary, metadata=None, acc=500):
     _, cumu_infected_mu, cumu_infected_sig = comp_state_cumulative(summary, state=['iasy', 'isym'], acc=acc)
     _, cumu_hosp_mu, cumu_hosp_sig = comp_state_cumulative(summary, state=['hosp'], acc=acc)
     _, cumu_dead_mu, cumu_dead_sig = comp_state_cumulative(summary, state=['dead'], acc=acc)
+
+    # Tracing/containment statistics
+    # print('Start computing containment')
+    # _, contained_mu, contained_sig = comp_contained_over_time(summary, acc)
+    # print(contained_mu)
 
     # lockdowns = None
     # mean_lockdown_time = 0
@@ -274,18 +279,43 @@ def comp_state_over_time_per_age(summary, state, acc, age):
     return np.array(ts), np.array(means), np.array(stds)
 
 
-def comp_contained_over_time(summary, measure, acc):
-    '''
-    Computes `state` variable over time [0, self.max_time] with given accuracy `acc
-    '''
+def comp_contained_over_time(summary, acc):
+    # FIXME: This requires some changes in the structure of the measures, which we should not risk making now.
+    #  Can implement this at a later point properly.
+    containment_measures = [SocialDistancingForSmartTracing,
+                            SocialDistancingForSmartTracingHousehold,
+                            SocialDistancingSymptomaticAfterSmartTracing,
+                            SocialDistancingSymptomaticAfterSmartTracingHousehold]
     ts, means, stds = [], [], []
     for t in np.linspace(0.0, summary.max_time, num=acc, endpoint=True):
-        restarts = [np.sum(is_contained_at(summary, r, measure, t))
-            for r in range(summary.random_repeats)]
-        ts.append(t/TO_HOURS)
-        means.append(np.mean(restarts))
-        stds.append(np.std(restarts))
-    return np.array(ts), np.array(means), np.array(stds)
+        num_contained = []
+        for ml in summary.measure_list:
+            contained_at_t = np.zeros(summary.n_people)
+            for j in range(summary.n_people):
+                contained_at_t[j] = False
+                for measure in containment_measures:
+                    print(measure)
+                    if ml.is_contained(measure, t=t, j=j):
+                        contained_at_t = True
+            num_contained.append(np.sum(contained_at_t))
+        ts.append(t)
+        means.append(np.mean(num_contained))
+        stds.append(np.std(num_contained))
+    return np.asarray(ts), np.asarray(means), np.asarray(stds)
+
+
+# def comp_contained_over_time(summary, measure, acc):
+#     '''
+#     Computes `state` variable over time [0, self.max_time] with given accuracy `acc
+#     '''
+#     ts, means, stds = [], [], []
+#     for t in np.linspace(0.0, summary.max_time, num=acc, endpoint=True):
+#         restarts = [np.sum(is_contained_at(summary, r, measure, t))
+#             for r in range(summary.random_repeats)]
+#         ts.append(t/TO_HOURS)
+#         means.append(np.mean(restarts))
+#         stds.append(np.std(restarts))
+#     return np.array(ts), np.array(means), np.array(stds)
 
 
 def get_lockdown_times(summary):
@@ -324,3 +354,29 @@ def get_lockdown_times(summary):
             lockdown_times.append(lockdown_time)
     mean_lockdown_time = np.mean(lockdown_times)
     return interventions, mean_lockdown_time
+
+
+def get_plot_data(data, quantity, mode):#, labeldict):
+
+    if mode == 'daily':
+        line_cases = data[f'new_{quantity}_mu']
+        error_cases = data[f'new_{quantity}_sig']
+        # ylabel = f'Daily {labeldict[quantity]}'
+    elif mode == 'cumulative':
+        line_cases = data[f'cumu_{quantity}_mu']
+        error_cases = data[f'cumu_{quantity}_sig']
+        # ylabel = f'Cumulative {labeldict[quantity]}'
+    elif mode == 'total':
+        if quantity == 'infected':
+            line_cases = data['iasy_mu'] + data['ipre_mu'] + data['isym_mu']
+            error_cases = np.sqrt(np.square(data['iasy_sig']) +
+                                  np.square(data['ipre_sig']) +
+                                  np.square(data['isym_sig']))
+            # ylabel = 'Infected'
+        else:
+            line_cases = data[f'{quantity}_mu']
+            error_cases = data[f'{quantity}_sig']
+            # ylabel = labeldict[quantity]
+    else:
+        NotImplementedError()
+    return line_cases, error_cases# , ylabel

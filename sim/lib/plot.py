@@ -836,10 +836,11 @@ class Plotter(object):
         return
 
     def compare_quantity(self, sims, titles, quantity='infected', mode='total', ymax=None,
-                          start_date='1970-01-01', xtick_interval=3, x_axis_dates=False,
-                          figformat='double', filename='compare_epidemics', figsize=None,
-                          lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
-                          show_legend=True, legend_is_left=False, subplot_adjust=None):
+                         normalization_baseline_path=None,
+                         start_date='1970-01-01', xtick_interval=3, x_axis_dates=False,
+                         figformat='double', filename='compare_epidemics', figsize=None,
+                         lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
+                         show_legend=True, legend_is_left=False, subplot_adjust=None):
         ''''
         Plots `quantity` in `mode` for each simulation, named as provided by `titles`
         to compare different measures/interventions taken. Colors taken as defined in __init__, and
@@ -850,39 +851,40 @@ class Plotter(object):
         assert mode in ['total', 'daily', 'cumulative']
         assert quantity in ['infected', 'hosp', 'dead']
 
-        labeldict = {'infected': 'Infections', 'hosp': 'Hospitalizations', 'dead': 'Fatalities'}
+        labeldict = {'total': {'infected': 'Infected',
+                               'hosp': 'Hospitalized',
+                               'dead': 'Fatalities'},
+                     'cumulative': {'infected': 'Cumulative Infections',
+                                    'hosp': 'Cumulative Hospitalizations',
+                                    'dead': 'Cumulative Fatalities'},
+                     'daily': {'infected': 'Daily Infections',
+                               'hosp': 'Daily Hospitalizations',
+                               'dead': 'Daily Fatalities'},
+                     }
 
         # Set double figure format
         self._set_matplotlib_params(format=figformat)
         # Draw figure
         fig, ax = plt.subplots(1, 1, figsize=figsize)
+
+        # Load baseline data
+        # if normalization_baseline_path:
+        #     baseline_data = load_condensed_summary_compat(normalization_baseline_path)
+        #     baseline_cases, _ = get_plot_data(baseline_data, quantity=quantity, mode=mode)
+
         for i, sim in enumerate(sims):
             data = load_condensed_summary_compat(sim)
             ts = data['ts'] if not x_axis_dates else days_to_datetime(data['ts'], start_date=start_date)
 
-            if mode == 'daily':
-                line_cases = data[f'new_{quantity}_mu']
-                error_cases = data[f'new_{quantity}_sig']
-                ts = np.arange(0, len(line_cases), 1)
-                ylabel = f'Daily {labeldict[quantity]}'
-            elif mode == 'cumulative':
-                line_cases = data[f'cumu_{quantity}_mu']
-                error_cases = data[f'cumu_{quantity}_sig']
-                ylabel = f'Cumulative {labeldict[quantity]}'
-            elif mode == 'total':
-                if quantity == 'infected':
-                    line_cases = data['iasy_mu'] + data['ipre_mu'] + data['isym_mu']
-                    error_cases = np.sqrt(np.square(data['iasy_sig']) +
-                                             np.square(data['ipre_sig']) +
-                                             np.square(data['isym_sig']))
-                    ylabel = 'Infected'
-                else:
-                    line_cases = data[f'{quantity}_mu']
-                    error_cases = data[f'{quantity}_sig']
-                    ylabel = labeldict[quantity]
-            else:
-                line_cases, error_cases, ylabel = None, None, None
-                NotImplementedError()
+            line_cases, error_cases = get_plot_data(data, quantity=quantity, mode=mode)
+            ylabel = labeldict[mode][quantity]
+
+            # if normalization_baseline_path:
+            #     line_cases = 1 - line_cases / baseline_cases
+            #     error_cases = error_cases / baseline_cases
+            #     line_cases = np.nan_to_num(line_cases, nan=0.0)
+            #     error_cases = np.nan_to_num(error_cases, nan=0.0)
+            #     ylabel = f'Reduction in ' + ylabel
 
             # lines
             ax.plot(ts, line_cases, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
@@ -1901,6 +1903,79 @@ class Plotter(object):
         cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
         fig.colorbar(contourplot, cax=cbar_ax)
 
+
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+                    dpi=DPI, bbox_inches='tight')
+
+        if NO_PLOT:
+            plt.close()
+        return
+
+    def compare_peak_reduction(self, path_dict, baseline_path, ps_adoption, titles,
+                               mode='cumu_infected', ymax=1.0,
+                               figformat='double', filename='cumulative_reduction', figsize=None,
+                               show_legend=True, legend_is_left=False, subplot_adjust=None):
+
+        if mode == 'cumu_infected':
+            key = 'cumu_infected_'
+            ylabel = 'Reduction in infections'
+        elif mode == 'hosp':
+            key = 'hosp_'
+            ylabel = 'Reduction in peak hospitalizations'
+        elif mode == 'dead':
+            key = 'cumu_dead_'
+            ylabel = 'Reduction in fatalities'
+
+        # Set double figure format
+        self._set_matplotlib_params(format=figformat)
+        # Draw figure
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+
+        baseline_data = load_condensed_summary(baseline_path)
+        baseline_norm = np.max(baseline_data[key+'mu'])
+
+        ps_adoption = ps_adoption + [0]
+
+        for i, paths in enumerate(path_dict.values()):
+            cumu_rel_mean = []
+            cumu_rel_std = []
+            for path in paths:
+                data = load_condensed_summary(path)
+                maxidx = np.argmax(data[key + 'mu'])
+                cumu_rel_mean.append(data[key+'mu'][maxidx] / baseline_norm)
+                cumu_rel_std.append(data[key+'sig'][maxidx] / baseline_norm)
+
+            # Append value for p_adoption=0 (baseline)
+            cumu_rel_mean.append(1.0)
+            cumu_rel_std.append(0.0)
+            cumu_rel_mean = 1 - np.asarray(cumu_rel_mean)
+            cumu_rel_std = np.asarray(cumu_rel_std)
+
+            ax.errorbar(ps_adoption, cumu_rel_mean, yerr=cumu_rel_std, label=titles[i],
+                         c=self.color_different_scenarios[i], linestyle='-', elinewidth=0.8, capsize=3.0)
+
+        ax.set_xlim(left=np.min(ps_adoption), right=np.max(ps_adoption))
+        ax.set_ylim(ymax=ymax, ymin=0.0)
+
+        ax.set_ylabel(ylabel)
+        ax.set_xlabel('Adoption probability')
+
+
+        if show_legend:
+            # legend
+            if legend_is_left:
+                leg = ax.legend(loc='upper left',
+                          bbox_to_anchor=(0.001, 0.999),
+                          bbox_transform=ax.transAxes,
+                          )
+            else:
+                leg = ax.legend(loc='upper right',
+                          bbox_to_anchor=(0.999, 0.999),
+                          bbox_transform=ax.transAxes,
+                          )
+
+        subplot_adjust = subplot_adjust or {'bottom': 0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
+        plt.subplots_adjust(**subplot_adjust)
 
         plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
                     dpi=DPI, bbox_inches='tight')
