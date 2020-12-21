@@ -296,7 +296,7 @@ class CustomSitesProportionFixedLocator(plt.Locator):
         pass
 
     def __call__(self):
-        return np.log(np.array([2, 5, 10, 25, 50, 100]))
+        return np.log(np.array([2, 5, 10, 25, 100]))
 
 
 class Plotter(object):
