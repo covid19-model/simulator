@@ -1,5 +1,7 @@
 import os
 import itertools
+import collections
+import pprint
 import numpy as np
 import pandas as pd
 from scipy import stats as sps
@@ -1710,8 +1712,9 @@ class Plotter(object):
         '''
         assert (summaries or paths) is not None and (summaries and paths) is None, "Specify either summaries or paths"
         self._set_matplotlib_params(format=figformat)
-        # fig, ax = plt.subplots(1, 1, figsize=figsize)
-        fig, axs = plt.subplots(1, 2, figsize=figsize)
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+        axs = [ax]
+        # fig, axs = plt.subplots(1, 2, figsize=figsize)
 
         # xs
         xs = np.linspace(0, 1, num=500)
@@ -1732,6 +1735,8 @@ class Plotter(object):
                 print('exposed:', np.sum(summary.state_started_at['expo'] < np.inf, axis=1).mean())
                 tracing_stats = summary.tracing_stats
             thresholds = list(tracing_stats.keys())
+
+            policies = dict()
 
             for j, (name, policy) in enumerate([('PanCast', 'sites'), ('SPECT', 'no_sites')]):
 
@@ -1795,14 +1800,70 @@ class Plotter(object):
                             (stats['fn'] + stats['tp']).mean(), (stats['fp'] + stats['tn']).mean()
                         ))
 
+                policies[name] = {'fpr': fpr_of_means,
+                                  'tpr': tpr_of_means, 
+                                  'prec': precision_of_means}
 
                 # lines
                 axs[0].plot(fpr_of_means, tpr_of_means, linestyle='-', label=name, c=self.color_different_scenarios[j])
-                axs[1].plot(tpr_of_means, precision_of_means, linestyle='-', label=name, c=self.color_different_scenarios[j])
+                # axs[1].plot(tpr_of_means, precision_of_means, linestyle='-', label=name, c=self.color_different_scenarios[j])
 
                 # axs[0].plot(fpr_mean, tpr_mean, linestyle='-', label=name, c=self.color_different_scenarios[j])
                 # axs[1].plot(tpr_mean, precision_mean, linestyle='-', label=name, c=self.color_different_scenarios[j])
 
+            # for each FPR bucket, collect TPR and prec values
+            policy_bin_values = dict()
+            n_bins = 6
+            bins = np.linspace(0.0, 1.0, n_bins)
+            for n in range(bins.shape[0] - 1):
+                print(f'index {n + 1} : {bins[n]} - {bins[n + 1]}')
+
+            for policy in ['SPECT', 'PanCast']:
+                fprs = np.array(policies[policy]['fpr'])
+                tprs = np.array(policies[policy]['tpr'])
+                precs = np.array(policies[policy]['prec'])
+
+                inds = np.digitize(fprs, bins)
+
+                bin_values_fpr = collections.defaultdict(list)
+                bin_values_tpr = collections.defaultdict(list)
+                bin_values_prec = collections.defaultdict(list)
+
+                for i in range(fprs.shape[0]):
+                    bin_values_fpr[inds[i]].append(fprs[i])
+                    bin_values_tpr[inds[i]].append(tprs[i])
+                    bin_values_prec[inds[i]].append(precs[i])
+
+                # form mean of each bucket
+                policy_bin_values[policy] = {
+                    'fpr' : {k:np.array(lst).mean().item() for k, lst in bin_values_fpr.items()},
+                    'tpr' : {k:np.array(lst).mean().item() for k, lst in bin_values_tpr.items()},
+                    'prec': {k: np.array(lst).mean().item() for k, lst in bin_values_prec.items()},
+                }
+
+            # print improvement pancast over spect
+            # pprint.pprint(policy_bin_values)
+            for metric in ['tpr', 'prec']:
+
+                relative_percentage = []
+                
+                for ind in policy_bin_values['SPECT']['fpr'].keys():
+
+                    # only check bins where both have values
+                    if (ind not in policy_bin_values['PanCast'][metric].keys()) or\
+                       (ind not in policy_bin_values['SPECT'][metric].keys()):
+                       continue
+
+                    # ignore edge bins
+                    if ind <= 1 or ind >= n_bins - 1:
+                        continue 
+
+                    relative_percentage.append(
+                        (ind, policy_bin_values['PanCast'][metric][ind] / policy_bin_values['SPECT'][metric][ind])
+                    )
+
+                argmaxval, maxval = max(relative_percentage, key=lambda x: x[1])
+                print('Maximum relative % PanCast/SPECT (excluding boundary)', metric, maxval * 100, 'bin: ', argmaxval)
 
         for ax in axs:
             ax.set_xlim((0.0, 1.0))
@@ -1814,14 +1875,14 @@ class Plotter(object):
         axs[0].set_xlabel('FPR')
         axs[0].set_ylabel('TPR')
 
-        axs[1].set_xlabel('Recall')
-        axs[1].set_ylabel('Precision')
+        # axs[1].set_xlabel('Recall')
+        # axs[1].set_ylabel('Precision')
 
         # Set default axes style
         # self._set_default_axis_settings(ax=ax)
         
         leg = axs[0].legend(loc='lower right')
-        leg = axs[1].legend(loc='top right')
+        # leg = axs[1].legend(loc='top right')
 
         # subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         # plt.subplots_adjust(**subplot_adjust)
