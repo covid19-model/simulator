@@ -57,8 +57,19 @@ class CovidDistributions(object):
             raise NotImplementedError('Invalid country requested.')
         
         # https://www.medrxiv.org/content/10.1101/2020.03.09.20033217v2
-        self.gamma = np.log(2.0) / 2.0 # approximately 2 hour half life
-        self.delta = np.log(5.0) / self.gamma # time of intensity decrease to below 20 %
+        # self.lab_aerosol_halflife = 2.0
+        # self.real_site_halflife_factor = 1.0  # 10-times shorter halflife at real sites
+
+        self.lab_aerosol_halflife = 1.1 # hours
+        self.real_site_halflife_factor = 0.1 # 10-times shorter halflife at real sites 
+        self.real_site_aerosol_halflife = self.lab_aerosol_halflife * self.real_site_halflife_factor
+
+        # 6.301338005090411
+        self.gamma = np.log(2.0) / self.real_site_aerosol_halflife
+
+        # 0.3654120904376099
+        self.delta = np.log(1 / 0.10) / self.gamma # time of intensity decrease to below 10 %
+        # self.delta = np.log(1 / 0.20) / self.gamma 
        
         # Incubation period: estimated mean is 5.52 days, std dev is 2.41 days
         # To be able to approx. represent latent and infectious incubation period separately,

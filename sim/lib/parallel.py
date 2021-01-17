@@ -34,7 +34,7 @@ class ParallelSummary(object):
     Summary class of several restarts
     """
 
-    def __init__(self, max_time, repeats, n_people, n_sites, site_loc, home_loc, lazy_contacts):
+    def __init__(self, max_time, repeats, n_people, n_sites, site_loc, home_loc, thresholds_roc=[], lazy_contacts=True):  # lazy_contacts kept here for legacy reasons of old summaries
 
         self.max_time = max_time
         self.random_repeats = repeats
@@ -91,11 +91,26 @@ class ParallelSummary(object):
         self.children_count_ipre = np.zeros((repeats, n_people), dtype='int')
         self.children_count_isym = np.zeros((repeats, n_people), dtype='int')
 
+        self.tracing_stats = { thres : { 
+            policy : {
+                'isolate': 
+                    {'tp': np.zeros(repeats, dtype='int'), 
+                    'fp': np.zeros(repeats, dtype='int'), 
+                    'tn': np.zeros(repeats, dtype='int'), 
+                    'fn': np.zeros(repeats, dtype='int')},
+                'test': 
+                    {'tp': np.zeros(repeats, dtype='int'),
+                    'fp': np.zeros(repeats, dtype='int'), 
+                    'tn': np.zeros(repeats, dtype='int'), 
+                    'fn': np.zeros(repeats, dtype='int')},
+            } 
+            for policy in ['sites', 'no_sites']} 
+        for thres in thresholds_roc}
+
 
 def create_ParallelSummary_from_DiseaseModel(sim, store_mob=False):
 
-    summary = ParallelSummary(sim.max_time, 1, sim.n_people, sim.mob.num_sites, sim.mob.site_loc, sim.mob.home_loc,
-                              sim.lazy_contacts)
+    summary = ParallelSummary(sim.max_time, 1, sim.n_people, sim.mob.num_sites, sim.mob.site_loc, sim.mob.home_loc)
 
     for code in pp_legal_states:
         summary.state[code][0, :] = sim.state[code]
@@ -111,22 +126,30 @@ def create_ParallelSummary_from_DiseaseModel(sim, store_mob=False):
     summary.children_count_iasy[0, :] = sim.children_count_iasy
     summary.children_count_ipre[0, :] = sim.children_count_ipre
     summary.children_count_isym[0, :] = sim.children_count_isym
+
+    for thres in sim.tracing_stats.keys():
+        for policy in ['sites', 'no_sites']:
+            for action in ['isolate', 'test']:
+                for stat in ['tp', 'fp', 'tn', 'fn']:
+                    summary.tracing_stats[thres][policy][action][stat][0] = sim.tracing_stats[thres][policy][action][stat]
+
     return summary
 
 
-def pp_launch(r, kwargs, distributions, params, initial_counts, testing_params, measure_list, max_time, lazy_contacts,
-              store_mob):
+def pp_launch(r, kwargs, distributions, params, initial_counts, testing_params, measure_list, max_time,
+              thresholds_roc, store_mob, store_measure_bernoullis):
 
     mob = MobilitySimulator(**kwargs)
-    mob.simulate(max_time=max_time, lazy_contacts=lazy_contacts)
+    mob.simulate(max_time=max_time)
 
-    sim = DiseaseModel(mob, distributions, lazy_contacts=lazy_contacts)
+    sim = DiseaseModel(mob, distributions)
 
     sim.launch_epidemic(
         params=params,
         initial_counts=initial_counts,
         testing_params=testing_params,
         measure_list=measure_list,
+        thresholds_roc=thresholds_roc,
         verbose=False)
 
     result = {
@@ -138,20 +161,28 @@ def pp_launch(r, kwargs, distributions, params, initial_counts, testing_params, 
         'children_count_iasy': sim.children_count_iasy,
         'children_count_ipre': sim.children_count_ipre,
         'children_count_isym': sim.children_count_isym,
+        'tracing_stats' : sim.tracing_stats,
     }
     if store_mob:
         result['mob'] = sim.mob
+
+    ml = result['measure_list']
+    if not store_measure_bernoullis:
+        ml.exit_run()
 
     return result
 
 
 def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu_count, params, 
     initial_seeds, testing_params, measure_list, max_time, num_people, num_sites, site_loc, home_loc,
-                                lazy_contacts=True, verbose=True, synthetic=False, summary_options=None,
-                                store_mob=False, store_measure_bernoullis=False):
+    beacon_config=None, thresholds_roc=None, verbose=True, synthetic=False, summary_options=None,
+    store_mob=False, store_measure_bernoullis=False):
 
     with open(mob_settings, 'rb') as fp:
         kwargs = pickle.load(fp)
+
+        # test-time mobility simulator additions and modifications
+        kwargs['beacon_config'] = beacon_config
 
     mob_setting_list = [copy.deepcopy(kwargs) for _ in range(random_repeats)]
     distributions_list = [copy.deepcopy(distributions) for _ in range(random_repeats)]
@@ -159,9 +190,10 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
     params_list = [copy.deepcopy(params) for _ in range(random_repeats)]
     initial_seeds_list = [copy.deepcopy(initial_seeds) for _ in range(random_repeats)]
     testing_params_list = [copy.deepcopy(testing_params) for _ in range(random_repeats)]
+    thresholds_roc_list = [copy.deepcopy(thresholds_roc) for _ in range(random_repeats)]
     max_time_list = [copy.deepcopy(max_time) for _ in range(random_repeats)]
-    lazy_contacts_list = [copy.deepcopy(lazy_contacts) for _ in range(random_repeats)]
     store_mob_list = [copy.deepcopy(store_mob) for _ in range(random_repeats)]
+    store_measure_bernoullis_list = [copy.deepcopy(store_measure_bernoullis) for _ in range(random_repeats)]
     repeat_ids = list(range(random_repeats))
 
     if verbose:
@@ -169,18 +201,19 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
 
     with ProcessPoolExecutor(cpu_count) as ex:
         res = ex.map(pp_launch, repeat_ids, mob_setting_list, distributions_list, params_list,
-                     initial_seeds_list, testing_params_list, measure_list_list, max_time_list, lazy_contacts_list,
-                     store_mob_list)
+                     initial_seeds_list, testing_params_list, measure_list_list, max_time_list,
+                     thresholds_roc_list, store_mob_list, store_measure_bernoullis_list)
 
-    # # DEBUG mode (to see errors printed properly)
+    # # # DEBUG mode (to see errors printed properly)
     # res = []
     # for r in repeat_ids:
     #     res.append(pp_launch(r, mob_setting_list[r], distributions_list[r], params_list[r],
-    #                  initial_seeds_list[r], testing_params_list[r], measure_list_list[r], max_time_list[r], lazy_contacts_list[r]))
+    #                  initial_seeds_list[r], testing_params_list[r], measure_list_list[r], 
+    #                  max_time_list[r], thresholds_roc_list[r], store_mob_list[r], store_measure_bernoullis_list[r]))
 
     
     # collect all result (the fact that mob is still available here is due to the for loop)
-    summary = ParallelSummary(max_time, random_repeats, num_people, num_sites, site_loc, home_loc, lazy_contacts)
+    summary = ParallelSummary(max_time, random_repeats, num_people, num_sites, site_loc, home_loc, thresholds_roc)
     
     for r, result in enumerate(res):
 
@@ -190,8 +223,6 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
             summary.state_ended_at[code][r, :] = result['state_ended_at'][code]
 
         ml = result['measure_list']
-        if not store_measure_bernoullis:
-            ml.exit_run()
         summary.measure_list.append(ml)
 
         if store_mob:
@@ -202,5 +233,12 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
         summary.children_count_iasy[r, :] = result['children_count_iasy']
         summary.children_count_ipre[r, :] = result['children_count_ipre']
         summary.children_count_isym[r, :] = result['children_count_isym']
+
+        for thres in result['tracing_stats'].keys():
+            for policy in ['sites', 'no_sites']:
+                for action in ['isolate', 'test']:
+                    for stat in ['tp', 'fp', 'tn', 'fn']:
+                        summary.tracing_stats[thres][policy][action][stat][r] = \
+                            result['tracing_stats'][thres][policy][action][stat]
 
     return summary

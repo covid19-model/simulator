@@ -18,12 +18,10 @@ calibration_simulation = {
     'n_iterations': 80,  # iterations of BO
     'simulation_roll_outs': 96, # roll-outs done in parallel per parameter setting
     'cpu_count':  multiprocessing.cpu_count(), # cpus used for parallel computation
-    'lazy_contacts' : True,
 }
 
 # parameter bounds
-# beta_upper_bound = 2.0 # for regular simulations
-beta_upper_bound = 1.5 # for lighly affected simulations
+beta_upper_bound = 0.2
 
 calibration_model_param_bounds_single = {
     'beta_site': [0.0, beta_upper_bound],
@@ -59,12 +57,18 @@ calibration_testing_params = {
     'smart_tracing_contact_delta': 10 * TO_HOURS,
     'smart_tracing_actions': [], # any of `isolate`, `test`
 
-    'smart_tracing_policy_isolate': None, # one of None, `basic`, `advanced`
+    'smart_tracing_policy_isolate': None, # one of None, `basic`, `advanced`, `advanced-threshold`
     'smart_tracing_isolated_contacts': 0,
     'smart_tracing_isolation_duration': 14 * TO_HOURS,
+    'smart_tracing_isolation_threshold': 1.0,
 
-    'smart_tracing_policy_test': None,  # one of None, `basic`, `advanced`
+    'smart_tracing_policy_test': None,  # one of None, `basic`, `advanced`, `advanced-threshold`
     'smart_tracing_tested_contacts': 0,
+    'smart_tracing_testing_threshold': 1.0,
+    'trigger_tracing_after_posi_trace_test' : True,
+
+    # beacons
+    'p_willing_to_share': 1.0,
 }
 
 # BO acquisition function optimization (Knowledge gradient)
@@ -112,7 +116,8 @@ calibration_lockdown_dates = {
 # mobs settings path;
 calibration_mob_paths = {
     'GER': {
-        'TU': ['lib/mobility/Tubingen_settings_10.pk', 'lib/mobility/Tubingen_settings_1.pk'],
+        #'TU': ['lib/mobility/Tubingen_settings_10.pk', 'lib/mobility/Tubingen_settings_1.pk'],
+        'TU': ['lib/mobility/Tubingen_settings_10_beacon.pk', 'lib/mobility/Tubingen_settings_1_beacon.pk'],
         'KL': ['lib/mobility/Kaiserslautern_settings_10.pk', 'lib/mobility/Kaiserslautern_settings_1.pk'],
         'RH': ['lib/mobility/Ruedesheim_settings_10.pk', 'lib/mobility/Ruedesheim_settings_1.pk'],
         'TR': ['lib/mobility/Tirschenreuth_settings_5.pk', 'lib/mobility/Tirschenreuth_settings_1.pk'],
@@ -120,7 +125,8 @@ calibration_mob_paths = {
     'CH': {
         'VD': ['lib/mobility/Lausanne_settings_10.pk', 'lib/mobility/Lausanne_settings_1.pk'],
         'BE': ['lib/mobility/Bern_settings_10.pk', 'lib/mobility/Bern_settings_1.pk'],
-        'TI': ['lib/mobility/Locarno_settings_2.pk', 'lib/mobility/Locarno_settings_1.pk'],
+        # 'TI': ['lib/mobility/Locarno_settings_2.pk', 'lib/mobility/Locarno_settings_1.pk'],
+        'TI': ['lib/mobility/Locarno_settings_2_beacon.pk', 'lib/mobility/Locarno_settings_1_beacon.pk'],
         'JU': ['lib/mobility/Jura_settings_10.pk', 'lib/mobility/Jura_settings_1.pk'],
     }
 }
@@ -144,7 +150,8 @@ calibration_start_dates = {
 # calibration states loaded for calibrated parameters
 calibration_states = {
     'GER': {
-        'TU': 'logs/calibration_tu0_state.pk',
+        # 'TU': 'logs/calibration_tu0_state.pk',
+        'TU': 'logs/calibration_tu0-beacon_state.pk',
         'KL': 'logs/calibration_kl0_state.pk',
         'RH': 'logs/calibration_rh0_state.pk',
         'TR': 'logs/calibration_tr0_state.pk',
@@ -152,7 +159,8 @@ calibration_states = {
     'CH': {
         'VD': 'logs/calibration_vd0_state.pk',
         'BE': 'logs/calibration_be0_state.pk',
-        'TI': 'logs/calibration_ti0_state.pk',
+        # 'TI': 'logs/calibration_ti0_state.pk',
+        'TI': 'logs/calibration_ti0-beacon_state.pk',
         'JU': 'logs/calibration_ju0_state.pk',
     }
 }
@@ -164,3 +172,9 @@ calibration_lockdown_beta_multipliers = {
     'bus_stop': 1.0, 
     'office': 0.5, 
     'supermarket': 1.0}
+
+# contact tracing adoption 
+contact_tracing_adoption = {
+    'GER': 0.27,  # as of Nov 12, 2020
+    'CH' : 0.22,  # as of Nov 20, 2020
+}

@@ -28,7 +28,8 @@ def make_calibration_parser():
                         help="flag to calibrate an individual beta parameter for each site category/type")
     parser.add_argument("--per-age-group-objective", action="store_true",
                         help="flag to calibrate based on per age-group objective")
-
+    parser.add_argument("--log-objective", action="store_true",
+                        help="log-MSE instead of MSE")
     # data
     parser.add_argument("--mob", 
         help="update path to mobility settings for trace generation")
@@ -46,8 +47,6 @@ def make_calibration_parser():
     # simulation
     parser.add_argument("--no_households", action="store_true",
                         help="no households should be used for simulation")
-    parser.add_argument("--no_lazy_contacts", action="store_true",
-                        help="no lazy online computation of mobility traces (default is lazy)")
     parser.add_argument("--testingcap", type=int,
                         help="overwrite default unscaled testing capacity as provided by MobilitySimulator")
 

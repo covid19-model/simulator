@@ -2,6 +2,7 @@ import sys, os
 if '..' not in sys.path:
     sys.path.append('..')
 
+import subprocess
 import pickle, multiprocessing, copy
 import pandas as pd
 import numpy as np
@@ -23,6 +24,7 @@ from lib.calibrationSettings import (
     calibration_testing_params, 
     calibration_lockdown_beta_multipliers,
     calibration_mob_paths)
+from lib.summary import *
 
 TO_HOURS = 24.0
 ROOT = 'summaries'
@@ -53,12 +55,13 @@ Simulation = namedtuple('Simulation', (
     'distributions',            # Transition distributions
     'initial_seeds',            # Simulation seeds
 
-))
+    ## default arguments
+    'num_age_groups',           # Number of age groups
+    'beacon_config',            # dictionary containing information regarding beacon implementation
+    'thresholds_roc',           # threshold values for ROC curve computation
 
-Result = namedtuple('Result', (
-    'metadata',    # metadata of simulation that was run, here a `Simulation` namedtuple
-    'summary',     # result summary of simulation
-))
+), defaults=(None, None, None))  # NOTE: `defaults` iterable is applied from back to front, i.e. just `beacon_config` and `thresholds_roc` and `num_age_groups` has a default
+
 
 Plot = namedtuple('Plot', (
     'path',    # path to result file of this simulation containing pickled `Result` namedetuple
@@ -81,27 +84,6 @@ def get_properties(objs, property):
     return out
 
 
-def save_summary(obj, path):
-    '''Saves summary file'''
-    with open(os.path.join(ROOT, path), 'wb') as fp:
-        pickle.dump(obj, fp)
-
-def load_summary(path):
-    '''Loads summary file'''
-    with open(os.path.join(ROOT, path), 'rb') as fp:
-        obj = pickle.load(fp)
-    return obj
-
-def load_summary_list(paths):
-    '''Loads list of several summaries'''
-    objs = []
-    for p in paths:
-        try:
-            objs.append(load_summary(p))
-        except FileNotFoundError:
-            print(f'{p} not found.')
-    return objs
-
 def options_to_str(**options):
     return '-'.join(['{}={}'.format(k, v) for k, v in options.items()])
 
@@ -116,7 +98,22 @@ def process_command_line(return_parser=False):
                         help="specify area indicator for experiment")
     parser.add_argument("--cpu_count", type=int, default=multiprocessing.cpu_count(),
                         help="update default number of cpus used for parallel simulation rollouts")
+    parser.add_argument("--smoke_test", action="store_true",
+                        help="flag to quickly finish runs to see if something breaks")
 
+    parser.add_argument("--p_adoption", type=float,
+                        help="only run experiment with a single adoption level")
+    parser.add_argument("--beta_dispersion", type=float,
+                        help="only run experiment with a single beta dispersion level")
+    parser.add_argument("--beacon_proportion", type=float,
+                        help="only run experiment with a single beacon proportion")
+    parser.add_argument("--beacon_mode",
+                        help="only run experiment with a single beacon mode")
+                        
+    parser.add_argument("--mobility_reduction", action="store_true",
+                        help="flag to turn off mobility reduction")
+    parser.add_argument("--continued", action="store_true",
+                        help="skips sub-experiments for which summaries already exist")
     if return_parser:
         return parser
 
@@ -137,6 +134,9 @@ def process_command_line(return_parser=False):
         exit(1)
     return args
 
+def get_version_tag():
+    git_commit = subprocess.check_output(["git", "describe", "--always"]).strip().decode(sys.stdout.encoding) 
+    return git_commit
 
 """Experiment class for structured experimentation with simulations"""
 
@@ -154,7 +154,9 @@ class Experiment(object):
         full_scale,
         verbose,
         cpu_count=None,
-        multi_beta_calibration=False):
+        multi_beta_calibration=False,
+        condensed_summary=False,
+        continued_run=False):
 
         self.experiment_info = experiment_info
         self.start_date = start_date
@@ -163,13 +165,28 @@ class Experiment(object):
         self.cpu_count = cpu_count if cpu_count else multiprocessing.cpu_count()
         self.full_scale = full_scale
         self.multi_beta_calibration = multi_beta_calibration
+        self.condensed_summary = condensed_summary
+        self.continued_run = continued_run
         self.verbose = verbose
 
         # list simulations of experiment
         self.sims = []
 
     def get_sim_path(self, sim):
-        return sim.experiment_info + '/' + sim.experiment_info + '-' + sim.simulation_info
+        version_tag = get_version_tag()
+        return sim.experiment_info + '-' + version_tag + '/' + sim.experiment_info + '-' + sim.simulation_info
+
+    def save_condensed_summary(self, sim, summary):
+        filepath = os.path.join('condensed_summaries', self.get_sim_path(sim) + '_condensed.pk')
+        condensed_summary = condense_summary(summary=summary, metadata=sim)
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        with open(filepath, 'wb') as fp:
+            pickle.dump(condensed_summary, fp)
+        return
+
+    def check_summary_existence(self, sim):
+        filepath = os.path.join('condensed_summaries', self.get_sim_path(sim) + '_condensed.pk')
+        return os.path.isfile(filepath)
 
     def save_run(self, sim, summary):
         filename = self.get_sim_path(sim) + '.pk'
@@ -193,6 +210,8 @@ class Experiment(object):
         set_calibrated_params_to=None,
         set_initial_seeds_to=None,
         expected_daily_base_expo_per100k=0,
+        beacon_config=None,
+        thresholds_roc=None,
         store_mob=False):
 
         # Set time window based on experiment start and end date
@@ -212,6 +231,8 @@ class Experiment(object):
         mob_settings_file = calibration_mob_paths[country][area][1 if full_scale else 0]
         with open(mob_settings_file, 'rb') as fp:
             mob_settings = pickle.load(fp)
+
+        num_age_groups = len(mob_settings['mob_rate_per_age_per_type'])
 
         # Obtain COVID19 case date for country and area to estimate testing capacity and heuristic seeds if necessary
         unscaled_area_cases = collect_data_from_df(country=country, area=area, datatype='new',
@@ -233,6 +254,9 @@ class Experiment(object):
 
             # Convert to individual base rate by dividing by population size; priority queue handles superposition
             lambda_base_expo_indiv = lambda_base_expo_population / num_people
+
+            # Poisson process with rate lambda: interarrival times are Exponential r.v. with mean = 1 / lambda
+            # Hence set rate of Expo r.v.s to 1 / (1 / lambda) = lambda
             distributions.lambda_0 = lambda_base_expo_indiv
 
         # Get initial seeds for simulation
@@ -322,7 +346,7 @@ class Experiment(object):
             testing_params = test_update(testing_params)
 
         # store simulation
-        self.sims.append(Simulation(
+        sim_kwargs = dict(
             # Generic information
             experiment_info=self.experiment_info,
             simulation_info=simulation_info,
@@ -344,10 +368,25 @@ class Experiment(object):
             model_params=model_params,
             distributions=distributions,
             initial_seeds=initial_seeds,
-        ))
+        )
 
-        if self.verbose:
-            print(f'[Added Sim] {self.get_sim_path(self.sims[-1])}')
+        # Beacon 
+        # fields are added here (even though defaulting to `None`) to double check backwards compatibility
+        # with stored `Result` objects prior to implementing beacon functionality
+        if beacon_config is not None:
+            sim_kwargs['beacon_config'] = beacon_config
+        if thresholds_roc is not None:
+            sim_kwargs['thresholds_roc'] = thresholds_roc
+
+        sim = Simulation(**sim_kwargs)
+
+        if self.continued_run and self.check_summary_existence(sim):
+            if self.verbose:
+                print(f'[Skipped Sim] {self.get_sim_path(sim)}')
+        else:
+            self.sims.append(sim)
+            if self.verbose:
+                print(f'[Added Sim] {self.get_sim_path(self.sims[-1])}')
 
 
     def run_all(self):
@@ -382,12 +421,16 @@ class Experiment(object):
                 num_people=len(mob_settings['home_loc']),
                 site_loc=mob_settings['site_loc'],
                 num_sites=len(mob_settings['site_loc']),
+                beacon_config=sim.beacon_config,
+                thresholds_roc=sim.thresholds_roc if sim.thresholds_roc is not None else [],  # convert to [] if None
                 store_mob=sim.store_mob,
                 store_measure_bernoullis=sim.store_mob,
-                lazy_contacts=True,
                 verbose=False)
 
-            self.save_run(sim, summary)
+            if self.condensed_summary is True:
+                self.save_condensed_summary(sim, summary)
+            else:
+                self.save_run(sim, summary)
 
             if self.verbose:
                 print(f'[Finished Sim] {self.get_sim_path(sim)}')

@@ -117,7 +117,7 @@ class MapIllustrator():
 
     """
 
-    def __compute_empirical_survival_probability_site(self, summary, r, t0, t1, delta, site):
+    def __compute_empirical_survival_probability_site(self, summary, r, t0, t1, delta, site, site_has_b):
         '''
         Computes the empirical survival probability for site ``site'' between t0 and t1
         '''        
@@ -186,6 +186,7 @@ class MapIllustrator():
             
                         beta_mult_measure = summary.measure_list[r].find(BetaMultiplierMeasureByType, t=visit.t_from)
                         beta_fact *= beta_mult_measure.beta_factor(typ=mob.site_dict[mob.site_type[site]], t=visit.t_from) if beta_mult_measure else 1.0
+                        
                         s += (min(visit.t_to, t1) - max(visit.t_from, t0)) * beta_fact
 
         s = np.exp(-s)
@@ -334,7 +335,7 @@ class MapIllustrator():
     """
     
     def empirical_infection_probability_map(self, bbox, site_loc, site_type, site_dict, map_name, sim, t0, t1, delta,
-                                            scaling_markersize=0.3, r=0):
+                                            site_has_beacon, scaling_markersize=0.3, r=0):
         '''
         Computes the empirical survival probability s per site for a given interval
         and visualizes 1-s with markers of different sizes. The map is saved as an 

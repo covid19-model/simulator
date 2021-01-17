@@ -2,6 +2,8 @@ MANIFEST
 build
 *.pk
 *.csv
+*.txt
+condensed_summaries/*
 !lib/data/cases/CH_COVID19.csv
 !lib/data/cases/GER_COVID19.csv
 *.txt #Ignore log files

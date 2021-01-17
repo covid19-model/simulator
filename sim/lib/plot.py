@@ -1,5 +1,7 @@
 import os
 import itertools
+import collections
+import pprint
 import numpy as np
 import pandas as pd
 from scipy import stats as sps
@@ -14,15 +16,13 @@ from matplotlib.dates import date2num, num2date
 from matplotlib.backends.backend_pgf import FigureCanvasPgf
 from matplotlib.colors import ListedColormap
 
-from lib.measures import (MeasureList, BetaMultiplierMeasureBySite,
-                          SocialDistancingForAllMeasure, BetaMultiplierMeasureByType,
-                          SocialDistancingForPositiveMeasure, SocialDistancingByAgeMeasure,
-                          SocialDistancingForSmartTracing, ComplianceForAllMeasure, UpperBoundCasesBetaMultiplier)
+from scipy.interpolate import griddata
+import matplotlib.colors as colors
+
+
 from lib.rt import compute_daily_rts, R_T_RANGE
 import lib.rt_nbinom
-from lib.experiment import load_summary
-import pickle
-
+from lib.summary import *
 
 TO_HOURS = 24.0
 DPI = 200
@@ -289,6 +289,18 @@ def target_widget(show_target,start_date, ax, zorder=None, ms=4.0, label='COVID-
             color='black', label=label, zorder=zorder)
 
 
+class CustomSitesProportionFixedLocator(plt.Locator):
+    """
+    Custom locator to avoid tick font bug of matplotlib
+    """
+
+    def __init__(self):
+        pass
+
+    def __call__(self):
+        return np.log(np.array([2, 5, 10, 25, 100]))
+
+
 class Plotter(object):
     """
     Plotting class
@@ -367,96 +379,6 @@ class Plotter(object):
         # Only show ticks on the left and bottom spines
         ax.yaxis.set_ticks_position('left')
         ax.xaxis.set_ticks_position('bottom')
-
-    def __is_state_at(self, sim, r, state, t):
-        if state == 'posi' or state == 'nega':
-            return (sim.state_started_at[state][r] - TEST_LAG <= t) & (sim.state_ended_at[state][r] - TEST_LAG > t)
-        else:
-            return (sim.state_started_at[state][r] <= t) & (sim.state_ended_at[state][r] > t)
-
-    def __state_started_before(self, sim, r, state, t):
-        if state == 'posi' or state == 'nega':
-            return (sim.state_started_at[state][r] - TEST_LAG <= t)
-        else:
-            return (sim.state_started_at[state][r] <= t)
-
-    def __is_contained_at(self, sim, r, measure, t):
-        contained = np.zeros(sim.n_people, dtype='bool')
-        for i in range(sim.n_people):
-            if measure == 'SocialDistancingForAllMeasure':
-                contained[i] = sim.measure_list[r].is_contained_prob(SocialDistancingForAllMeasure, t=t, j=i)
-            elif measure == 'SocialDistancingForSmartTracing':
-                contained[i] = sim.measure_list[r].is_contained_prob(SocialDistancingForSmartTracing, t=t, j=i)
-            elif measure == 'SocialDistancingByAgeMeasure':
-                contained[i] = sim.measure_list[r].is_contained_prob(SocialDistancingByAgeMeasure, t=t, age=sim.people_age[r, i])
-            elif measure == 'SocialDistancingForPositiveMeasure':
-                contained[i] = sim.measure_list[r].is_contained_prob(SocialDistancingForPositiveMeasure,
-                                                                     t=t, j=i,
-                                                                     state_posi_started_at=sim.state_started_at['posi'][r, :],
-                                                                     state_posi_ended_at=sim.state_ended_at['posi'][r, :],
-                                                                     state_resi_started_at=sim.state_started_at['resi'][r, :],
-                                                                     state_dead_started_at=sim.state_started_at['dead'][r, :])
-            else:
-                raise ValueError('Social distancing measure unknown.')
-        return contained
-
-    def __comp_state_cumulative(self, sim, state, acc):
-        '''
-        Computes `state` variable over time [0, self.max_time] with given accuracy `acc
-        '''
-        ts, means, stds = [], [], []
-        for t in np.linspace(0.0, sim.max_time, num=acc, endpoint=True):
-            restarts = [np.sum(self.__state_started_before(sim, r, state, t))
-                for r in range(sim.random_repeats)]
-            ts.append(t/TO_HOURS)
-            means.append(np.mean(restarts))
-            stds.append(np.std(restarts))
-        return np.array(ts), np.array(means), np.array(stds)
-
-    def __comp_state_over_time(self, sim, state, acc, return_single_runs=False):
-        '''
-        Computes `state` variable over time [0, self.max_time] with given accuracy `acc
-        '''
-        ts, means, stds = [], [], []
-        for t in np.linspace(0.0, sim.max_time, num=acc, endpoint=True):
-            restarts = [np.sum(self.__is_state_at(sim, r, state, t))
-                for r in range(sim.random_repeats)]
-            if not return_single_runs:
-                ts.append(t/TO_HOURS)
-                means.append(np.mean(restarts))
-                stds.append(np.std(restarts))
-            else:
-                ts.append(t/TO_HOURS)
-                means.append(restarts)
-                stds.append(restarts)
-        return np.array(ts), np.array(means), np.array(stds)
-
-    def __comp_state_over_time_per_age(self, sim, state, acc, age):
-        '''
-        Computes `state` variable over time [0, self.max_time] with given accuracy `acc
-        for a given age group `age`
-        '''
-        ts, means, stds = [], [], []
-        for t in np.linspace(0.0, sim.max_time, num=acc, endpoint=True):
-            restarts = [np.sum(self.__is_state_at(sim, r, state, t) & (sim.people_age[r] == age))
-                        for r in range(sim.random_repeats)]
-            ts.append(t/TO_HOURS)
-            means.append(np.mean(restarts))
-            stds.append(np.std(restarts))
-        return np.array(ts), np.array(means), np.array(stds)
-
-    def __comp_contained_over_time(self, sim, measure, acc):
-        '''
-        Computes `state` variable over time [0, self.max_time] with given accuracy `acc
-        '''
-        ts, means, stds = [], [], []
-        for t in np.linspace(0.0, sim.max_time, num=acc, endpoint=True):
-            restarts = [np.sum(self.__is_contained_at(sim, r, measure, t))
-                for r in range(sim.random_repeats)]
-            ts.append(t/TO_HOURS)
-            means.append(np.mean(restarts))
-            stds.append(np.std(restarts))
-        return np.array(ts), np.array(means), np.array(stds)
 
     def plot_cumulative_infected(self, sim, title='Example', filename='daily_inf_0',
                                  figsize=(6, 5), errorevery=20, acc=1000, ymax=None,
@@ -564,11 +486,11 @@ class Plotter(object):
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
 
-        ts, iasy_mu, iasy_sig = self.__comp_state_over_time(sim, 'iasy', acc)
-        _,  ipre_mu, ipre_sig = self.__comp_state_over_time(sim, 'ipre', acc)
-        _,  isym_mu, isym_sig = self.__comp_state_over_time(sim, 'isym', acc)
-        # _,  expo_mu, iexpo_sig = self.__comp_state_over_time(sim, 'expo', acc)
-        # _,  posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
+        ts, iasy_mu, iasy_sig = comp_state_over_time(sim, 'iasy', acc)
+        _,  ipre_mu, ipre_sig = comp_state_over_time(sim, 'ipre', acc)
+        _,  isym_mu, isym_sig = comp_state_over_time(sim, 'isym', acc)
+        # _,  expo_mu, iexpo_sig = comp_state_over_time(sim, 'expo', acc)
+        # _,  posi_mu, posi_sig = comp_state_over_time(sim, 'posi', acc)
 
         line_xaxis = np.zeros(ts.shape)
         line_iasy = iasy_mu
@@ -660,8 +582,8 @@ class Plotter(object):
         ax = fig.add_subplot(111)
 
         # automatically shifted by `test_lag` in the function
-        ts, posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
-        _,  nega_mu, nega_sig = self.__comp_state_over_time(sim, 'nega', acc)
+        ts, posi_mu, posi_sig = comp_state_over_time(sim, 'posi', acc)
+        _,  nega_mu, nega_sig = comp_state_over_time(sim, 'nega', acc)
 
         line_xaxis = np.zeros(ts.shape)
         line_posi = posi_mu
@@ -725,14 +647,14 @@ class Plotter(object):
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111)
 
-        ts, all_mu, all_sig = self.__comp_contained_over_time(sim, 'SocialDistancingForAllMeasure', acc)
-        _,  positive_mu, positive_sig = self.__comp_contained_over_time(sim, 'SocialDistancingForPositiveMeasure', acc)
-        _,  age_mu, age_sig = self.__comp_contained_over_time(sim, 'SocialDistancingByAgeMeasure', acc)
-        _,  tracing_mu, tracing_sig = self.__comp_contained_over_time(sim, 'SocialDistancingForSmartTracing', acc)
+        ts, all_mu, all_sig = comp_contained_over_time(sim, 'SocialDistancingForAllMeasure', acc)
+        _,  positive_mu, positive_sig = comp_contained_over_time(sim, 'SocialDistancingForPositiveMeasure', acc)
+        _,  age_mu, age_sig = comp_contained_over_time(sim, 'SocialDistancingByAgeMeasure', acc)
+        _,  tracing_mu, tracing_sig = comp_contained_over_time(sim, 'SocialDistancingForSmartTracing', acc)
 
-        _, iasy_mu, iasy_sig = self.__comp_state_over_time(sim, 'iasy', acc)
-        _,  ipre_mu, ipre_sig = self.__comp_state_over_time(sim, 'ipre', acc)
-        _,  isym_mu, isym_sig = self.__comp_state_over_time(sim, 'isym', acc)
+        _, iasy_mu, iasy_sig = comp_state_over_time(sim, 'iasy', acc)
+        _,  ipre_mu, ipre_sig = comp_state_over_time(sim, 'ipre', acc)
+        _,  isym_mu, isym_sig = comp_state_over_time(sim, 'isym', acc)
 
         line_xaxis = np.zeros(ts.shape)
 
@@ -813,48 +735,35 @@ class Plotter(object):
         to compare different measures/interventions taken. Colors taken as defined in __init__, and
         averaged over random restarts, using error bars for std-dev
         '''
+
+        assert isinstance(sims[0], str), '`sims` must be list of filepaths'
+
         # Set double figure format
         self._set_matplotlib_params(format=figformat)
         # Draw figure
         fig, ax = plt.subplots(1, 1, figsize=figsize)
         for i, sim in enumerate(sims):
-            if isinstance(sim, str):
-                is_conditional = True if i == conditional_measures else False
-                try:
-                    data = load_extracted_data(sim, acc)
-                except FileNotFoundError:
-                    acc = extract_data_from_summary(sim, acc=acc, conditional_measures=is_conditional)
-                    data = load_extracted_data(sim, acc)
-                acc = data['acc']
-                ts = data['ts']
+            is_conditional = True if i == conditional_measures else False
+            try:
+                data = load_condensed_summary(sim, acc)
+            except FileNotFoundError:
+                acc = create_condensed_summary_from_path(sim, acc=acc)
+                data = load_condensed_summary(sim, acc)
+
+            ts = data['ts']
+            lockdown_at = data['lockdowns'] if is_conditional else lockdown_at
+            if x_axis_dates:
+                # Convert x-axis into posix timestamps and use pandas to plot as dates
+                ts = days_to_datetime(ts, start_date=start_date)
+
+            if not show_single_runs:
                 iasy_mu = data['iasy_mu']
                 iasy_sig = data['iasy_sig']
                 ipre_mu = data['ipre_mu']
                 ipre_sig = data['ipre_sig']
                 isym_mu = data['isym_mu']
                 isym_sig = data['isym_sig']
-                posi_mu = data['posi_mu']
-                posi_sig = data['posi_sig']
-                lockdown_at = data['lockdowns'] if is_conditional else lockdown_at
-                loaded_extracted_data = True
-            else:
-                loaded_extracted_data = False
 
-            if not show_single_runs:
-                if not loaded_extracted_data:
-                    if acc > sim.max_time:
-                        acc = int(sim.max_time)
-
-                    ts, iasy_mu, iasy_sig = self.__comp_state_over_time(sim, 'iasy', acc)
-                    _,  ipre_mu, ipre_sig = self.__comp_state_over_time(sim, 'ipre', acc)
-                    _,  isym_mu, isym_sig = self.__comp_state_over_time(sim, 'isym', acc)
-                    _,  posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
-
-                if x_axis_dates:
-                    # Convert x-axis into posix timestamps and use pandas to plot as dates
-                    ts = days_to_datetime(ts, start_date=start_date)
-
-                line_xaxis = np.zeros(ts.shape)
                 line_infected = iasy_mu + ipre_mu + isym_mu
                 error_infected = np.sqrt(np.square(iasy_sig) + np.square(ipre_sig) + np.square(isym_sig))
 
@@ -862,25 +771,11 @@ class Plotter(object):
                 ax.plot(ts, line_infected, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
                 ax.fill_between(ts, np.maximum(line_infected - 2 * error_infected, 0), line_infected + 2 * error_infected,
                                 color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
-
             else:
-                if not loaded_extracted_data:
-                    if acc > sim.max_time:
-                        acc = int(sim.max_time)
+                iasy = data['iasy']
+                ipre = data['ipre']
+                isym = data['isym']
 
-                    ts, iasy, iasy_sig = self.__comp_state_over_time(sim, 'iasy', acc, return_single_runs=True)
-                    _,  ipre, ipre_sig = self.__comp_state_over_time(sim, 'ipre', acc, return_single_runs=True)
-                    _,  isym, isym_sig = self.__comp_state_over_time(sim, 'isym', acc, return_single_runs=True)
-                else:
-                    iasy = data['iasy']
-                    ipre = data['ipre']
-                    isym = data['isym']
-
-                if x_axis_dates:
-                    # Convert x-axis into posix timestamps and use pandas to plot as dates
-                    ts = days_to_datetime(ts, start_date=start_date)
-
-                line_xaxis = np.zeros(ts.shape)
                 lines_infected = iasy + ipre + isym
 
                 # lines
@@ -916,7 +811,8 @@ class Plotter(object):
             fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
         else:
             ax.set_xlabel(r'$t$ [days]')
-        ax.set_ylabel('People')
+
+        ax.set_ylabel('Infected')
 
         if not isinstance(lockdown_at, list):
             if lockdown_at is not None:
@@ -924,6 +820,113 @@ class Plotter(object):
                                 lockdown_label_y,
                                 lockdown_label,
                                 xshift=lockdown_xshift)
+
+        # Set default axes style
+        self._set_default_axis_settings(ax=ax)
+
+        if show_legend:
+            # legend
+            if legend_is_left:
+                leg = ax.legend(loc='upper left',
+                          bbox_to_anchor=(0.001, 0.999),
+                          bbox_transform=ax.transAxes,
+                        #   prop={'size': 5.6}
+                          )
+            else:
+                leg = ax.legend(loc='upper right',
+                          bbox_to_anchor=(0.999, 0.999),
+                          bbox_transform=ax.transAxes,
+                        #   prop={'size': 5.6}
+                          )
+
+        subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
+        plt.subplots_adjust(**subplot_adjust)
+
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+                    dpi=DPI, bbox_inches='tight')
+
+        if NO_PLOT:
+            plt.close()
+        return
+
+    def compare_quantity(self, sims, titles, quantity='infected', mode='total', ymax=None,
+                         normalization_baseline_path=None,
+                         start_date='1970-01-01', xtick_interval=3, x_axis_dates=False,
+                         figformat='double', filename='compare_epidemics', figsize=None,
+                         lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
+                         show_legend=True, legend_is_left=False, subplot_adjust=None):
+        ''''
+        Plots `quantity` in `mode` for each simulation, named as provided by `titles`
+        to compare different measures/interventions taken. Colors taken as defined in __init__, and
+        averaged over random restarts, using error bars for std-dev
+        '''
+
+        assert isinstance(sims[0], str), '`sims` must be list of filepaths'
+        assert mode in ['total', 'daily', 'cumulative']
+        assert quantity in ['infected', 'hosp', 'dead']
+
+        labeldict = {'total': {'infected': 'Infected',
+                               'hosp': 'Hospitalized',
+                               'dead': 'Fatalities'},
+                     'cumulative': {'infected': 'Cumulative Infections',
+                                    'hosp': 'Cumulative Hospitalizations',
+                                    'dead': 'Cumulative Fatalities'},
+                     'daily': {'infected': 'Daily Infections',
+                               'hosp': 'Daily Hospitalizations',
+                               'dead': 'Daily Fatalities'},
+                     }
+
+        # Set double figure format
+        self._set_matplotlib_params(format=figformat)
+        # Draw figure
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+
+        # Load baseline data
+        # if normalization_baseline_path:
+        #     baseline_data = load_condensed_summary_compat(normalization_baseline_path)
+        #     baseline_cases, _ = get_plot_data(baseline_data, quantity=quantity, mode=mode)
+
+        for i, sim in enumerate(sims):
+            data = load_condensed_summary_compat(sim)
+            ts = data['ts'] if not x_axis_dates else days_to_datetime(data['ts'], start_date=start_date)
+
+            line_cases, error_cases = get_plot_data(data, quantity=quantity, mode=mode)
+            ylabel = labeldict[mode][quantity]
+
+            # if normalization_baseline_path:
+            #     line_cases = 1 - line_cases / baseline_cases
+            #     error_cases = error_cases / baseline_cases
+            #     line_cases = np.nan_to_num(line_cases, nan=0.0)
+            #     error_cases = np.nan_to_num(error_cases, nan=0.0)
+            #     ylabel = f'Reduction in ' + ylabel
+
+            # lines
+            ax.plot(ts, line_cases, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
+            ax.fill_between(ts, np.maximum(line_cases - 2 * error_cases, 0), line_cases + 2 * error_cases,
+                            color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
+
+        # axis
+        ax.set_xlim(left=np.min(ts))
+        if ymax is None:
+            ymax = 1.5 * np.max(line_cases)
+        ax.set_ylim((0, ymax))
+
+        if x_axis_dates:
+            # set xticks every week
+            ax.xaxis.set_minor_locator(mdates.WeekdayLocator(byweekday=1, interval=1))
+            ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=1, interval=xtick_interval))
+            ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+            fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
+        else:
+            ax.set_xlabel(r'$t$ [days]')
+
+        ax.set_ylabel(ylabel)
+
+        if lockdown_at is not None:
+            lockdown_widget(ax, lockdown_at, start_date,
+                            lockdown_label_y,
+                            lockdown_label,
+                            xshift=lockdown_xshift)
 
         # Set default axes style
         self._set_default_axis_settings(ax=ax)
@@ -978,10 +981,10 @@ class Plotter(object):
         for i, sim in enumerate(sims):
             if isinstance(sim, str):
                 try:
-                    data = load_extracted_data(sim, acc=acc)
+                    data = load_condensed_summary(sim, acc=acc)
                 except FileNotFoundError:
-                    acc = extract_data_from_summary(sim, acc=acc)
-                    data = load_extracted_data(sim, acc=acc)
+                    acc = create_condensed_summary_from_path(sim, acc=acc)
+                    data = load_condensed_summary(sim, acc=acc)
 
                 acc = data['acc']
                 ts = data['ts']
@@ -997,8 +1000,8 @@ class Plotter(object):
                 if acc > sim.max_time:
                     acc = int(sim.max_time)
 
-                ts, hosp_mu, hosp_sig = self.__comp_state_over_time(sim, 'hosp', acc)
-                ts, dead_mu, dead_sig = self.__comp_state_over_time(sim, 'dead', acc)
+                ts, hosp_mu, hosp_sig = comp_state_over_time(sim, 'hosp', acc)
+                ts, dead_mu, dead_sig = comp_state_over_time(sim, 'dead', acc)
 
             # Convert x-axis into posix timestamps and use pandas to plot as dates
             ts = days_to_datetime(ts, start_date=start_date)
@@ -1102,10 +1105,10 @@ class Plotter(object):
 
         # infections
         r = restart
-        is_expo = self.__is_state_at(sim, r, 'expo', at_time)
-        is_iasy = self.__is_state_at(sim, r, 'iasy', at_time)
-        is_ipre = self.__is_state_at(sim, r, 'ipre', at_time)
-        is_isym = self.__is_state_at(sim, r, 'isym', at_time)
+        is_expo = is_state_at(sim, r, 'expo', at_time)
+        is_iasy = is_state_at(sim, r, 'iasy', at_time)
+        is_ipre = is_state_at(sim, r, 'ipre', at_time)
+        is_isym = is_state_at(sim, r, 'isym', at_time)
         is_infected = is_iasy | is_ipre | is_isym
         no_state = (1 - is_infected) & (1 - is_expo)
 
@@ -1183,7 +1186,7 @@ class Plotter(object):
             if acc > sims[i].max_time:
                 acc = int(sims[i].max_time)
 
-            ts, line_hosp, error_sig = self.__comp_state_over_time(
+            ts, line_hosp, error_sig = comp_state_over_time(
                 sims[i], 'hosp', acc)
             line_xaxis = np.zeros(ts.shape)
 
@@ -1245,10 +1248,10 @@ class Plotter(object):
         for i, sim in enumerate(sims):
             if isinstance(sim, str):
                 try:
-                    data = load_extracted_data(sim, acc)
+                    data = load_condensed_summary(sim, acc)
                 except FileNotFoundError:
-                    acc = extract_data_from_summary(sim, acc=acc, n_age_groups=n_age_groups)
-                    data = load_extracted_data(sim, acc=acc)
+                    acc = create_condensed_summary_from_path(sim, acc=acc, n_age_groups=n_age_groups)
+                    data = load_condensed_summary(sim, acc=acc)
                 acc = data['acc']
                 ts = data['ts']
                 posi_mu = data['posi_mu']
@@ -1256,7 +1259,7 @@ class Plotter(object):
             else:
                 if acc > sim.max_time:
                     acc = int(sim.max_time)
-                ts, posi_mu, posi_sig = self.__comp_state_over_time(sim, 'posi', acc)
+                ts, posi_mu, posi_sig = comp_state_over_time(sim, 'posi', acc)
             plain_ts = ts
             # Convert x-axis into posix timestamps and use pandas to plot as dates
             ts = days_to_datetime(ts, start_date=start_date)
@@ -1334,10 +1337,10 @@ class Plotter(object):
 
         if isinstance(sim, str):
             try:
-                data = load_extracted_data(sim, acc=acc)
+                data = load_condensed_summary(sim, acc=acc)
             except FileNotFoundError:
-                acc = extract_data_from_summary(sim, acc=acc, n_age_groups=n_age_groups)
-                data = load_extracted_data(sim, acc=acc)
+                acc = create_condensed_summary_from_path(sim, acc=acc, n_age_groups=n_age_groups)
+                data = load_condensed_summary(sim, acc=acc)
         else:
             if acc > sim.max_time:
                 acc = int(sim.max_time)
@@ -1352,7 +1355,7 @@ class Plotter(object):
                 posi_sig = data['posi_sig_age'][i]
             else:
                 # automatically shifted by `test_lag` in the function
-                ts, posi_mu, posi_sig = self.__comp_state_over_time_per_age(sim, 'posi', acc, age)
+                ts, posi_mu, posi_sig = comp_state_over_time_per_age(sim, 'posi', acc, age)
 
             T = posi_mu.shape[0]
 
@@ -1544,45 +1547,24 @@ class Plotter(object):
         if NO_PLOT:
             plt.close()
 
-    def _estimate_daily_nbinom_rts(self, result, slider_size, window_size, end_cutoff):
-        # Extract summary from result
-        sim = result.summary
-        # Build the range of time interval to estimate for
-        t0_range = np.arange(0.0, sim.max_time - window_size - end_cutoff, slider_size)
-        t1_range = t0_range + window_size
-        interval_range = list(zip(t0_range, t1_range))
-        # Run the estimation
-        res_data = []
-        rand_rep_range = list(range(result.metadata.random_repeats))
-        for r, (t0, t1) in itertools.product(rand_rep_range, interval_range):
-            print(f"\rEstimating r={r+1:2>d}/{len(rand_rep_range)}, interval=[{t0:>6.2f}, {t1:>6.2f}]...", end='')
-            data = lib.rt_nbinom.get_sec_cases_in_window(sim, r, t0, t1)
-            fitter = lib.rt_nbinom.NegativeBinomialFitter()
-            fitter.fit(data)
-            res_data.append({'r': r, 't0': t0, 't1': t1,
-                         'Rt': fitter.r_, 'kt': fitter.k_,
-                         'num_sec_cases': data})
-        print()
-        # Format the results
-        df = pd.DataFrame(res_data)
-        # Ignore simulations with not enough data for fitting
-        df['len_data'] = df['num_sec_cases'].apply(len)
-        df['sum_data'] = df['num_sec_cases'].apply(sum)
-        df.loc[(df['len_data'] < 10) + (df['sum_data'] < 10),'kt'] = np.nan
-        df.loc[(df['len_data'] == 0),'Rt'] = 0.0  # if no cases observed
-        return df
-
-    def plot_daily_nbinom_rts(self, result=None, filename='', df=None,
+    def plot_daily_nbinom_rts(self, path, filename='daily_nbinom_rts_0',
                               slider_size=24.0, window_size=24.*7, end_cutoff=24.*10,
-                              figsize=None, figformat='double', ymax=None,
+                              figsize=None, figformat='double', ymax=None, acc=500,
                               cmap_range=(0.5, 1.5), subplots_adjust={'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96},
                               lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
                               x_axis_dates=True, xtick_interval=2, xlim=None):
         # Set this plot with double figures parameters
         self._set_matplotlib_params(format=figformat)
-        # Compute data if not provided
-        if df is None:
-            df = self._estimate_daily_nbinom_rts(result, slider_size, window_size, end_cutoff)
+
+        # Compute statistics
+        try:
+            data = load_condensed_summary(path, acc)
+        except FileNotFoundError:
+            acc = create_condensed_summary_from_path(sim, acc=acc)
+            data = load_condensed_summary(sim, acc)
+
+        df = data['nbinom_rts']
+            
         # Format dates
         if x_axis_dates:
             # Cast time of end of interval to datetime
@@ -1656,42 +1638,27 @@ class Plotter(object):
         if NO_PLOT:
             plt.close()
 
-    def _compute_nbinom_distributions(self, result, x_range, interval_range):
-        # Fit all intervals for all random repeats
-        rand_rep_range = range(result.metadata.random_repeats)
-        res_data = []
-        for r, (t0, t1) in itertools.product(rand_rep_range, interval_range):
-                data = lib.rt_nbinom.get_sec_cases_in_window(result.summary, r, t0, t1)
-                fitter = lib.rt_nbinom.NegativeBinomialFitter()
-                fitter.fit(data)
-                res_data.append({'r': r, 't0': t0, 't1': t1,
-                                'Rt': fitter.r_, 'kt': fitter.k_,
-                                'num_sec_cases': data})
-        # Format in dataframe
-        df = pd.DataFrame(res_data)
-        # Ignore simulations with not enough data for fitting
-        df['len_data'] = df['num_sec_cases'].apply(len)
-        df['sum_data'] = df['num_sec_cases'].apply(sum)
-        df.loc[(df['len_data'] < 5) + (df['sum_data'] < 5),'kt'] = np.nan
-        df.loc[(df['len_data'] == 0),'Rt'] = 0.0  # if no cases observed
-        # Compute NB parameters
-        df['param_n'] = df['kt']
-        df['param_p'] = df['kt'] / (df['kt'] + df['Rt'])
-        # Computer NB PMF
-        df['nbinom_pmf'] = df.apply(lambda row: sps.nbinom.pmf(x_range, n=row['param_n'], p=row['param_p']), axis=1)
-        return df
-
-    def plot_nbinom_distributions(self, *, result=None, df=None, x_range=None,
-                                  figsize=FIG_SIZE_TRIPLE_TALL, figformat='triple',
-                                  t0_range=[], label_range=[], window_size=10.*24, ymax=None, filename=''):
+    def plot_nbinom_distributions(self, *, path, acc=500, figsize=FIG_SIZE_TRIPLE_TALL, figformat='triple',
+                                  label_range=[], ymax=None, filename='nbinom_dist_0'):
         """
         Plot the distribution of number of secondary cases along with their Negative-Binomial fits
         for the experiment summary in `result` for several ranges of times.
         A pre-computed dataframe `df` can also be provided
         """
-        if df is None:
-            interval_range = [(t0, t0 + window_size) for t0 in t0_range]
-            df = self._compute_nbinom_distributions(result, x_range, interval_range)
+
+        # Compute statistics
+        try:
+            data = load_condensed_summary(path, acc)
+        except FileNotFoundError:
+            acc = create_condensed_summary_from_path(sim, acc=acc)
+            data = load_condensed_summary(sim, acc)
+
+        x_range = np.arange(0, 20)
+        t0_range = [50 * 24.0]
+        window_size = 10.0 * 24
+        interval_range = [(t0, t0 + window_size) for t0 in t0_range]
+        df = data['nbinom_dist']
+            
         # Aggregate results by time
         df_agg = df.groupby('t0').agg({'nbinom_pmf': list,
                                     'Rt': ['mean', 'std'],
@@ -1738,104 +1705,491 @@ class Plotter(object):
             os.system(f'pdfcrop "${fpath}" tmp.pdf && mv tmp.pdf "${fpath}"')
             plt.close()
 
+    def plot_roc_curve(self, titles, summaries=None, paths=None, action='isolate', figformat='double',
+                       filename='roc_example', figsize=None):
+        ''''
+        ROC curve
+        '''
+        assert (summaries or paths) is not None and (summaries and paths) is None, "Specify either summaries or paths"
+        self._set_matplotlib_params(format=figformat)
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+        axs = [ax]
+        # fig, axs = plt.subplots(1, 2, figsize=figsize)
+
+        # xs
+        xs = np.linspace(0, 1, num=500)
+
+        if paths:
+            try:
+                summaries = [load_condensed_summary(path) for path in paths]
+            except FileNotFoundError:
+                for path in paths:
+                    _ = create_condensed_summary_from_path(path)
+                summaries = [load_condensed_summary(path) for path in paths]
+
+        for i, summary in enumerate(summaries):
+
+            if paths: # If condensed summary
+                tracing_stats = summary['tracing_stats']
+            else:
+                print('exposed:', np.sum(summary.state_started_at['expo'] < np.inf, axis=1).mean())
+                tracing_stats = summary.tracing_stats
+            thresholds = list(tracing_stats.keys())
+
+            policies = dict()
+
+            for j, (name, policy) in enumerate([('PanCast', 'sites'), ('SPECT', 'no_sites')]):
+
+                
+                fpr_mean, fpr_std = [], []
+                tpr_mean, tpr_std = [], []
+
+                precision_mean, precision_std = [], []
+                recall_mean, recall_std = [], []
+                
+                fpr_of_means = []
+                tpr_of_means = []     
+                precision_of_means = []
+                recall_of_means = []
+
+                fpr_single_runs = [[] for _ in range(len(tracing_stats[thresholds[0]][policy]['isolate']['tn']))]     
+                tpr_single_runs = [[] for _ in range(len(tracing_stats[thresholds[0]][policy]['isolate']['tn']))]   
 
 
-def extract_data_from_summary(summary_path, acc=500, conditional_measures=False, n_age_groups=None):
-    print(f'Extracting data from summary: {summary_path}')
-    result = load_summary(summary_path)
-    sim = result[1]
+                for t, thres in enumerate(thresholds):
 
-    if acc > sim.max_time:
-        acc = int(sim.max_time)
-        print(f'Requested accuracy not attainable, using maximal acc={acc} ...')
-
-    plotter = Plotter()
-    comp_state_over_time = plotter._Plotter__comp_state_over_time
-    ts, iasy_mu, iasy_sig = comp_state_over_time(sim, 'iasy', acc)
-    _, ipre_mu, ipre_sig = comp_state_over_time(sim, 'ipre', acc)
-    _, isym_mu, isym_sig = comp_state_over_time(sim, 'isym', acc)
-    _, posi_mu, posi_sig = comp_state_over_time(sim, 'posi', acc)
-    _, hosp_mu, hosp_sig = comp_state_over_time(sim, 'hosp', acc)
-    _, dead_mu, dead_sig = comp_state_over_time(sim, 'dead', acc)
-    _, posi_mu, posi_sig = comp_state_over_time(sim, 'posi', acc)
-    _, nega_mu, nega_sig = comp_state_over_time(sim, 'nega', acc)
-    _, iasy, _ = comp_state_over_time(sim, 'iasy', acc, return_single_runs=True)
-    _, ipre, _ = comp_state_over_time(sim, 'ipre', acc, return_single_runs=True)
-    _, isym, _ = comp_state_over_time(sim, 'isym', acc, return_single_runs=True)
-
-    lockdowns = None
-    mean_lockdown_time = 0
-    if conditional_measures:
-        lockdowns, mean_lockdown_time = get_lockdown_times(sim)
-
-    posi_mu_age, posi_sig_age = [], []
-    if n_age_groups:
-        for age in range(n_age_groups):
-            _, posi_mean, posi_std = plotter._Plotter__comp_state_over_time_per_age(sim, 'posi', acc, age)
-            posi_mu_age.append(posi_mean)
-            posi_sig_age.append(posi_std)
-
-    data = {'acc': acc,
-            'max_time': sim.max_time,
-            'ts': ts,
-            'iasy': iasy, 'iasy_mu': iasy_mu, 'iasy_sig': iasy_sig,
-            'ipre': ipre, 'ipre_mu': ipre_mu, 'ipre_sig': ipre_sig,
-            'isym': isym, 'isym_mu': isym_mu, 'isym_sig': isym_sig,
-            'hosp_mu': hosp_mu, 'hosp_sig': hosp_sig,
-            'dead_mu': dead_mu, 'dead_sig': dead_sig,
-            'posi_mu': posi_mu, 'posi_sig': posi_sig,
-            'nega_mu': nega_mu, 'nega_sig': nega_sig,
-            'lockdowns': lockdowns,
-            'mean_lockdown_time': mean_lockdown_time,
-            'posi_mu_age': posi_mu_age,
-            'posi_sig_age': posi_sig_age,
-            }
-
-    filepath = os.path.join('summaries', 'condensed_summaries', summary_path[:-3]+f'_extracted_data_acc={acc}.pk')
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    with open(filepath, 'wb') as fp:
-        pickle.dump(data, fp)
-    print(f'Data extraction successful.')
-    return acc
+                    stats = tracing_stats[thres][policy][action]
 
 
-def load_extracted_data(summary_path, acc=500):
-    with open(os.path.join('summaries', 'condensed_summaries', summary_path[:-3]+f'_extracted_data_acc={acc}.pk'), 'rb') as fp:
-        data = pickle.load(fp)
-    print('Loaded previously extracted data.')
-    return data
+                    # FPR = FP/(FP + TN) [isolate + not infected / not infected]
+                    # [if FP = 0 and TN = 0, set to 0]
+                    fprs = stats['fp'] / (stats['fp'] + stats['tn'])
+                    fprs = np.nan_to_num(fprs, nan=0.0)
+                    fpr_mean.append(np.mean(fprs).item())
+                    fpr_std.append(np.std(fprs).item())
+                    fpr_of_means.append(stats['fp'].mean() / (stats['fp'].mean() + stats['tn'].mean()))
+
+                    for r in range(len(fpr_single_runs)):
+                        fpr_single_runs[r].append(fprs[r])
+
+                    # TPR = TP/(TP + FN) [isolate + infected / infected]
+                    # = RECALL
+                    # [if TP = 0 and FN = 0, set to 0]
+                    tprs = stats['tp'] / (stats['tp'] + stats['fn'])
+                    tprs = np.nan_to_num(tprs, nan=0.0)
+                    tpr_mean.append(np.mean(tprs).item())
+                    tpr_std.append(np.std(tprs).item())
+                    tpr_of_means.append(stats['tp'].mean() / (stats['tp'].mean() + stats['fn'].mean()))
+
+                    for r in range(len(tpr_single_runs)):
+                        tpr_single_runs[r].append(tprs[r])
+
+                    # precision = TP/(TP + FP)
+                    precs = stats['tp'] / (stats['tp'] + stats['fp'])
+                    precs = np.nan_to_num(precs, nan=0.0)
+                    precision_mean.append(np.mean(precs).item())
+                    precision_std.append(np.std(precs).item())
+                    precision_of_means.append(stats['tp'].mean() / (stats['tp'].mean() + stats['fp'].mean()))
+
+                    # if i == 0:
+                    print("{:1.3f}   TP {:5.2f} FP {:5.2f}  TN {:5.2f}  FN {:5.2f}".format(
+                        thres, stats['tp'].mean(), stats['fp'].mean(), stats['tn'].mean(), stats['fn'].mean()
+                    ))
+                    if t == len(thresholds) - 1:
+                        print(" P {:5.2f}  N {:5.2f}".format(
+                            (stats['fn'] + stats['tp']).mean(), (stats['fp'] + stats['tn']).mean()
+                        ))
+
+                policies[name] = {'fpr': fpr_of_means,
+                                  'tpr': tpr_of_means, 
+                                  'prec': precision_of_means}
+
+                # lines
+                axs[0].plot(fpr_of_means, tpr_of_means, linestyle='-', label=name, c=self.color_different_scenarios[j])
+                # axs[1].plot(tpr_of_means, precision_of_means, linestyle='-', label=name, c=self.color_different_scenarios[j])
+
+                # axs[0].plot(fpr_mean, tpr_mean, linestyle='-', label=name, c=self.color_different_scenarios[j])
+                # axs[1].plot(tpr_mean, precision_mean, linestyle='-', label=name, c=self.color_different_scenarios[j])
+
+            # for each FPR bucket, collect TPR and prec values
+            policy_bin_values = dict()
+            n_bins = 6
+            bins = np.linspace(0.0, 1.0, n_bins)
+            for n in range(bins.shape[0] - 1):
+                print(f'index {n + 1} : {bins[n]} - {bins[n + 1]}')
+
+            for policy in ['SPECT', 'PanCast']:
+                fprs = np.array(policies[policy]['fpr'])
+                tprs = np.array(policies[policy]['tpr'])
+                precs = np.array(policies[policy]['prec'])
+
+                inds = np.digitize(fprs, bins)
+
+                bin_values_fpr = collections.defaultdict(list)
+                bin_values_tpr = collections.defaultdict(list)
+                bin_values_prec = collections.defaultdict(list)
+
+                for i in range(fprs.shape[0]):
+                    bin_values_fpr[inds[i]].append(fprs[i])
+                    bin_values_tpr[inds[i]].append(tprs[i])
+                    bin_values_prec[inds[i]].append(precs[i])
+
+                # form mean of each bucket
+                policy_bin_values[policy] = {
+                    'fpr' : {k:np.array(lst).mean().item() for k, lst in bin_values_fpr.items()},
+                    'tpr' : {k:np.array(lst).mean().item() for k, lst in bin_values_tpr.items()},
+                    'prec': {k: np.array(lst).mean().item() for k, lst in bin_values_prec.items()},
+                }
+
+            # print improvement pancast over spect
+            # pprint.pprint(policy_bin_values)
+            for metric in ['tpr', 'prec']:
+
+                relative_percentage = []
+                
+                for ind in policy_bin_values['SPECT']['fpr'].keys():
+
+                    # only check bins where both have values
+                    if (ind not in policy_bin_values['PanCast'][metric].keys()) or\
+                       (ind not in policy_bin_values['SPECT'][metric].keys()):
+                       continue
+
+                    # ignore edge bins
+                    if ind <= 1 or ind >= n_bins - 1:
+                        continue 
+
+                    relative_percentage.append(
+                        (ind, policy_bin_values['PanCast'][metric][ind] / policy_bin_values['SPECT'][metric][ind])
+                    )
+
+                argmaxval, maxval = max(relative_percentage, key=lambda x: x[1])
+                print('Maximum relative % PanCast/SPECT (excluding boundary)', metric, maxval * 100, 'bin: ', argmaxval)
+
+        for ax in axs:
+            ax.set_xlim((0.0, 1.0))
+            ax.set_ylim((0.0, 1.0))
+
+        # diagonal
+        axs[0].plot(xs, xs, linestyle='dotted', c='black')
+
+        axs[0].set_xlabel('FPR')
+        axs[0].set_ylabel('TPR')
+
+        # axs[1].set_xlabel('Recall')
+        # axs[1].set_ylabel('Precision')
+
+        # Set default axes style
+        # self._set_default_axis_settings(ax=ax)
+        
+        leg = axs[0].legend(loc='lower right')
+        # leg = axs[1].legend(loc='top right')
+
+        # subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
+        # plt.subplots_adjust(**subplot_adjust)
+
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+                    dpi=DPI, bbox_inches='tight')
+        plt.tight_layout()
+        if NO_PLOT:
+            plt.close()
+        return
+
+    def reff_heatmap(self, xlabel, ylabel, paths, path_labels, figformat='double',
+                     filename='reff_heatmap_0', figsize=None, acc=500, 
+                     relative_window=(0.25, 0.75)):
+        ''''
+        Plots heatmap of average R_t
+            paths:              list with tuples (x, y, path)
+            relative_window:    relative range of max_time used for R_t average
+        '''
+        # set double figure format
+        self._set_matplotlib_params(format=figformat)
+
+        # draw figure
+        fig, axs = plt.subplots(1, 2, figsize=figsize)
+
+        # extract data
+        reff_means_all = []
+        for p in paths:
+
+            reff_means = []
+            for xval, yval, path in p:
+
+                try:
+                    data = load_condensed_summary(path, acc)
+                except FileNotFoundError:
+                    acc = create_condensed_summary_from_path(sim, acc=acc)
+                    data = load_condensed_summary(sim, acc)
+
+                rtdata = data['nbinom_rts']
+                n_rollouts = data['metadata'].random_repeats
+                max_time = data['max_time']
+
+                l_max_time = relative_window[0] * max_time 
+                r_max_time = relative_window[1] * max_time
+
+                # filter time window
+                rtdata_window = rtdata.loc[(l_max_time <= rtdata['t0']) & (rtdata['t1'] <= r_max_time)]
+                reff_mean = np.mean(rtdata_window["Rt"])
+        
+                reff_means.append((xval, yval, reff_mean))
+
+            reff_means_all.append(reff_means)
+
+        # find min and max for both plots
+        zmins, zmaxs = [], []
+        for reff_means in reff_means_all:
+            x, y, z = zip(*reff_means)
+            zmins.append(min(z))
+            zmaxs.append(max(z))
+
+        zmin, zmax = min(zmins), max(zmaxs)
+
+        # generate heatmaps
+        for t, title in enumerate(path_labels):
+            
+            x, y, z = zip(*reff_means_all[t])
+            xbounds = min(x), max(x)
+            ybounds = min(y), max(y)
+
+            # contour interpolation
+            xi = np.linspace(xbounds[0], xbounds[1], 100)
+            yi = np.linspace(ybounds[0], ybounds[1], 100)
+            zi = griddata((x, y), z, (xi[None,:], yi[:,None]), method='cubic')
+
+            n_bins = 15
+            axs[t].contour(xi, yi, zi, n_bins, linewidths=0.5, colors='k', norm=colors.Normalize(vmin=zmin, vmax=zmax))
+
+            if t == 0:
+                contourplot = axs[t].contourf(xi, yi, zi, n_bins, cmap=plt.cm.jet, norm=colors.Normalize(vmin=zmin, vmax=zmax))
+            else:
+                _ = axs[t].contourf(xi, yi, zi, n_bins, cmap=plt.cm.jet, norm=colors.Normalize(vmin=zmin, vmax=zmax))
+
+            axs[t].set_xlabel(xlabel)
+            if t == 0:
+                axs[t].set_ylabel(ylabel)
+            axs[t].set_xlim(xbounds)
+            axs[t].set_ylim(ybounds)
+            axs[t].set_title(title)
+
+        fig.subplots_adjust(right=0.8)
+        cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+        fig.colorbar(contourplot, cax=cbar_ax)
 
 
-def get_lockdown_times(summary):
-    interventions = []
-    for ml in summary.measure_list:
-        hist, t = None, 1
-        while hist is None:
-            # Search for active measure if conditional measure was not active initially
-            hist = list(ml.find(UpperBoundCasesBetaMultiplier, t=t).intervention_history)
-            t += TO_HOURS
-        try:
-            lockdowns = [hist[0][:2]]
-        except IndexError:
-            lockdowns = None
-        j = 0
-        for k in range(len(hist)):
-            if k > j:
-                # If the time between two lock down periods is less than 2 days we count it as one lockdown\n",
-                if hist[k][0] - lockdowns[j][1] < 2 * TO_HOURS:
-                    lockdowns[j] = (lockdowns[j][0], hist[k][1])
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+                    dpi=DPI, bbox_inches='tight')
+
+        if NO_PLOT:
+            plt.close()
+        return
+    
+    def relative_quantity_heatmap(self, mode, xlabel, ylabel, paths, path_labels, baseline_path, figformat='double',
+                     filename='reff_heatmap_0', figsize=None, acc=500, interpolate='linear', # or `cubic`
+                     width_ratio=4, cmap='jet'):
+        ''''
+        Plots heatmap of average R_t
+            paths:              list with tuples (x, y, path)
+            relative_window:    relative range of max_time used for R_t average
+        '''
+        if mode == 'cumu_infected':
+            key = 'cumu_infected_'
+            colorbar_label = r'\% reduction of infections'
+        elif mode == 'hosp':
+            key = 'hosp_'
+            colorbar_label = r'\% reduction of peak hosp.'
+        elif mode == 'dead':
+            key = 'cumu_dead_'
+            colorbar_label = r'\% reduction of deaths'
+
+        # set double figure format
+        self._set_matplotlib_params(format=figformat)
+
+        # draw figure
+        fig, axs = plt.subplots(1, 2, figsize=figsize,  gridspec_kw={'width_ratios': [1, width_ratio]})
+
+        baseline_data = load_condensed_summary(baseline_path)
+        baseline_series = baseline_data[key + 'mu']
+
+        # extract data
+        zval_means_all = []
+        for p in paths:
+
+            zval_means = []
+            for xval, yval, path in p:
+
+                try:
+                    data = load_condensed_summary(path, acc)
+                except FileNotFoundError:
+                    acc = create_condensed_summary_from_path(sim, acc=acc)
+                    data = load_condensed_summary(sim, acc)
+
+                # extract z value given (x, y)
+                series = data[key + 'mu']
+                if 'cumu' in key:
+                    # last
+                    zval = (1 - series[-1] / baseline_series[-1]) * 100
                 else:
-                    lockdowns.append(hist[k][0:2])
-                    j += 1
-        interventions.append(lockdowns)
+                    # peak
+                    zval = (1 - series.max() / baseline_series.max()) * 100
+        
+                zval_means.append(((xval * 100 if xval is not None else xval), yval * 100, zval.item()))
 
-    lockdown_times = []
-    for run in interventions:
-        lockdown_time = 0
-        if run is not None:
-            for lockdown in run:
-                if lockdown is not None:
-                    lockdown_time += lockdown[1] - lockdown[0]
-            lockdown_times.append(lockdown_time)
-    mean_lockdown_time = np.mean(lockdown_times)
-    return interventions, mean_lockdown_time
+            zval_means_all.append(zval_means)
+
+        # define min and max for both plots
+        zmin, zmax_color, zmax_colorbar = 0, 90, 90
+        stepsize = 5
+        norm = colors.Normalize(vmin=zmin, vmax=zmax_color)
+        levels = np.arange(zmin, zmax_colorbar + stepsize, stepsize)
+
+        # generate heatmaps
+        for t, title in enumerate(path_labels):
+            
+            x, y, z = zip(*zval_means_all[t])
+
+            if x[0] is None:
+                # move 1D data on a 2D manifold for plotting
+                xbounds = (-0.1, 0.1)
+                ybounds = min(y), max(y)   
+
+                x = [xbounds[0] for _ in y] + [xbounds[1] for _ in y]
+                y = y + y
+                z = z + z
+
+                axs[t].xaxis.set_major_formatter(plt.NullFormatter())
+                axs[t].xaxis.set_minor_formatter(plt.NullFormatter())
+                axs[t].xaxis.set_major_locator(plt.NullLocator())
+                axs[t].xaxis.set_minor_locator(plt.NullLocator())
+                
+            else:
+                x = np.log(x)
+                xbounds = min(x), max(x)
+                ybounds = min(y), max(y)        
+
+                axs[t].set_xlabel(xlabel)
+
+                # x ticks
+                @ticker.FuncFormatter
+                def major_formatter(x_, pos):
+                    return r"{:3.0f}".format(np.exp(x_))
+        
+                # for some reason, FixedLocator makes tick labels falsely bold
+                # axs[t].xaxis.set_major_locator(ticker.FixedLocator(x)) 
+                axs[t].xaxis.set_major_locator(CustomSitesProportionFixedLocator())
+                axs[t].xaxis.set_major_formatter(major_formatter)
+                                        
+            # contour interpolation
+            xi = np.linspace(xbounds[0], xbounds[1], 100)
+            yi = np.linspace(ybounds[0], ybounds[1], 100)
+            zi = griddata((x, y), z, (xi[None,:], yi[:,None]), method=interpolate)
+
+            # contour plot
+            axs[t].contour(xi, yi, zi, linewidths=0.5, colors='k', norm=norm, levels=levels)
+            contourplot = axs[t].contourf(xi, yi, zi, cmap=cmap, norm=norm, levels=levels)
+
+            # axis
+            axs[t].set_xlim(xbounds)
+            axs[t].set_ylim(ybounds)
+            axs[t].set_title(title)
+
+            if t == 0:
+                axs[t].set_ylabel(ylabel)
+            else:
+                pass
+
+        # layout and color bar
+        fig.tight_layout()
+        fig.subplots_adjust(right=0.8)
+
+        # [left, bottom, width, height]
+        cbar_ax = fig.add_axes([0.87, 0.17, 0.05, 0.7])
+        cbar = matplotlib.colorbar.ColorbarBase(
+            cbar_ax, cmap=plt.cm.RdYlGn,
+            norm=norm,
+            boundaries=levels,
+            ticks=levels[::2],
+            orientation='vertical')
+        cbar.set_label(colorbar_label, labelpad=5.0)
+
+        # save
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+                    dpi=DPI, bbox_inches='tight')
+
+        if NO_PLOT:
+            plt.close()
+        return
+
+
+    def compare_peak_reduction(self, path_dict, baseline_path, ps_adoption, titles,
+                               mode='cumu_infected', ymax=1.0,
+                               figformat='double', filename='cumulative_reduction', figsize=None,
+                               show_legend=True, legend_is_left=False, subplot_adjust=None):
+
+        if mode == 'cumu_infected':
+            key = 'cumu_infected_'
+            ylabel = 'Reduction in infections'
+        elif mode == 'hosp':
+            key = 'hosp_'
+            ylabel = 'Reduction in peak hospitalizations'
+        elif mode == 'dead':
+            key = 'cumu_dead_'
+            ylabel = 'Reduction in fatalities'
+
+        # Set double figure format
+        self._set_matplotlib_params(format=figformat)
+        # Draw figure
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+
+        baseline_data = load_condensed_summary(baseline_path)
+        baseline_norm = np.max(baseline_data[key+'mu'])
+
+        ps_adoption = ps_adoption + [0]
+
+        for i, paths in enumerate(path_dict.values()):
+            cumu_rel_mean = []
+            cumu_rel_std = []
+            for path in paths:
+                data = load_condensed_summary(path)
+                maxidx = np.argmax(data[key + 'mu'])
+                cumu_rel_mean.append(data[key+'mu'][maxidx] / baseline_norm)
+                cumu_rel_std.append(data[key+'sig'][maxidx] / baseline_norm)
+
+            # Append value for p_adoption=0 (baseline)
+            cumu_rel_mean.append(1.0)
+            cumu_rel_std.append(0.0)
+            cumu_rel_mean = 1 - np.asarray(cumu_rel_mean)
+            cumu_rel_std = np.asarray(cumu_rel_std)
+
+            ax.errorbar(ps_adoption, cumu_rel_mean, yerr=cumu_rel_std, label=titles[i],
+                         c=self.color_different_scenarios[i], linestyle='-', elinewidth=0.8, capsize=3.0)
+
+        ax.set_xlim(left=np.min(ps_adoption), right=np.max(ps_adoption))
+        ax.set_ylim(ymax=ymax, ymin=0.0)
+
+        ax.set_ylabel(ylabel)
+        ax.set_xlabel('Adoption probability')
+
+
+        if show_legend:
+            # legend
+            if legend_is_left:
+                leg = ax.legend(loc='upper left',
+                          bbox_to_anchor=(0.001, 0.999),
+                          bbox_transform=ax.transAxes,
+                          )
+            else:
+                leg = ax.legend(loc='upper right',
+                          bbox_to_anchor=(0.999, 0.999),
+                          bbox_transform=ax.transAxes,
+                          )
+
+        subplot_adjust = subplot_adjust or {'bottom': 0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
+        plt.subplots_adjust(**subplot_adjust)
+
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+                    dpi=DPI, bbox_inches='tight')
+
+        if NO_PLOT:
+            plt.close()
+        return

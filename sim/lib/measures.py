@@ -16,6 +16,12 @@ Interval = namedtuple('Interval', ('left', 'right'))
 # limit between two measures, because interlap works with closed intervals
 EPS = 1e-15
 
+# Small object remembering result and intended action of a test 
+TestResult = namedtuple('TestResult', (
+    'is_positive_test',             # Boolean of test result (True = positive)
+    'trigger_tracing_if_positive',  # Boolean of whether or not contact tracing should be triggered if positive
+))
+
 
 class Measure(metaclass=abc.ABCMeta):
 
@@ -106,7 +112,7 @@ class SocialDistancingForAllMeasure(Measure):
     def exit_run(self):
         """ Deletes bernoulli array. """
         if self._is_init:
-            del self.bernoulli_stay_home
+            self.bernoulli_stay_home = None
             self._is_init = False
 
 
@@ -223,6 +229,70 @@ class SocialDistancingPerStateMeasure(SocialDistancingForAllMeasure):
                 state_ended_at_dict[self.state_label][j]:
             return self.p_stay_home
         return 0.0
+
+
+class SocialDistancingBySiteTypeForAllMeasure(Measure):
+    """
+    Social distancing measure. All the population is advised to stay home. Each
+    visit of each individual respects the measure with some probability.
+    """
+
+    def __init__(self, t_window, p_stay_home_dict):
+        """
+
+        Parameters
+        ----------
+        t_window : Interval
+            Time window during which the measure is active
+        p_stay_home_dict : dict of site_type : float
+            Probability of respecting the measure for a given site type, should be in [0,1]
+        """
+        # Init time window
+        super().__init__(t_window)
+
+        # Init probabilities of respecting measure
+        if (not isinstance(p_stay_home_dict, dict)) or any([p < 0.0 or p > 1.0 for p in p_stay_home_dict.values()]):
+            raise ValueError("`p_stay_home_dict` should contain non-negative floats between 0 and 1")
+        self.p_stay_home_dict = p_stay_home_dict
+
+    def init_run(self, n_people, n_visits):
+        """Init the measure for this run by sampling the outcome of each visit
+        for each individual 
+
+        Parameters
+        ----------
+        n_people : int
+            Number of people in the population
+        n_visits : int
+            Maximum number of visits of an individual
+        """
+        # Sample the outcome of the measure for each visit of each individual
+        self.bernoulli_stay_home_type = {
+            k : np.random.binomial(1, p, size=(n_people, n_visits))
+            for k, p in self.p_stay_home_dict.items()
+        }
+        self._is_init = True
+
+    @enforce_init_run
+    def is_contained(self, *, j, j_visit_id, site_type, t):
+        """Indicate if individual `j` respects measure for visit `j_visit_id`
+        """
+        is_home_now = self.bernoulli_stay_home_type[site_type][j, j_visit_id]
+        return is_home_now and self._in_window(t)
+
+    @enforce_init_run
+    def is_contained_prob(self, *, j, site_type, t):
+        """Returns probability of containment for individual `j` at time `t`
+        """
+        if self._in_window(t):
+            return self.p_stay_home_dict[site_type]
+        return 0.0
+
+    def exit_run(self):
+        """ Deletes bernoulli array. """
+        if self._is_init:
+            self.bernoulli_stay_home = None
+            self._is_init = False
 
 
 class SocialDistancingForPositiveMeasure(SocialDistancingForAllMeasure):
@@ -384,7 +454,7 @@ class SocialDistancingByAgeMeasure(Measure):
     def exit_run(self):
         """ Deletes bernoulli array. """
         if self._is_init:
-            del self.bernoulli_stay_home
+            self.bernoulli_stay_home = None
             self._is_init = False
 
 
@@ -393,8 +463,6 @@ class SocialDistancingForSmartTracing(Measure):
     Social distancing measure. Only the population who intersected with positive cases 
     for ``smart_tracing_isolation_duration``. Each visit of each individual respects the measure with 
     some probability.
-
-    NOTE: This is the same as a SocialDistancingForAllMeasure but `is_contained` query also checks that the state 'posi' of individual j is True
     """
 
     def __init__(self, t_window, p_stay_home, smart_tracing_isolation_duration):
@@ -428,9 +496,10 @@ class SocialDistancingForSmartTracing(Measure):
             Maximum number of visits of an individual
         """
         # Sample the outcome of the measure for each visit of each individual
-        self.bernoulli_stay_home = np.random.binomial(
-            1, self.p_stay_home, size=(n_people, n_visits))
+        self.bernoulli_stay_home = np.random.binomial(1, self.p_stay_home, size=(n_people, n_visits))
         self.intervals_stay_home = [InterLap() for _ in range(n_people)]
+        #self.got_contained = np.zeros([n_people, 2])
+        # self.got_contained = [[] for _ in range(n_people)]
         self._is_init = True
 
     @enforce_init_run
@@ -448,6 +517,7 @@ class SocialDistancingForSmartTracing(Measure):
     @enforce_init_run
     def start_containment(self, *, j, t):
         self.intervals_stay_home[j].update([(t, t + self.smart_tracing_isolation_duration)])
+        # self.got_contained[j].append([t, t + self.smart_tracing_isolation_duration])
         return
 
     @enforce_init_run
@@ -464,7 +534,7 @@ class SocialDistancingForSmartTracing(Measure):
     def exit_run(self):
         """ Deletes bernoulli array. """
         if self._is_init:
-            del self.bernoulli_stay_home
+            self.bernoulli_stay_home = None
             self._is_init = False
 
 
@@ -538,8 +608,8 @@ class SocialDistancingSymptomaticAfterSmartTracing(Measure):
     def exit_run(self):
         """ Deletes bernoulli array. """
         if self._is_init:
-            del self.bernoulli_stay_home
-            del self.got_contained
+            self.bernoulli_stay_home = None
+            self.got_contained = None
             self._is_init = False
 
 class SocialDistancingForSmartTracingHousehold(Measure):
@@ -668,7 +738,7 @@ class SocialDistancingSymptomaticAfterSmartTracingHousehold(Measure):
     def exit_run(self):
         """ Deletes bernoulli array. """
         if self._is_init:
-            del self.got_contained
+            self.got_contained = None
             self._is_init = False
 
 class SocialDistancingForKGroups(Measure):
@@ -739,11 +809,6 @@ class BetaMultiplierMeasure(Measure):
                               " non-negative floats"))
         self.beta_multiplier = beta_multiplier
 
-    # def beta_factor(self, *args):
-    #     """Initialize general beta_factor function"""
-    #     raise NotImplementedError(("Must be implemented in child class. If you"
-    #                                " get this error, it's probably a bug."))
-
 
 class BetaMultiplierMeasureBySite(BetaMultiplierMeasure):
 
@@ -761,6 +826,30 @@ class BetaMultiplierMeasureByType(BetaMultiplierMeasure):
         factor is one if `t` is not in the active time window of the measure.
         """
         return self.beta_multiplier[typ] if self._in_window(t) else 1.0
+
+
+class APrioriBetaMultiplierMeasureByType(Measure):
+
+    def __init__(self, beta_multiplier):
+        """
+
+        Parameters
+        ----------
+        beta_multiplier : list of floats
+            List of multiplicative factor to infection rate at each site
+        """
+
+        super().__init__(Interval(0.0, np.inf))
+        if (not isinstance(beta_multiplier, dict)
+                or (min(beta_multiplier.values()) < 0)):
+            raise ValueError(("`beta_multiplier` should be dict of"
+                              " non-negative floats"))
+        self.beta_multiplier = beta_multiplier
+
+    def beta_factor(self, *, typ):
+        """Returns the multiplicative factor for site type `typ` independent of time `t`
+        """
+        return self.beta_multiplier[typ]
 
 
 class UpperBoundCasesBetaMultiplier(BetaMultiplierMeasure):
@@ -872,37 +961,160 @@ class ComplianceForAllMeasure(Measure):
         """Indicate if individual `j` is compliant 
         """
         return self.bernoulli_compliant[j] and self._in_window(t)
-    
-    def is_compliant_prob(self, *, j, t):
-        """Returns probability of compliance for individual `j` at time `t`
-        """
-        if self._in_window(t):
-            return self.p_compliance
-        return 0.0
 
     def exit_run(self):
         """ Deletes bernoulli array. """
         if self._is_init:
-            del self.bernoulli_compliant
+            self.bernoulli_compliant = None
+            self._is_init = False
+
+
+class ManualTracingReachabilityForAllMeasure(Measure):
+    """
+    Reachability measure. All the population has a probability of being reachable in
+    manual tracing. If an individual i complies with this measure and the infector participating in manual tracing
+    recalls a contact with i, i gets traced even if i does not comply with any digital tracing technology.
+    """
+
+    def __init__(self, t_window, p_reachable):
+        """
+
+        Parameters
+        ----------
+        t_window : Interval
+            Time window during which the measure is active
+        p_participate : float
+            Probability that individual is participating with manual contact tracing, should be in [0,1]
+        p_recall : float
+            Probability that individual recalls a given visit, should be in [0,1]
+        """
+        # Init time window
+        super().__init__(t_window)
+
+        # Init probability of respecting measure
+        if (not isinstance(p_reachable, float)) or (p_reachable < 0):
+            raise ValueError("`p_reachable` should be a non-negative float")
+        self.p_reachable = p_reachable
+
+    def init_run(self, n_people, n_visits):
+        """Init the measure for this run by sampling the compliance of each individual
+
+        Parameters
+        ----------
+        n_people : int
+            Number of people in the population
+        n_visits : int
+            Maximum number of visits of an individual
+        """
+        # Sample the reachability outcome of the measure for each individual
+        self.bernoulli_reachable = np.random.binomial(1, self.p_reachable, size=(n_people, n_visits)).astype(np.bool)
+        self._is_init = True
+
+    @enforce_init_run
+    def is_active(self, *, j, t, j_visit_id, site_type):
+        """
+        j : int
+            individual
+        t : float
+            time
+        site_type : str
+            type of site at which contact happened
+        """
+        if site_type in ['education', 'social', 'office']:
+            return self.bernoulli_reachable[j, j_visit_id] and self._in_window(t)
+        else:
+            return False
+
+    def exit_run(self):
+        """ Deletes bernoulli array. """
+        if self._is_init:
+            self.bernoulli_reachable = None
+            self._is_init = False
+
+
+class ManualTracingForAllMeasure(Measure):
+    """
+    Participation measure. All the population has a probability of participating in
+    manual tracing. This influences the ability of smart tracing to track contacts. 
+    
+    If an individual i complies with this measure, contacts which
+    i)   happen at sites that i recalls with probability `p_recall`
+    ii)  happen at sites that have a Bluetooth beacon
+
+    can be traced, even if i does not comply with contact tracing itself.
+    """
+
+    def __init__(self, t_window, p_participate, p_recall):
+        """
+
+        Parameters
+        ----------
+        t_window : Interval
+            Time window during which the measure is active
+        p_participate : float
+            Probability that individual is participating with manual contact tracing, should be in [0,1]
+        p_recall : float
+            Probability that individual recalls a given visit, should be in [0,1]
+        """
+        # Init time window
+        super().__init__(t_window)
+
+        # Init probability of respecting measure
+        if (not isinstance(p_participate, float)) or (p_participate < 0):
+            raise ValueError("`p_participate` should be a non-negative float")
+        if (not isinstance(p_recall, float)) or (p_recall < 0):
+            raise ValueError("`p_recall` should be a non-negative float")
+        self.p_participate = p_participate
+        self.p_recall = p_recall
+
+    def init_run(self, n_people, n_visits):
+        """Init the measure for this run by sampling the compliance of each individual
+
+        Parameters
+        ----------
+        n_people : int
+            Number of people in the population
+        n_visits : int
+            Maximum number of visits of an individual
+        """
+        # Sample the comliance outcome of the measure for each individual
+        self.bernoulli_participate = np.random.binomial(1, self.p_participate, size=(n_people)).astype(np.bool)
+
+        # Sample the site recall outcome for each visit of each individual
+        self.bernoulli_recall = np.random.binomial(1, self.p_recall, size=(n_people, n_visits)).astype(np.bool)
+        self._is_init = True
+
+    @enforce_init_run
+    def is_active(self, *, j, t, j_visit_id):
+        """
+        j : int
+            individual
+        t : float
+            time
+        j_visit_id : int (optional)
+            visit id
+
+        If j_visit_id == None:
+            Returns True iff `j` is compliant with manual tracing
+        else:
+            Returns True iff `j` is compliant with manual tracing _and_ recalls visit `j_visit_id`
+        """
+        if j_visit_id is None:
+            return self.bernoulli_participate[j] and self._in_window(t)
+        else:
+            return self.bernoulli_recall[j, j_visit_id] and self.bernoulli_participate[j] and self._in_window(t)
+
+    def exit_run(self):
+        """ Deletes bernoulli array. """
+        if self._is_init:
+            self.bernoulli_participate = None
+            self.bernoulli_recall = None
             self._is_init = False
     
 
 """
 =========================== OTHERS ===========================
 """
-
-
-class TestMeasure(Measure):
-
-    def __init__(self, t_window, tests_per_hour):
-        super().__init__(t_window)
-
-    def iter_batch(self):
-        """Iterator over the next batch of `tests_per_hour` individuals to test
-        according to priority list policy
-        """
-        #TODO: wait for Manuel's smart test feature
-
 
 class MeasureList:
 
@@ -947,6 +1159,18 @@ class MeasureList:
             return active_measures[0][2]
         return None  # No active measure
 
+    def find_first(self, measure_type):
+        """Find, if any, the first active measure of `type measure_type` 
+        """
+        measures = list(self.measure_dict[measure_type].find((0.0, np.inf)))
+        if len(measures) > 0:
+             # Extract first measure from interlap tuple
+            return measures[0][2]
+        return None  # No active measure
+
+    '''Containment-type measures (default: FALSE)
+        i.e. if no containment measure found, assume _is not_ contained
+    '''
     def is_contained(self, measure_type, t, **kwargs):
         m = self.find(measure_type, t)
         if m is not None:  # If there is an active measure
@@ -954,6 +1178,31 @@ class MeasureList:
             return m.is_contained(t=t, **kwargs)
         return False  # No active measure
 
+    def start_containment(self, measure_type, t, **kwargs):
+        m = self.find(measure_type, t)
+        if m is not None:
+            return m.start_containment(t=t, **kwargs)
+        return False
+
+    def is_contained_prob(self, measure_type, t, **kwargs):
+        m = self.find(measure_type, t)
+        if m is not None:
+            return m.is_contained_prob(t=t, **kwargs)
+        return False
+
+    '''Participation-type measures (default: FALSE)
+        i.e. if no participation measure found, assume _is not_ active
+    '''
+    def is_active(self, measure_type, t, **kwargs):
+        m = self.find(measure_type, t)
+        if m is not None:  # If there is an active measure
+            # FIXME: time is checked twice, both filtered in the list, and in the is_valid query, not a big problem though...
+            return m.is_active(t=t, **kwargs)
+        return False  # No active measure
+
+    '''Compliance type measures (default: TRUE)
+        i.e. if no compliance measure found, assume _is_ compliant
+    '''
     def is_compliant(self, measure_type, t, **kwargs):
         m = self.find(measure_type, t)
         # If there is an active compliance measure, 
@@ -962,17 +1211,6 @@ class MeasureList:
             return m.is_compliant(t=t, **kwargs)
         return True  # No active compliance measure
     
-    def start_containment(self, measure_type, t, **kwargs):
-        m = self.find(measure_type, t)
-        if m is not None:
-            return m.start_containment(t=t, **kwargs)
-        return False
-    
-    def is_contained_prob(self, measure_type, t, **kwargs):
-        m = self.find(measure_type, t)
-        if m is not None:
-            return m.is_contained_prob(t=t, **kwargs)
-        return False
 
 if __name__ == "__main__":
 
