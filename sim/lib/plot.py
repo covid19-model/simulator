@@ -1706,7 +1706,7 @@ class Plotter(object):
             plt.close()
 
     def plot_roc_curve(self, titles, summaries=None, paths=None, action='isolate', figformat='double',
-                       filename='roc_example', figsize=None):
+                       filename='roc_example', figsize=None, use_medical_labels=False):
         ''''
         ROC curve
         '''
@@ -1804,6 +1804,9 @@ class Plotter(object):
                                   'tpr': tpr_of_means, 
                                   'prec': precision_of_means}
 
+                if name == 'SPECT':
+                    name += 's'
+
                 # lines
                 axs[0].plot(fpr_of_means, tpr_of_means, linestyle='-', label=name, c=self.color_different_scenarios[j])
                 # axs[1].plot(tpr_of_means, precision_of_means, linestyle='-', label=name, c=self.color_different_scenarios[j])
@@ -1872,8 +1875,12 @@ class Plotter(object):
         # diagonal
         axs[0].plot(xs, xs, linestyle='dotted', c='black')
 
-        axs[0].set_xlabel('FPR')
-        axs[0].set_ylabel('TPR')
+        if use_medical_labels:
+            axs[0].set_xlabel('1-Specificity')
+            axs[0].set_ylabel('Sensitivity')
+        else:
+            axs[0].set_xlabel('FPR')
+            axs[0].set_ylabel('TPR')
 
         # axs[1].set_xlabel('Recall')
         # axs[1].set_ylabel('Precision')
@@ -2120,69 +2127,78 @@ class Plotter(object):
             plt.close()
         return
 
-
-    def compare_peak_reduction(self, path_dict, baseline_path, ps_adoption, titles,
+    def compare_peak_reduction(self, path_list, baseline_path, ps_adoption, titles,
                                mode='cumu_infected', ymax=1.0,
                                figformat='double', filename='cumulative_reduction', figsize=None,
                                show_legend=True, legend_is_left=False, subplot_adjust=None):
 
         if mode == 'cumu_infected':
             key = 'cumu_infected_'
-            ylabel = 'Reduction in infections'
+            ylabel = '\% reduction of infections'
         elif mode == 'hosp':
             key = 'hosp_'
-            ylabel = 'Reduction in peak hospitalizations'
+            ylabel = '\% reduction of peak hosp.'
         elif mode == 'dead':
             key = 'cumu_dead_'
-            ylabel = 'Reduction in fatalities'
+            ylabel = '% reduction of fatalities'
 
         # Set double figure format
         self._set_matplotlib_params(format=figformat)
         # Draw figure
         fig, ax = plt.subplots(1, 1, figsize=figsize)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
 
         baseline_data = load_condensed_summary(baseline_path)
-        baseline_norm = np.max(baseline_data[key+'mu'])
+        baseline_norm = np.max(baseline_data[key + 'mu'])
 
-        ps_adoption = ps_adoption + [0]
+        ps_adoption = np.asarray(ps_adoption) * 100
 
-        for i, paths in enumerate(path_dict.values()):
+        # colors = self.color_different_scenarios
+        colors = ['#377eb8', '#bd0026', '#f03b20', '#fd8d3c', '#fecc5c', '#ffffb2']
+        zorders = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+
+        for i, paths in enumerate(path_list):
             cumu_rel_mean = []
             cumu_rel_std = []
             for path in paths:
                 data = load_condensed_summary(path)
                 maxidx = np.argmax(data[key + 'mu'])
-                cumu_rel_mean.append(data[key+'mu'][maxidx] / baseline_norm)
-                cumu_rel_std.append(data[key+'sig'][maxidx] / baseline_norm)
+                cumu_rel_mean.append(data[key + 'mu'][maxidx] / baseline_norm)
+                cumu_rel_std.append(data[key + 'sig'][maxidx] / baseline_norm)
 
-            # Append value for p_adoption=0 (baseline)
-            cumu_rel_mean.append(1.0)
-            cumu_rel_std.append(0.0)
-            cumu_rel_mean = 1 - np.asarray(cumu_rel_mean)
-            cumu_rel_std = np.asarray(cumu_rel_std)
+            cumu_rel_mean = (1 - np.asarray(cumu_rel_mean)) * 100
+            cumu_rel_std = np.asarray(cumu_rel_std) * 100
 
-            ax.errorbar(ps_adoption, cumu_rel_mean, yerr=cumu_rel_std, label=titles[i],
-                         c=self.color_different_scenarios[i], linestyle='-', elinewidth=0.8, capsize=3.0)
+            bars = ax.errorbar(ps_adoption, cumu_rel_mean, yerr=cumu_rel_std, label=titles[i],
+                               c=colors[i], linestyle='-', elinewidth=0.8, capsize=3.0, zorder=zorders[i])
 
-        ax.set_xlim(left=np.min(ps_adoption), right=np.max(ps_adoption))
-        ax.set_ylim(ymax=ymax, ymin=0.0)
+            # # Turn off clipping of error bars at 100% adoption
+            # for e in bars[1]:
+            #     e.set_clip_on(False)
+
+        ax.set_xscale('log')
+
+        ax.set_xlim(left=np.min(ps_adoption), right=104)
+        ax.set_ylim(ymax=100, ymin=0.0)
+        ax.set_xticks(ps_adoption)
+        ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
 
         ax.set_ylabel(ylabel)
-        ax.set_xlabel('Adoption probability')
-
+        ax.set_xlabel('\% adoption')
 
         if show_legend:
             # legend
             if legend_is_left:
                 leg = ax.legend(loc='upper left',
-                          bbox_to_anchor=(0.001, 0.999),
-                          bbox_transform=ax.transAxes,
-                          )
+                                bbox_to_anchor=(0.001, 0.999),
+                                bbox_transform=ax.transAxes,
+                                )
             else:
                 leg = ax.legend(loc='upper right',
-                          bbox_to_anchor=(0.999, 0.999),
-                          bbox_transform=ax.transAxes,
-                          )
+                                bbox_to_anchor=(0.999, 0.999),
+                                bbox_transform=ax.transAxes,
+                                )
 
         subplot_adjust = subplot_adjust or {'bottom': 0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         plt.subplots_adjust(**subplot_adjust)
