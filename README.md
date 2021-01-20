@@ -24,19 +24,17 @@ strategic locations for our system to achieve high utility.
 
 
 <p align="center">
-<img width="25%" src="./img/beacon-environment-GER-TU-beta_dispersion=2.0.pdf">
-<img width="25%" src="./beacon-environment-GER-TU-beta_dispersion=10.0.pdf">
+<img width="23%" src="./img/beacon-environment-GER-TU-beta_dispersion=2.0.jpg">
+<img width="23%" src="./img/beacon-environment-GER-TU-beta_dispersion=10.0.jpg">
 </p>
 
 <p align="center">
-<img width="25%" src="./img/reduction-cumu_infected-GER-TU-beacon_mode=visit_freq.pdf">
-<img width="25%" src="./reduction-hosp-GER-TU-beacon_mode=visit_freq.pdf">
+<img width="23%" src="./img/reduction-cumu_infected-GER-TU-beacon_mode=visit_freq.jpg">
+<img width="23%" src="./img/reduction-hosp-GER-TU-beacon_mode=visit_freq.jpg">
+<img width="23%" src="./img/relative-cumu_infected-heatmap-pancast.jpg">
+<img width="23%" src="./img/relative-hosp-heatmap-pancast.jpg">
 </p>
 
-<p align="center">
-<img width="25%" src="./img/relative-cumu_infected-heatmap-pancast.pdf">
-<img width="25%" src="./relative-hosp-heatmap-pancast.pdf">
-</p>
 
 
 ## Implementation of PanCast into the epidemiological simulator
