@@ -24,15 +24,15 @@ strategic locations for our system to achieve high utility.
 
 
 <p align="center">
-<img width="40%" src="./img/beacon-environment-GER-TU-beta_dispersion=10.0.jpg">
+<img width="30%" src="./img/beacon-environment-GER-TU-beta_dispersion=10.0.jpg">
 </p>
 
 <p align="center">
-<img width="45%" src="./img/reduction-cumu_infected-GER-TU-beacon_mode=visit_freq.jpg">
-<img width="45%" src="./img/reduction-hosp-GER-TU-beacon_mode=visit_freq.jpg">
+<img width="40%" src="./img/reduction-cumu_infected-GER-TU-beacon_mode=visit_freq.jpg">
+<img width="40%" src="./img/reduction-hosp-GER-TU-beacon_mode=visit_freq.jpg">
 
-<img width="45%" src="./img/relative-cumu_infected-heatmap-pancast.jpg">
-<img width="45%" src="./img/relative-hosp-heatmap-pancast.jpg">
+<img width="40%" src="./img/relative-cumu_infected-heatmap-pancast.jpg">
+<img width="40%" src="./img/relative-hosp-heatmap-pancast.jpg">
 </p>
 
 
