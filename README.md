@@ -1,39 +1,102 @@
-# Quantifying the Effects of Contact Tracing, Testing, and Containment Measures in the Presence of Infection Hotspots
+# Listening to Bluetooth Beacons for Epidemic Risk Mitigation
 
-This repository contains the code base to run the sampling algorithm of a high-resolution spatiotemporal epidemic model at large scale, which can be used to predict and analyze the spread of epidemics such as COVID-19 in any real-world city and region. Different testing & tracing strategies, social distancing measures and business restrictions can be employed, amended, and extended arbitrarily in a modular fashion. Details about the relevant theory and methods can be found in our [paper](https://arxiv.org/abs/2004.07641).
+This repository contains the code for the experiments complementing our white paper on [PanCast](https://arxiv.org/pdf/2011.08069.pdf).
+It builds on the spatio-temporal epidemic model introduced in our previous [paper](https://arxiv.org/abs/2004.07641).
 
 ## Project description
 
-Motivated by several lines of evidence suggesting for *superspreading events* or infection hotspots to play a key role in the transmission dynamics of COVID-19, we introduce an epidemiological modeling framework that explicitly represents sites where infections occur or hotspots may emerge. We use temporal point processes to represent the state of each individual over time with respect to their mobility patterns, health, and testing status. The model leverages the locations of real-world sites and high-resolution population density data in a heuristic mobility model of a given region, which can be arbitrarily generalized.
-
-Bayesian optimization is used to estimate mobility-related exposure parameters by fitting the model to  true observed case counts in a considered area. In our work on COVID-19, we study six regions in Germany and Switzerland, whose models were fit to real case counts over two-month windows before and during the "lockdown" in spring 2020:
-
-<p align="center">
-<img width="100%" src="./img/modelfit-panel.jpg">
-</p>
-
-
-
-Using the estimated parameters of the region-specific models, the sampling algorithm allows for analyses of counterfactual scenarios under various local circumstances, e.g. in urban and rural as well as lightly and severely affected areas. 
-
-Amongst several other things, this framework allows to study the effects of:  the effective reproduction number e.g. during a shorter "lockdown" (top left), overdispersion in the number of secondary infections per individual (top middle), compliance with contact tracing (top right), and narrowcasting of the empirical exposure probability to sites (bottom); here: first two for Bern (CH) and second two for Tübingen (GER).
-
-
-
-<p align="center">
-<img width="28%" src="./img/r-bern-early-ending-lockdown.jpg">
-<img width="25%" src="./img/k-bern-early-ending-lockdown.jpg">
-<img width="30%" src="./img/tracing-compliance-tubingen.jpg">
-</p>
-
-
+During the ongoing COVID-19 pandemic, there have been burgeoning efforts to develop and deploy smartphone apps 
+to expedite contact tracing and risk notification. 
+Unfortunately, the success of these apps has been limited, partly owing to poor interoperability with 
+manual contact tracing, low adoption rates, and a societally sensitive trade-off between utility and privacy.
+In this work, we introduce a new privacy-preserving and inclusive system for epidemic risk assessment and notification that
+aims to address the above limitations.
+Rather than capturing pairwise encounters between smartphones as done by existing apps, our system captures
+encounters between inexpensive, zero-maintenance, small devices carried by users, and beacons placed in 
+strategic locations where infection clusters are most likely to originate.
+The epidemiological simulations using the agent-based model contained in this repository demonstrate 
+several beneficial properties of our system. 
+By achieving bidirectional interoperability with manual contact tracing, our system can help control disease spread 
+already at low adoption. By utilizing the location and environmental information provided by the beacons, 
+our system can provide significantly higher sensitivity and specificity than existing app-based systems.
+In addition, our simulations also suggest that it is sufficient to deploy beacons in a small fraction of 
+strategic locations for our system to achieve high utility.
 
 
 <p align="center">
-<img width="80%" src="./img/narrowcasting-tubingen.png">
+<img width="25%" src="./img/beacon-environment-GER-TU-beta_dispersion=2.0.pdf">
+<img width="25%" src="./beacon-environment-GER-TU-beta_dispersion=10.0.pdf">
 </p>
 
-## Organization
+<p align="center">
+<img width="25%" src="./img/reduction-cumu_infected-GER-TU-beacon_mode=visit_freq.pdf">
+<img width="25%" src="./reduction-hosp-GER-TU-beacon_mode=visit_freq.pdf">
+</p>
+
+<p align="center">
+<img width="25%" src="./img/relative-cumu_infected-heatmap-pancast.pdf">
+<img width="25%" src="./relative-hosp-heatmap-pancast.pdf">
+</p>
+
+
+## Implementation of PanCast into the epidemiological simulator
+Our simulations include manual contact tracing as well as digital contact tracing using either PanCast or 
+smartphone-based pairwise encounter-based contact tracing systems (SPECTs).  
+
+Independent of the tracing method, whenever a contact person of a diagnosed individual  gets  successfully  traced, 
+the  infection  risk  is  estimated  by  taking  into  account  the  duration  of the contact and possibly 
+environmental factors (only for PanCast). Individuals with infection risk above a certain threshold are quarantined 
+for two weeks, get tested within the next 24 hours, and receive the out come of the test 48 hours later. We choose the infection risk threshold to correspond to a 15 minute contact with asymptomatic individual in the model, 
+which is in accordance with SPECTs currently employed in Germany, Switzerland, the United Kingdom, France, and Australia.
+All simulations using PanCast or SPECTs also implement manual tracing by assuming that a certain fraction of visitors leave their contact details at social, office and education sites, 
+so that they can be reliably contacted, e.g., via phone.  Upon receiving a positive test result, 
+we assume that every individual participates in a manual contact-tracing interview independent of their participation 
+in digital tracing.  In the tracing interview, we assume a person only remembers a certain fraction of 
+their visit history of the past 14 days. 
+
+For PanCast we assume that a proportion of the population has adopted the system and is carrying dongles. We place beacons at a different proportions of the sites.  This can be done at random or strategically, 
+by taking into account quantities related to the site-specific probability of infections, e.g., by ranking the 
+sites according to their integrated visit time.  Whenever a person carrying a dongle gets tested positive, all 
+contacts at sites with beacons who also carry dongles get traced.  In addition, the information can be used to 
+trigger manual tracing action at all sites registered by the dongle of the positive-tested individual
+(i.e., PanCast supports manual tracing).  Likewise, when a person who tested positive does not carry a dongle but 
+participates in a manual contact interview and recalls a visit to a site with a beacon,  all individuals carrying 
+dongles at this site can be traced (i.e., manual tracing supports PanCast).  In our simulations, we assume that 
+individuals receive PanCast’s risk broadcast instantaneously.  In practice, this assumption maybe violated, but
+PanCast's protocol for risk dissemination ensures that the time it takes
+for dongles to receive risk information stays within acceptable limits.
+
+
+
+## Dependencies
+
+This project uses Python 3. To create a virtual environment and install the project dependencies, you can run the following commands:
+
+```bash
+python3 -m venv env
+source env/bin/activate
+pip install -r requirements.txt
+```
+
+
+## Reproducibility
+
+The experimental results can be reproduced by running the following commands from the `sim` directory:
+
+```python
+python3 sim-beacon-environment.py --country GER --area TU
+python3 sim-beacon-manual-baseline.py --country GER --area TU
+python3 sim-beacon-manual-tracing.py --country GER --area TU
+python3 sim-beacon-sparse-locations.py --country GER --area TU
+```
+Every script runs several experiments with different settings. Note that depending on the settings simulations can take 
+up to 10 hours and require up to 1TB of RAM.
+The scripts generate result summary files in the directory `sim/condensed_summaries`. 
+The plots can be generated from these files using the iPython notebook `sim-plot-beacon.ipynb`.
+
+
+
+## Code Organization
 
 The `sim/` directory contains the entire project code, where all simulator-specific code is situated inside `sim/lib/`. The simulator operates using the following main modules and rough purpose descriptions:
 
@@ -69,14 +132,12 @@ If you use parts of the code in this repository for your own research purposes, 
         journal={arXiv preprint arXiv:2004.07641},
         year={2020}
     }
+    
+or for PanCast specific aspects:
 
-## Dependencies
-
-This project uses Python 3. To create a virtual environment and install the project dependencies, you can run the following commands:
-
-```bash
-python3 -m venv env
-source env/bin/activate
-pip install -r requirements.txt
-```
-
+    @article{barthe2020pancast,
+      title={PanCast: Listening to Bluetooth Beacons for Epidemic Risk Mitigation}, 
+      author={Gilles Barthe and Roberta De Viti and Peter Druschel and Deepak Garg and Manuel Gomez-Rodriguez and Pierfrancesco Ingo and Matthew Lentz and Aastha Mehta and Bernhard Schölkopf},
+      journal={arXiv preprint arXiv:2011.08069}
+      year={2020},
+    }
