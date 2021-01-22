@@ -2100,6 +2100,9 @@ class Plotter(object):
             axs[t].set_ylim(ybounds)
             axs[t].set_title(title)
 
+            axs[t].set_yticks(list(axs[t].get_yticks())[1:] + [ybounds[0]])
+            axs[t].set_yticks([10, 25, 40, 55, 70, 85, 100])
+
             if t == 0:
                 axs[t].set_ylabel(ylabel)
             else:
