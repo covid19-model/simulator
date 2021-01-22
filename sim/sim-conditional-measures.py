@@ -14,19 +14,28 @@ TO_HOURS = 24.0
 
 if __name__ == '__main__':
 
-    name = 'conditional-measures'
-    random_repeats = 48
-    full_scale = True
-    verbose = True
-    seed_summary_path = None
-    set_initial_seeds_to = None
-    expected_daily_base_expo_per100k = 0 # only set this to 1 in future/outlook experiment, as it models imported infections
-
     # command line parsing
     args = process_command_line()
     country = args.country
     area = args.area
     cpu_count = args.cpu_count
+    continued_run = args.continued
+
+    name = 'conditional-measures'
+    start_date = '2021-01-01'
+    end_date = '2021-05-01'
+    random_repeats = 100
+    full_scale = True
+    verbose = True
+    seed_summary_path = None
+    set_initial_seeds_to = {}
+    expected_daily_base_expo_per100k = 5 / 7
+    condensed_summary = True
+
+    # seed
+    c = 0
+    np.random.seed(c)
+    rd.seed(c)
 
     # Load calibrated parameters up to `maxBOiters` iterations of BO
     maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
@@ -46,19 +55,12 @@ if __name__ == '__main__':
     intervention_times = None
     p_stay_home = calibrated_params['p_stay_home']
     beta_multiplier = calibration_lockdown_beta_multipliers
-    
-    # seed
-    c = 0
-    np.random.seed(c)
-    rd.seed(c)
 
-    # set simulation and intervention dates
-    start_date = calibration_start_dates[country][area]
-    end_date = calibration_lockdown_dates[country]['end']
-    measure_start_date = calibration_lockdown_dates[country]['start']
-    measure_window_in_hours = dict()
-    measure_window_in_hours['start'] = (pd.to_datetime(measure_start_date) - pd.to_datetime(start_date)).days * TO_HOURS
-    measure_window_in_hours['end'] = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days * TO_HOURS
+    if args.smoke_test:
+        start_date = '2021-01-01'
+        end_date = '2021-02-15'
+        random_repeats = 1
+        full_scale = False
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -73,14 +75,16 @@ if __name__ == '__main__':
     )
 
     # conditional measures experiment
+    max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+
     m = [
-        UpperBoundCasesBetaMultiplier(t_window=Interval(measure_window_in_hours['start'], measure_window_in_hours['end']),
+        UpperBoundCasesBetaMultiplier(t_window=Interval(0.0, TO_HOURS * max_days),
                                       beta_multiplier=beta_multiplier,
                                       max_pos_tests_per_week_per_100k=max_pos_tests_per_week_per_100k,
                                       intervention_times=intervention_times,
                                       init_active=is_measure_active_initially),
 
-        UpperBoundCasesSocialDistancing(t_window=Interval(measure_window_in_hours['start'], measure_window_in_hours['end']),
+        UpperBoundCasesSocialDistancing(t_window=Interval(0.0, TO_HOURS * max_days),
                                         p_stay_home=p_stay_home,
                                         max_pos_tests_per_week_per_100k=max_pos_tests_per_week_per_100k,
                                         intervention_times=intervention_times,
@@ -98,7 +102,6 @@ if __name__ == '__main__':
         area=area,
         measure_list=m,
         lockdown_measures_active=False,
-        test_update=None,
         seed_summary_path=seed_summary_path,
         set_calibrated_params_to=calibrated_params,
         set_initial_seeds_to=set_initial_seeds_to,

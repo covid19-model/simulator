@@ -14,22 +14,32 @@ TO_HOURS = 24.0
 
 if __name__ == '__main__':
 
+    # command line parsing
+    args = process_command_line()
+    country = args.country
+    area = args.area
+    continued_run = args.continued
+
     name = 'narrowcasting'
+    start_date = '2021-01-01'
+    end_date = '2021-05-01'
     full_scale = True
     verbose = True
     seed_summary_path = None
-    set_initial_seeds_to = None
+    set_initial_seeds_to = {}
+    expected_daily_base_expo_per100k = 5 / 7
+    condensed_summary = True
 
     # set `True` for narrow-casting plot; should only be done with 1 random restart:
     store_mob = True
     cpu_count = 1
     random_repeats = 1
 
-    # command line parsing
-    args = process_command_line()
-    country = args.country
-    area = args.area
-    
+    # seed
+    c = 0
+    np.random.seed(c)
+    rd.seed(c)
+
     # Load calibrated parameters up to `maxBOiters` iterations of BO
     maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
     calibrated_params = get_calibrated_params(country=country, area=area,
@@ -39,18 +49,12 @@ if __name__ == '__main__':
     # experiment parameters
     p_stay_home = calibrated_params['p_stay_home']
 
-    # seed
-    c = 0
-    np.random.seed(c)
-    rd.seed(c)
-
-    # set simulation and intervention dates
-    start_date = calibration_start_dates[country][area]
-    end_date = calibration_lockdown_dates[country]['end']
-    measure_start_date = calibration_lockdown_dates[country]['start']
-    measure_window_in_hours = dict()
-    measure_window_in_hours['start'] = (pd.to_datetime(measure_start_date) - pd.to_datetime(start_date)).days * TO_HOURS
-    measure_window_in_hours['end'] = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days * TO_HOURS
+    if args.smoke_test:
+        start_date = '2021-01-01'
+        end_date = '2021-02-15'
+        random_repeats = 1
+        full_scale = False
+        k_groups = [4]
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -61,6 +65,8 @@ if __name__ == '__main__':
         random_repeats=random_repeats,
         cpu_count=cpu_count,
         full_scale=full_scale,
+        condensed_summary=condensed_summary,
+        continued_run=continued_run,
         verbose=verbose,
     )
 
@@ -69,15 +75,11 @@ if __name__ == '__main__':
 
     m = [
         SocialDistancingForAllMeasure(
-            t_window=Interval(
-                measure_window_in_hours['start'], 
-                measure_window_in_hours['end']),
+            t_window=Interval(0.0, TO_HOURS * max_days),
             p_stay_home=p_stay_home),
 
         BetaMultiplierMeasureByType(
-            t_window=Interval(
-                measure_window_in_hours['start'], 
-                measure_window_in_hours['end']),
+            t_window=Interval(0.0, TO_HOURS * max_days),
             beta_multiplier=calibration_lockdown_beta_multipliers)
         ]
 
@@ -94,6 +96,7 @@ if __name__ == '__main__':
         set_calibrated_params_to=calibrated_params,
         set_initial_seeds_to=set_initial_seeds_to,
         full_scale=full_scale,
+        expected_daily_base_expo_per100k=expected_daily_base_expo_per100k,
         store_mob=store_mob)
 
     print(f'{experiment_info} configuration done.')
