@@ -83,9 +83,8 @@ The experimental results can be reproduced by running the following commands fro
 
 ```python
 python3 sim-beacon-environment.py --country GER --area TU
-python3 sim-beacon-manual-baseline.py --country GER --area TU
-python3 sim-beacon-manual-tracing.py --country GER --area TU
-python3 sim-beacon-sparse-locations.py --country GER --area TU
+python3 sim-pancast-tracing.py --country GER --area TU
+python3 sim-spect-tracing.py --country GER --area TU
 ```
 Every script runs several experiments with different settings. Note that depending on the settings simulations can take 
 up to 10 hours and require up to 1TB of RAM.
