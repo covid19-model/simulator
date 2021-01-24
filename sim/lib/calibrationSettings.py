@@ -1,5 +1,8 @@
 
 import multiprocessing
+from lib.mobility_reduction import get_mobility_reduction
+
+
 
 '''
 Default settings for model calibration
@@ -26,7 +29,6 @@ beta_upper_bound = 0.2
 calibration_model_param_bounds_single = {
     'beta_site': [0.0, beta_upper_bound],
     'beta_household': [0.0, beta_upper_bound],
-    'p_stay_home': [0.0, 1.0],
 }
 
 calibration_model_param_bounds_multi = {
@@ -38,7 +40,6 @@ calibration_model_param_bounds_multi = {
         'supermarket': [0.0, beta_upper_bound],
     },
     'beta_household': [0.0, beta_upper_bound],
-    'p_stay_home': [0.0, 1.0],
 }
 
 
@@ -116,8 +117,7 @@ calibration_lockdown_dates = {
 # mobs settings path;
 calibration_mob_paths = {
     'GER': {
-        #'TU': ['lib/mobility/Tubingen_settings_10.pk', 'lib/mobility/Tubingen_settings_1.pk'],
-        'TU': ['lib/mobility/Tubingen_settings_10_beacon.pk', 'lib/mobility/Tubingen_settings_1_beacon.pk'],
+        'TU': ['lib/mobility/Tubingen_settings_10.pk', 'lib/mobility/Tubingen_settings_1.pk'],
         'KL': ['lib/mobility/Kaiserslautern_settings_10.pk', 'lib/mobility/Kaiserslautern_settings_1.pk'],
         'RH': ['lib/mobility/Ruedesheim_settings_10.pk', 'lib/mobility/Ruedesheim_settings_1.pk'],
         'TR': ['lib/mobility/Tirschenreuth_settings_5.pk', 'lib/mobility/Tirschenreuth_settings_1.pk'],
@@ -125,8 +125,7 @@ calibration_mob_paths = {
     'CH': {
         'VD': ['lib/mobility/Lausanne_settings_10.pk', 'lib/mobility/Lausanne_settings_1.pk'],
         'BE': ['lib/mobility/Bern_settings_10.pk', 'lib/mobility/Bern_settings_1.pk'],
-        # 'TI': ['lib/mobility/Locarno_settings_2.pk', 'lib/mobility/Locarno_settings_1.pk'],
-        'TI': ['lib/mobility/Locarno_settings_2_beacon.pk', 'lib/mobility/Locarno_settings_1_beacon.pk'],
+        'TI': ['lib/mobility/Locarno_settings_2.pk', 'lib/mobility/Locarno_settings_1.pk'],
         'JU': ['lib/mobility/Jura_settings_10.pk', 'lib/mobility/Jura_settings_1.pk'],
     }
 }
@@ -150,8 +149,7 @@ calibration_start_dates = {
 # calibration states loaded for calibrated parameters
 calibration_states = {
     'GER': {
-        # 'TU': 'logs/calibration_tu0_state.pk',
-        'TU': 'logs/calibration_tu0-beacon_state.pk',
+        'TU': 'logs/calibration_tu0_state.pk',
         'KL': 'logs/calibration_kl0_state.pk',
         'RH': 'logs/calibration_rh0_state.pk',
         'TR': 'logs/calibration_tr0_state.pk',
@@ -159,8 +157,7 @@ calibration_states = {
     'CH': {
         'VD': 'logs/calibration_vd0_state.pk',
         'BE': 'logs/calibration_be0_state.pk',
-        # 'TI': 'logs/calibration_ti0_state.pk',
-        'TI': 'logs/calibration_ti0-beacon_state.pk',
+        'TI': 'logs/calibration_ti0_state.pk',
         'JU': 'logs/calibration_ju0_state.pk',
     }
 }
@@ -169,12 +166,28 @@ calibration_states = {
 calibration_lockdown_beta_multipliers = {
     'education': 0.5, 
     'social': 0.5,
-    'bus_stop': 1.0, 
+    'bus_stop': 0.5, 
     'office': 0.5, 
-    'supermarket': 1.0}
+    'supermarket': 0.5}
 
 # contact tracing adoption 
 contact_tracing_adoption = {
     'GER': 0.27,  # as of Nov 12, 2020
     'CH' : 0.22,  # as of Nov 20, 2020
+}
+
+# mobility reduction
+calibration_mobility_reduction = {
+    'GER': {
+        'TU': get_mobility_reduction('Germany', 'Baden-Württemberg', calibration_lockdown_dates['GER']['start'], calibration_lockdown_dates['GER']['end']),
+        'KL': get_mobility_reduction('Germany', 'Rhineland-Palatinate', calibration_lockdown_dates['GER']['start'], calibration_lockdown_dates['GER']['end']),
+        'RH': get_mobility_reduction('Germany', 'Hessen', calibration_lockdown_dates['GER']['start'], calibration_lockdown_dates['GER']['end']),
+        'TR': get_mobility_reduction('Germany', 'Bavaria', calibration_lockdown_dates['GER']['start'], calibration_lockdown_dates['GER']['end']),
+    },
+    'CH': {
+        'VD': get_mobility_reduction('Switzerland', 'Vaud', calibration_lockdown_dates['CH']['start'], calibration_lockdown_dates['CH']['end']),
+        'BE': get_mobility_reduction('Switzerland', 'Canton of Bern', calibration_lockdown_dates['CH']['start'], calibration_lockdown_dates['CH']['end']),
+        'TI': get_mobility_reduction('Switzerland', 'Ticino', calibration_lockdown_dates['CH']['start'], calibration_lockdown_dates['CH']['end']),
+        'JU': get_mobility_reduction('Switzerland', 'Jura', calibration_lockdown_dates['CH']['start'], calibration_lockdown_dates['CH']['end']),
+    }
 }

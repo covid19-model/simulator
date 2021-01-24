@@ -52,6 +52,14 @@ if __name__ == '__main__':
     seed = args.seed or 0
     args.filename = args.filename or f'calibration_{seed}'
 
+    if args.smoke_test:
+        args.ninit = 2
+        args.niters = 1
+        args.rollouts = 2
+        args.start = "2020-03-10"
+        args.end = "2020-03-17"
+
+        
     '''
     Genereate essential functions for Bayesian optimization
     '''
@@ -68,6 +76,7 @@ if __name__ == '__main__':
     logger = CalibrationLogger(
         filename=args.filename, 
         multi_beta_calibration=args.multi_beta_calibration,
+        estimate_mobility_reduction=args.estimate_mobility_reduction,
         verbose=not args.not_verbose)
     logger.log_initial_lines(header)
 
@@ -168,6 +177,8 @@ if __name__ == '__main__':
     # scale back to simulation parameters (from unit cube parameters in BO)
     normalized_calibrated_params = train_theta[best_observed_idx]
     calibrated_params = unnormalize_theta(normalized_calibrated_params)
-    pprint.pprint(parr_to_pdict(parr=calibrated_params, multi_beta_calibration=args.multi_beta_calibration))
+    pprint.pprint(parr_to_pdict(parr=calibrated_params, 
+        multi_beta_calibration=args.multi_beta_calibration, 
+        estimate_mobility_reduction=args.estimate_mobility_reduction))
 
 
