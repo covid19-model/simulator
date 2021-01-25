@@ -1235,13 +1235,15 @@ class Plotter(object):
     def plot_positives_vs_target(self, sims, titles, targets, title='Example',
         filename='inference_0', figsize=None, figformat='triple', errorevery=1, acc=17, ymax=None,
         start_date='1970-01-01', lockdown_label='Lockdown', lockdown_at=None,
-        lockdown_label_y=None, subplot_adjust=None, n_age_groups=None, small_figure=False, show_legend=True):
+        lockdown_label_y=None, subplot_adjust=None, n_age_groups=None, small_figure=False, 
+        show_legend=True, cluster_compatible=False):
         ''''
         Plots daily tested averaged over random restarts, using error bars for std-dev
         together with targets from inference
         '''
         # Set triple figure format
-        self._set_matplotlib_params(format=figformat)
+        if not cluster_compatible:
+            self._set_matplotlib_params(format=figformat)
 
         fig, ax = plt.subplots(figsize=figsize)
 
@@ -1313,7 +1315,11 @@ class Plotter(object):
             else:
                 ax.legend(loc='upper left', borderaxespad=0.5)
         # Save fig
-        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+        if cluster_compatible:
+            plt.savefig('plots/' + filename + '.png', format='png', facecolor=None,
+                    dpi=DPI, bbox_inches='tight')
+        else:
+            plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
                     dpi=DPI, bbox_inches='tight')
         if NO_PLOT:
             plt.close()

@@ -898,7 +898,8 @@ def make_bayes_opt_functions(args):
                 errorevery=1, acc=500,
                 lockdown_label='Interventions',
                 lockdown_at=days_until_lockdown_start,
-                small_figure=True)
+                small_figure=True,
+                cluster_compatible=True)
 
 
         # (random_repeats, n_people)
