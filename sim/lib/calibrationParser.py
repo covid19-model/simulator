@@ -13,6 +13,7 @@ def make_calibration_parser():
     parser.add_argument("--filename", help="set filename; default is `calibartion_{seed}` ")
     parser.add_argument("--not_verbose", action="store_true", help="not verbose; default is verbose")
     parser.add_argument("--smoke_test", action="store_true", help="debug mode; stops quickly")
+    parser.add_argument("--plot-fit", action="store_true", help="plots model fit at each improvement and stores inside `logs/`")
 
     # BO
     parser.add_argument("--ninit", type=int, default=calibration_simulation['n_init_samples'],

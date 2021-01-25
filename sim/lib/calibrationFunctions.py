@@ -3,6 +3,7 @@ import os
 import sys
 import asyncio
 import threading
+import subprocess
 import json
 import pprint
 import csv
@@ -49,6 +50,7 @@ from lib.calibrationSettings import (
 )
 
 from lib.data import collect_data_from_df
+from lib.plot import Plotter
 
 from lib.measures import (
     MeasureList,
@@ -65,6 +67,7 @@ warnings.filterwarnings('ignore', category=BadInitialCandidatesWarning)
 warnings.filterwarnings('ignore', category=RuntimeWarning)
 warnings.filterwarnings('ignore', category=UserWarning)
 
+PLOT_SUBFOLDER_STR = 'estimation'
 MIN_NOISE = torch.tensor(1e-6)
 TO_HOURS = 24.0
 
@@ -786,25 +789,13 @@ def make_bayes_opt_functions(args):
                 return G.squeeze(-1)
             objective = GenericMCObjective(squared_loss)
 
-    def case_diff(preds):
-        '''
-        Computes aggregate case difference of predictions and ground truth at t=T
-        '''
-        if args.model_multi_output_simulator:
-            if per_age_group_objective:
-                return preds[-1].sum(dim=-1) - G_obs_aggregate[-1]
-            else:
-                return preds[-1] - G_obs_aggregate[-1]
-        else:
-            return None
-
     def unnormalize_theta(theta):
         '''
         Computes unnormalized parameters
         '''
         return transforms.unnormalize(theta, sim_bounds)
 
-    def composite_simulation(norm_params):
+    def composite_simulation(norm_params, iter_idx):
         """
         Takes a set of normalized (unit cube) BO parameters
         and returns simulator output means and standard errors based on multiple
@@ -880,6 +871,36 @@ def make_bayes_opt_functions(args):
         # run simulation in parallel,
         summary = launch_parallel_simulations(**kwargs)
 
+        # plot
+        if args.plot_fit:
+
+            # generate estimation plot folder if it doesn't exist
+            current_directory = os.getcwd()
+            version_tag = subprocess.check_output(["git", "describe", "--always"]).strip().decode(sys.stdout.encoding)
+            name = args.seed + '_' + version_tag
+            directory = os.path.join(current_directory, 'plots', PLOT_SUBFOLDER_STR, name)   
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+            
+            # plot model fit
+            plot_filename = os.path.join(PLOT_SUBFOLDER_STR, name, str(iter_idx))
+            label = 'current estimate'
+            plotter = Plotter()
+            plotter.plot_positives_vs_target(
+                [summary],
+                [label],
+                sim_cases.sum(axis=1),
+                filename=plot_filename,
+                figsize=(4, 2),
+                figformat='neurips-double',
+                start_date=data_start_date,
+                ymax=(sim_cases.sum(axis=1).max() * 2).item(),
+                errorevery=1, acc=500,
+                lockdown_label='Interventions',
+                lockdown_at=days_until_lockdown_start,
+                small_figure=True)
+
+
         # (random_repeats, n_people)
         posi_started = torch.tensor(summary.state_started_at['posi'])
         posi_started -= test_lag_days * TO_HOURS # account for test lag in objective computation
@@ -901,6 +922,8 @@ def make_bayes_opt_functions(args):
         # normalize case numbers
         if args.normalize_cases:
             posi_cumulative = posi_cumulative / G_obs_reference
+
+        case_diff_last_day = torch.mean(posi_cumulative, dim=0)[-1].sum() - G_obs_aggregate[-1] if not per_age_group_objective else None
 
         # compute mean and standard error of means  
         # `G` and `G_sem` have shape
@@ -930,7 +953,7 @@ def make_bayes_opt_functions(args):
         G = G.float()
         G_sem = G_sem.float()
 
-        return G, G_sem
+        return G, G_sem, case_diff_last_day
 
     def generate_initial_observations(n, logger, loaded_init_theta=None, loaded_init_G=None, loaded_init_G_sem=None):
         """
@@ -1000,12 +1023,13 @@ def make_bayes_opt_functions(args):
             if loaded and i <= n_loaded - 1:
                 new_thetas[i] = loaded_init_theta[i]
                 G, G_sem = loaded_init_G[i], loaded_init_G_sem[i]
+                case_diff_last_day = None # currently not saved
                 walltime = 0.0
 
             # if not loaded, evaluate as usual
             else:
                 t0 = time.time()
-                G, G_sem = composite_simulation(new_thetas[i])
+                G, G_sem, case_diff_last_day = composite_simulation(new_thetas[i], i - n)
                 walltime = time.time() - t0
 
             new_G[i] = G
@@ -1016,14 +1040,13 @@ def make_bayes_opt_functions(args):
             best_idx = G_objectives.argmax()
             best = G_objectives[best_idx].item()
             current = objective(G).item()
-            case_diff_ = case_diff(G)
 
             logger.log(
                 i=i - n,
                 time=walltime,
                 best=best,
                 objective=current,
-                case_diff=case_diff_,
+                case_diff=case_diff_last_day,
                 theta=transforms.unnormalize(new_thetas[i, :].detach().squeeze(), sim_bounds)
             )
 
@@ -1079,7 +1102,7 @@ def make_bayes_opt_functions(args):
     # parameters used in BO are always in unit cube for optimal hyperparameter tuning of GPs
     bo_bounds = torch.stack([torch.zeros(n_params), torch.ones(n_params)])
 
-    def optimize_acqf_and_get_observation(acq_func, args):
+    def optimize_acqf_and_get_observation(acq_func, args, iter_idx):
         """
         Optimizes the acquisition function, and returns a new candidate and a noisy observation.
         botorch defaults:  num_restarts=10, raw_samples=256, batch_limit=5, maxiter=200
@@ -1111,9 +1134,9 @@ def make_bayes_opt_functions(args):
         new_theta = candidates.detach().squeeze()
 
         # observe new noisy function evaluation
-        new_G, new_G_sem = composite_simulation(new_theta)
+        new_G, new_G_sem, case_diff_last_day = composite_simulation(new_theta, iter_idx)
 
-        return new_theta, new_G, new_G_sem
+        return new_theta, new_G, new_G_sem, case_diff_last_day
 
     # return functions
     return (
@@ -1121,7 +1144,6 @@ def make_bayes_opt_functions(args):
         generate_initial_observations,
         initialize_model,
         optimize_acqf_and_get_observation,
-        case_diff,
         unnormalize_theta,
         header,
     )

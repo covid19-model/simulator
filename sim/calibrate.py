@@ -56,8 +56,8 @@ if __name__ == '__main__':
         args.ninit = 2
         args.niters = 1
         args.rollouts = 2
-        args.start = "2020-03-10"
-        args.end = "2020-03-17"
+        # args.start = "2020-03-10"
+        # args.end = "2020-03-17"
 
         
     '''
@@ -68,7 +68,6 @@ if __name__ == '__main__':
      generate_initial_observations, 
      initialize_model, 
      optimize_acqf_and_get_observation, 
-     case_diff,
      unnormalize_theta,
      header) = make_bayes_opt_functions(args=args)
 
@@ -125,9 +124,8 @@ if __name__ == '__main__':
         )
         
         # optimize acquisition and get new observation via simulation at selected parameters
-        new_theta, new_G, new_G_sem = optimize_acqf_and_get_observation(
-            acq_func=acqf,
-            args=args)
+        new_theta, new_G, new_G_sem, case_diff_last_day = optimize_acqf_and_get_observation(
+            acq_func=acqf, args=args, iter_idx=tt)
             
         # concatenate observations
         train_theta = torch.cat([train_theta, new_theta.unsqueeze(0)], dim=0) 
@@ -153,7 +151,7 @@ if __name__ == '__main__':
             i=tt,
             time=walltime,
             best=best_observed_obj,
-            case_diff=case_diff(new_G),
+            case_diff=case_diff_last_day,
             objective=objective(new_G).item(),
             theta=unnormalize_theta(new_theta.detach().squeeze())
         )

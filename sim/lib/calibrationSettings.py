@@ -77,7 +77,7 @@ calibration_testing_params = {
 calibration_acqf = {
     'acqf_opt_num_fantasies': 64,
     'acqf_opt_num_restarts': 10,
-    'acqf_opt_raw_samples': 512,
+    'acqf_opt_raw_samples': 256,
     'acqf_opt_batch_limit': 5,
     'acqf_opt_maxiter': 20,
 }
