@@ -56,8 +56,8 @@ if __name__ == '__main__':
         args.ninit = 2
         args.niters = 1
         args.rollouts = 2
-        # args.start = "2020-03-10"
-        # args.end = "2020-03-17"
+        args.start = "2020-03-10"
+        args.end = "2020-03-12"
 
         
     '''
@@ -92,7 +92,15 @@ if __name__ == '__main__':
         # if any initialization remains to be done, evaluate remaining initial points
         train_theta, train_G, train_G_sem, best_observed_obj, best_observed_idx = generate_initial_observations(
             n=args.ninit, logger=logger, loaded_init_theta=loaded_theta, loaded_init_G=loaded_G, loaded_init_G_sem=loaded_G_sem)
-        n_bo_iters_loaded = max(n_loaded - args.ninit, 0)
+        
+        n_init = args.ninit
+        if args.init_explore_corner_settings:
+            if args.estimate_mobility_reduction:
+                n_init += 2 ** 3
+            else:
+                n_init += 2 ** 2
+
+        n_bo_iters_loaded = max(n_loaded - n_init, 0)
 
     # else, if not specified, generate initial training data
     else:

@@ -1,5 +1,6 @@
 import time
 import os
+import itertools
 import sys
 import asyncio
 import threading
@@ -69,6 +70,7 @@ warnings.filterwarnings('ignore', category=UserWarning)
 
 PLOT_SUBFOLDER_STR = 'estimation'
 MIN_NOISE = torch.tensor(1e-6)
+CORNER_SETTINGS_SPACE = 1e-4
 TO_HOURS = 24.0
 
 class CalibrationLogger:
@@ -612,7 +614,6 @@ def make_bayes_opt_functions(args):
     per_age_group_objective = args.per_age_group_objective
 
     # simulation settings
-    n_init_samples = args.ninit
     n_iterations = args.niters
     simulation_roll_outs = args.rollouts
     cpu_count = args.cpu_count
@@ -838,7 +839,7 @@ def make_bayes_opt_functions(args):
                 t_window=Interval(0.0, max_time), p_isolate=1.0),
         ]
         # hygienic measures during lockdown
-        if args.use_fixed_lockdown_beta_multipliers:
+        if not args.no_lockdown_beta_multipliers:
             measure_list += [
                 # site specific measures: fixed in advance, outside of calibration
                 BetaMultiplierMeasureByType(
@@ -974,6 +975,19 @@ def make_bayes_opt_functions(args):
         new_thetas = torch.tensor(
             sobol_seq.i4_sobol_generate(n_params, n), dtype=torch.float)
 
+        if args.init_explore_corner_settings:
+            
+            # adds additional evaluation points at all corners of unit domain cube
+            corner_settings = torch.tensor(list(itertools.product(
+                [CORNER_SETTINGS_SPACE, 1 - CORNER_SETTINGS_SPACE], 
+            repeat=n_params)), dtype=torch.float)
+
+            new_thetas = torch.cat([
+                corner_settings,
+                new_thetas,
+            ])
+            n += 2 ** n_params
+    
         # check whether initial observations are loaded
         loaded = (loaded_init_theta is not None
               and loaded_init_G is not None 

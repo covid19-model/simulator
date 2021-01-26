@@ -40,8 +40,10 @@ def make_calibration_parser():
                         help="flag to calibrate an individual beta parameter for each site category/type")
     parser.add_argument("--per-age-group-objective", action="store_true",
                         help="flag to calibrate based on per age-group objective")
-    parser.add_argument("--use-fixed-lockdown-beta-multipliers", action="store_true",
-                        help="uses beta multipliers at sites during the lockdown period")
+    parser.add_argument("--no-lockdown-beta-multipliers", action="store_true",
+                        help="ignores fixed beta multipliers at sites during the lockdown period")
+    parser.add_argument("--init-explore-corner-settings", action="store_true",
+                        help="flag to also evaluate at corners of bounds during initial exploration")
     parser.add_argument("--log-objective", action="store_true",
                         help="log-MSE instead of MSE")
     
