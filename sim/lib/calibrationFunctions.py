@@ -510,7 +510,7 @@ def gen_initial_seeds(unscaled_new_cases, day=0):
     return seed_counts
 
 
-def get_test_capacity(country, area, mob_settings, end_date_string='2021-01-01'):
+def get_test_capacity(country, area, mob_settings, start_date_string='2020-01-01', end_date_string='2021-01-01'):
     '''
     Computes heuristic test capacity in `country` and `area` based
     on true case data by determining the maximum daily increase
@@ -519,7 +519,7 @@ def get_test_capacity(country, area, mob_settings, end_date_string='2021-01-01')
 
     unscaled_area_cases = collect_data_from_df(
         country=country, area=area, datatype='new',
-        start_date_string='2020-01-01', end_date_string=end_date_string)
+        start_date_string=start_date_string, end_date_string=end_date_string)
 
     sim_cases = downsample_cases(unscaled_area_cases, mob_settings)
 
@@ -657,12 +657,15 @@ def make_bayes_opt_functions(args):
     header.append('Simulation population (unscaled): {}'.format(mob.num_people_unscaled))
     header.append('Area population :                 {}'.format(mob.region_population))
     header.append('Initial seed counts :             {}'.format(initial_seeds))
+    
+    if args.testingcap:
+        scaled_test_capacity = get_test_capacity(
+            country=data_country, area=data_area, 
+            mob_settings=mob_kwargs, 
+            start_date_string=data_start_date,
+            end_date_string=data_end_date)
 
-    scaled_test_capacity = get_test_capacity(
-        country=data_country, area=data_area, 
-        mob_settings=mob_kwargs, end_date_string=data_end_date)
-
-    testing_params['tests_per_batch'] = scaled_test_capacity
+        testing_params['tests_per_batch'] = scaled_test_capacity
 
     test_lag_days = int(testing_params['test_reporting_lag'] / TO_HOURS)
     assert(int(testing_params['test_reporting_lag']) % 24 == 0)

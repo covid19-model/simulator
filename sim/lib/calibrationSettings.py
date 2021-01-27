@@ -48,7 +48,7 @@ calibration_testing_params = {
     'testing_t_window': None,  # [set automatically in code]
     'testing_frequency': 1 * TO_HOURS,
     'test_reporting_lag': 2 * TO_HOURS,
-    'tests_per_batch': None,  # [set automatically in code]
+    'tests_per_batch': 100000, 
     'test_fpr': 0.0,
     'test_fnr': 0.0,
     'test_targets': 'isym',

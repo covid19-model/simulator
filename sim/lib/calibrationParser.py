@@ -66,8 +66,8 @@ def make_calibration_parser():
     # simulation
     parser.add_argument("--no_households", action="store_true",
                         help="no households should be used for simulation")
-    parser.add_argument("--testingcap", type=int,
-                        help="overwrite default unscaled testing capacity as provided by MobilitySimulator")
+    parser.add_argument("--testingcap", action="store_true",
+                        help="limits daily testing capacity to maximum daily increase in real cases; default is unlimited test capacity")
 
     # acquisition function optimization
     parser.add_argument("--acqf_opt_num_fantasies", type=int, default=calibration_acqf['acqf_opt_num_fantasies'],
