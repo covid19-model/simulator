@@ -50,6 +50,8 @@ def make_calibration_parser():
     # data
     parser.add_argument("--mob", 
         help="update path to mobility settings for trace generation")
+    parser.add_argument("--downscale-mobility-model", action="store_true",
+                        help="uses downscaled mobility model")
     parser.add_argument("--country", required=True,
         help="specify country indicator for data import")
     parser.add_argument("--area",  required=True,

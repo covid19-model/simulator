@@ -599,7 +599,7 @@ def make_bayes_opt_functions(args):
 
     data_country = args.country
     data_area = args.area
-    mob_settings = args.mob or calibration_mob_paths[data_country][data_area][0] # 0: downscaled, 1: full scale 
+    mob_settings = args.mob or calibration_mob_paths[data_country][data_area][0 if args.downscale_mobility_model else 1] 
 
     # initialize mobility object to obtain information (no trace generation yet)
     with open(mob_settings, 'rb') as fp:
