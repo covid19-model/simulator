@@ -884,7 +884,7 @@ def make_bayes_opt_functions(args):
                 os.makedirs(directory)
             
             # plot model fit
-            plot_filename = os.path.join(PLOT_SUBFOLDER_STR, name, str(iter_idx))
+            plot_filename = os.path.join(PLOT_SUBFOLDER_STR, name, name + '_' + str(iter_idx))
             label = 'current estimate'
             plotter = Plotter()
             plotter.plot_positives_vs_target(
