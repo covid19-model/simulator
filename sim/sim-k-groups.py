@@ -31,6 +31,21 @@ if __name__ == '__main__':
     expected_daily_base_expo_per100k = 5 / 7
     condensed_summary = True
 
+    # experiment parameters
+    # Split citizens in `K_groups` groups and alternatingly install social distancing measures for the groups
+    # `K_groups_weeks` determines for how many weeks this strategy is active
+    k_groups = [4, 3, 2]
+    p_compliances = [1.0, 0.75, 0.5, 0.25, 0.1]
+    estimate_mobility_reduction = True
+
+    if args.smoke_test:
+        start_date = '2021-01-01'
+        end_date = '2021-02-15'
+        random_repeats = 1
+        full_scale = False
+        k_groups = [4]
+        p_compliances = [0.75]
+
     # seed
     c = 0
     np.random.seed(c)
@@ -40,19 +55,8 @@ if __name__ == '__main__':
     maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
     calibrated_params = get_calibrated_params(country=country, area=area,
                                               multi_beta_calibration=False,
-                                              maxiters=maxBOiters)
-
-    # experiment parameters
-    # Split citizens in `K_groups` groups and alternatingly install social distancing measures for the groups
-    # `K_groups_weeks` determines for how many weeks this strategy is active
-    k_groups = [4, 3, 2]
-
-    if args.smoke_test:
-        start_date = '2021-01-01'
-        end_date = '2021-02-15'
-        random_repeats = 1
-        full_scale = False
-        k_groups = [4]
+                                              maxiters=maxBOiters,
+                                              estimate_mobility_reduction=estimate_mobility_reduction)
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -70,29 +74,32 @@ if __name__ == '__main__':
 
     # Isolate k groups for different numbers of groups
     for groups in k_groups:
-        # measures
-        max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+        for p_compliance in p_compliances:
+            # measures
+            max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
-        m = [
-            SocialDistancingForKGroups(
-                t_window=Interval(0.0, TO_HOURS * max_days),
-                K=groups)
-            ]
+            m = [
+                SocialDistancingForKGroups(
+                    t_window=Interval(0.0, TO_HOURS * max_days),
+                    K=groups,
+                    p_stay_home=p_compliance)
+                ]
 
-        simulation_info = options_to_str(
-            K_groups=groups)
+            simulation_info = options_to_str(
+                K_groups=groups,
+                p_compliance=p_compliance)
 
-        experiment.add(
-            simulation_info=simulation_info,
-            country=country,
-            area=area,
-            measure_list=m,
-            lockdown_measures_active=False,
-            seed_summary_path=seed_summary_path,
-            set_initial_seeds_to=set_initial_seeds_to,
-            set_calibrated_params_to=calibrated_params,
-            full_scale=full_scale,
-            expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
+            experiment.add(
+                simulation_info=simulation_info,
+                country=country,
+                area=area,
+                measure_list=m,
+                lockdown_measures_active=False,
+                seed_summary_path=seed_summary_path,
+                set_initial_seeds_to=set_initial_seeds_to,
+                set_calibrated_params_to=calibrated_params,
+                full_scale=full_scale,
+                expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
 
     print(f'{experiment_info} configuration done.')
 

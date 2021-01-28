@@ -214,6 +214,7 @@ class Experiment(object):
         expected_daily_base_expo_per100k=0,
         beacon_config=None,
         thresholds_roc=None,
+        estimate_mobility_reduction=False,
         store_mob=False):
 
         # Set time window based on experiment start and end date
@@ -285,12 +286,14 @@ class Experiment(object):
         if set_initial_seeds_to is not None:
             initial_seeds = set_initial_seeds_to
 
-        # Load calibrated model parameters for this area
-        calibrated_params = get_calibrated_params(
-            country=country, area=area, multi_beta_calibration=self.multi_beta_calibration)
         if set_calibrated_params_to is not None:
-            calibrated_params = set_calibrated_params_to 
-            
+            calibrated_params = set_calibrated_params_to
+        else:
+            # Load calibrated model parameters for this area
+            calibrated_params = get_calibrated_params(
+                country=country, area=area, multi_beta_calibration=self.multi_beta_calibration,
+                estimate_mobility_reduction=estimate_mobility_reduction)
+
         p_stay_home_calibrated = calibrated_params['p_stay_home']
 
         if self.multi_beta_calibration:

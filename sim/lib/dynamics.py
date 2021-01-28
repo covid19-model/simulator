@@ -506,7 +506,9 @@ class DiseaseModel(object):
         self.measure_list.init_run(SocialDistancingSymptomaticAfterSmartTracingHousehold,
                                    n_people=self.n_people)
 
-        self.measure_list.init_run(SocialDistancingForKGroups)
+        self.measure_list.init_run(SocialDistancingForKGroups,
+                                   n_people=self.n_people,
+                                   n_visits=max(self.mob.visit_counts))
 
         # Store the original beta values
         self.betas_weighted_mean = sum([
@@ -1370,7 +1372,7 @@ class DiseaseModel(object):
                 state_nega_ended_at=self.state_ended_at['nega'],
                 j=i) or
             self.measure_list.is_contained(
-                SocialDistancingForKGroups, t=t,
+                SocialDistancingForKGroups, t=t, j_visit_id=visit_id,
                 j=i) or
             self.measure_list.is_contained(
                 UpperBoundCasesSocialDistancing, t=t,

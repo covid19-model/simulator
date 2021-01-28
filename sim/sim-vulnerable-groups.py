@@ -30,6 +30,18 @@ if __name__ == '__main__':
     expected_daily_base_expo_per100k = 5 / 7
     condensed_summary = True
 
+    # experiment parameters
+    # Isolate older age groups for `weeks` number of weeks
+    p_compliances = [1.0, 0.75, 0.5, 0.25, 0.1]
+    estimate_mobility_reduction = True
+
+    if args.smoke_test:
+        start_date = '2021-01-01'
+        end_date = '2021-02-15'
+        random_repeats = 1
+        p_compliances = [0.75]
+        full_scale = False
+
     # seed
     c = 0
     np.random.seed(c)
@@ -39,17 +51,8 @@ if __name__ == '__main__':
     maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
     calibrated_params = get_calibrated_params(country=country, area=area,
                                               multi_beta_calibration=False,
-                                              maxiters=maxBOiters)
-
-    # experiment parameters
-    # Isolate older age groups for `weeks` number of weeks
-    p_stay_home = calibrated_params['p_stay_home']
-
-    if args.smoke_test:
-        start_date = '2021-01-01'
-        end_date = '2021-02-15'
-        random_repeats = 1
-        full_scale = False
+                                              maxiters=maxBOiters,
+                                              estimate_mobility_reduction=estimate_mobility_reduction)
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -65,32 +68,31 @@ if __name__ == '__main__':
         verbose=verbose,
     )
 
-    # Social distancing for vulnerable people (older age groups) for different time periods
-    # measures
-    max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+    for p_compliance in p_compliances:
+        max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
-    m = [
-        SocialDistancingByAgeMeasure(
-            t_window=Interval(0.0, TO_HOURS * max_days),
-            p_stay_home=(
-                [0.0, 0.0, 0.0, 0.0, p_stay_home, p_stay_home] if country == 'GER' else
-                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, p_stay_home, p_stay_home, p_stay_home]
-            ))
-        ]
+        m = [
+            SocialDistancingByAgeMeasure(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_stay_home=(
+                    [0.0, 0.0, 0.0, 0.0, p_compliance, p_compliance] if country == 'GER' else
+                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, p_compliance, p_compliance, p_compliance]
+                ))
+            ]
 
-    simulation_info = ''
+        simulation_info = options_to_str(p_compliance=p_compliance)
 
-    experiment.add(
-        simulation_info=simulation_info,
-        country=country,
-        area=area,
-        measure_list=m,
-        lockdown_measures_active=False,
-        seed_summary_path=seed_summary_path,
-        set_initial_seeds_to=set_initial_seeds_to,
-        set_calibrated_params_to=calibrated_params,
-        full_scale=full_scale,
-        expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
+        experiment.add(
+            simulation_info=simulation_info,
+            country=country,
+            area=area,
+            measure_list=m,
+            lockdown_measures_active=False,
+            seed_summary_path=seed_summary_path,
+            set_initial_seeds_to=set_initial_seeds_to,
+            set_calibrated_params_to=calibrated_params,
+            full_scale=full_scale,
+            expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
 
     print(f'{experiment_info} configuration done.')
 
