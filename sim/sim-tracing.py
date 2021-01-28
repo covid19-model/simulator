@@ -8,6 +8,8 @@ import pandas as pd
 from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
 from lib.calibrationFunctions import get_calibrated_params
+from lib.calibrationSettings import calibration_lockdown_beta_multipliers
+
 
 TO_HOURS = 24.0
 
@@ -40,7 +42,8 @@ if __name__ == '__main__':
     maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
     calibrated_params = get_calibrated_params(country=country, area=area,
                                               multi_beta_calibration=False,
-                                              maxiters=maxBOiters)
+                                              maxiters=maxBOiters,
+                                              estimate_mobility_reduction=True)
 
     # contact tracing experiment parameters
     smart_tracing_threshold = 0.016
@@ -48,12 +51,12 @@ if __name__ == '__main__':
     if args.test_lag is not None:
         test_lags = [args.test_lag]
     else:
-        test_lags = [48.0, 24.0, 3.0, 0.1]
+        test_lags = [48.0, 24.0, 3.0, 1.0]
 
     if args.p_adoption is not None:
         ps_adoption = [args.p_adoption]
     else:
-        ps_adoption = [1.0, 0.5, 0.25, 0.1, 0.05]
+        ps_adoption = [1.0, 0.75, 0.5, 0.25, 0.1, 0.05]
 
 
     if args.smoke_test:
@@ -97,6 +100,8 @@ if __name__ == '__main__':
                     t_window=Interval(0.0, TO_HOURS * max_days),
                     p_isolate=1.0,
                     smart_tracing_isolation_duration=TO_HOURS * 14.0),
+
+                APrioriBetaMultiplierMeasureByType(beta_multiplier=calibration_lockdown_beta_multipliers)
                 ]
 
             # set testing params via update function of standard testing parameters
@@ -121,7 +126,8 @@ if __name__ == '__main__':
 
             simulation_info = options_to_str(
                 p_adoption=p_adoption,
-                tracing_threshold=smart_tracing_threshold
+                tracing_threshold=smart_tracing_threshold,
+                beta_multiplier=calibration_lockdown_beta_multipliers['education']
             )
 
             experiment.add(

@@ -9,6 +9,7 @@ from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
 from lib.calibrationSettings import calibration_lockdown_dates, calibration_start_dates, calibration_lockdown_beta_multipliers
 from lib.calibrationFunctions import get_calibrated_params
+from lib.mobility_reduction import get_mobility_reduction
 
 TO_HOURS = 24.0
 
@@ -28,7 +29,7 @@ if __name__ == '__main__':
     seed_summary_path = None
     set_initial_seeds_to = {}
     expected_daily_base_expo_per100k = 5 / 7
-    condensed_summary = True
+    condensed_summary = False
 
     # set `True` for narrow-casting plot; should only be done with 1 random restart:
     store_mob = True
@@ -44,17 +45,17 @@ if __name__ == '__main__':
     maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
     calibrated_params = get_calibrated_params(country=country, area=area,
                                               multi_beta_calibration=False,
-                                              maxiters=maxBOiters)
+                                              maxiters=maxBOiters,
+                                              estimate_mobility_reduction=True)
 
     # experiment parameters
-    p_stay_home = calibrated_params['p_stay_home']
+    mob_reduction = get_mobility_reduction('Germany', 'Baden-Württemberg', calibration_lockdown_dates['GER']['start'],
+                                           calibration_lockdown_dates['GER']['end'])
 
     if args.smoke_test:
         start_date = '2021-01-01'
         end_date = '2021-02-15'
-        random_repeats = 1
         full_scale = False
-        k_groups = [4]
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -74,16 +75,17 @@ if __name__ == '__main__':
     max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
     m = [
-        SocialDistancingForAllMeasure(
+        SocialDistancingBySiteTypeForAllMeasure(
             t_window=Interval(0.0, TO_HOURS * max_days),
-            p_stay_home=p_stay_home),
-
-        BetaMultiplierMeasureByType(
-            t_window=Interval(0.0, TO_HOURS * max_days),
+            p_stay_home_dict=mob_reduction),
+        APrioriBetaMultiplierMeasureByType(
             beta_multiplier=calibration_lockdown_beta_multipliers)
         ]
 
-    simulation_info = 'single'
+    simulation_info = options_to_str(
+                mob_red=True,
+                beta_multiplier=calibration_lockdown_beta_multipliers['education']
+            )
 
     experiment.add(
         simulation_info=simulation_info,

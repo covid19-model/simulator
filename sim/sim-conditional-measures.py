@@ -7,7 +7,7 @@ import random as rd
 import pandas as pd
 from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
-from lib.calibrationSettings import calibration_lockdown_dates, calibration_start_dates, calibration_lockdown_beta_multipliers
+from lib.calibrationSettings import calibration_lockdown_beta_multipliers
 from lib.calibrationFunctions import get_calibrated_params
 
 TO_HOURS = 24.0
@@ -41,7 +41,8 @@ if __name__ == '__main__':
     maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
     calibrated_params = get_calibrated_params(country=country, area=area,
                                               multi_beta_calibration=False,
-                                              maxiters=maxBOiters)
+                                              maxiters=maxBOiters,
+                                              estimate_mobility_reduction=True)
 
     # experiment parameters
     # Measures become active only if positive tests per week per 100k people exceed `max_pos_tests_per_week_per_100k`.
@@ -50,17 +51,18 @@ if __name__ == '__main__':
     # `p_stay_home` determines how likely people are to follow the social distancing measures if they are active.
     # `beta_multiplier` determines scaling for `beta` when measure is active
 
-    max_pos_tests_per_week_per_100k = 50
-    is_measure_active_initially = False
-    intervention_times = None
-    p_stay_home = calibrated_params['p_stay_home']
-    beta_multiplier = calibration_lockdown_beta_multipliers
+    max_pos_tests_per_week_per_100k = [50]
+    if args.p_adoption is not None:
+        p_compliances = [args.p_adoption]
+    else:
+        p_compliances = [1.0, 0.75, 0.5, 0.25, 0.1, 0.05]
 
     if args.smoke_test:
         start_date = '2021-01-01'
         end_date = '2021-02-15'
         random_repeats = 1
         full_scale = False
+        p_compliances = [0.75]
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -74,39 +76,37 @@ if __name__ == '__main__':
         verbose=verbose,
     )
 
-    # conditional measures experiment
-    max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+    for max_incidence in max_pos_tests_per_week_per_100k:
+        for p_compliance in p_compliances:
+            # conditional measures experiment
+            max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
-    m = [
-        UpperBoundCasesBetaMultiplier(t_window=Interval(0.0, TO_HOURS * max_days),
-                                      beta_multiplier=beta_multiplier,
-                                      max_pos_tests_per_week_per_100k=max_pos_tests_per_week_per_100k,
-                                      intervention_times=intervention_times,
-                                      init_active=is_measure_active_initially),
+            m = [
+                UpperBoundCasesSocialDistancing(t_window=Interval(0.0, TO_HOURS * max_days),
+                                                p_stay_home=p_compliance,
+                                                max_pos_tests_per_week_per_100k=max_incidence,
+                                                intervention_times=None,
+                                                init_active=False),
 
-        UpperBoundCasesSocialDistancing(t_window=Interval(0.0, TO_HOURS * max_days),
-                                        p_stay_home=p_stay_home,
-                                        max_pos_tests_per_week_per_100k=max_pos_tests_per_week_per_100k,
-                                        intervention_times=intervention_times,
-                                        init_active=is_measure_active_initially)
-        ]
+                APrioriBetaMultiplierMeasureByType(beta_multiplier=calibration_lockdown_beta_multipliers)
+                ]
 
-    simulation_info = options_to_str(
-        max_pos_tests_per_week_per_100k=50,
-        initially_active=is_measure_active_initially
-    )
+            simulation_info = options_to_str(
+                max_incidence=max_incidence,
+                p_compliance=p_compliance
+            )
 
-    experiment.add(
-        simulation_info=simulation_info,
-        country=country,
-        area=area,
-        measure_list=m,
-        lockdown_measures_active=False,
-        seed_summary_path=seed_summary_path,
-        set_calibrated_params_to=calibrated_params,
-        set_initial_seeds_to=set_initial_seeds_to,
-        full_scale=full_scale,
-        expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
+            experiment.add(
+                simulation_info=simulation_info,
+                country=country,
+                area=area,
+                measure_list=m,
+                lockdown_measures_active=False,
+                seed_summary_path=seed_summary_path,
+                set_calibrated_params_to=calibrated_params,
+                set_initial_seeds_to=set_initial_seeds_to,
+                full_scale=full_scale,
+                expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
 
     print(f'{experiment_info} configuration done.')
 

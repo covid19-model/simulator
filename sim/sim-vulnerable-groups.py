@@ -8,6 +8,7 @@ import pandas as pd
 from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
 from lib.calibrationFunctions import get_calibrated_params
+from lib.calibrationSettings import calibration_lockdown_beta_multipliers
 
 TO_HOURS = 24.0
 
@@ -31,9 +32,10 @@ if __name__ == '__main__':
     condensed_summary = True
 
     # experiment parameters
-    # Isolate older age groups for `weeks` number of weeks
-    p_compliances = [1.0, 0.75, 0.5, 0.25, 0.1]
-    estimate_mobility_reduction = True
+    if args.p_adoption is not None:
+        p_compliances = [args.p_adoption]
+    else:
+        p_compliances = [1.0, 0.75, 0.5, 0.25, 0.1, 0.05]
 
     if args.smoke_test:
         start_date = '2021-01-01'
@@ -52,7 +54,7 @@ if __name__ == '__main__':
     calibrated_params = get_calibrated_params(country=country, area=area,
                                               multi_beta_calibration=False,
                                               maxiters=maxBOiters,
-                                              estimate_mobility_reduction=estimate_mobility_reduction)
+                                              estimate_mobility_reduction=True)
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -77,10 +79,13 @@ if __name__ == '__main__':
                 p_stay_home=(
                     [0.0, 0.0, 0.0, 0.0, p_compliance, p_compliance] if country == 'GER' else
                     [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, p_compliance, p_compliance, p_compliance]
-                ))
+                )),
+
+            APrioriBetaMultiplierMeasureByType(beta_multiplier=calibration_lockdown_beta_multipliers)
             ]
 
-        simulation_info = options_to_str(p_compliance=p_compliance)
+        simulation_info = options_to_str(p_compliance=p_compliance,
+                                         beta_multiplier=calibration_lockdown_beta_multipliers['education'])
 
         experiment.add(
             simulation_info=simulation_info,

@@ -402,7 +402,8 @@ class Experiment(object):
 
         # generate experiment folder
         current_directory = os.getcwd()
-        directory = os.path.join(current_directory, ROOT, self.experiment_info)        
+        directory = os.path.join(current_directory, ROOT, self.experiment_info + '-' + get_version_tag())
+        # directory = os.path.join(current_directory, ROOT, self.get_sim_path(self.sims[0]))
         if not os.path.exists(directory):
             os.makedirs(directory)
         

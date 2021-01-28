@@ -13,7 +13,6 @@ from lib.calibrationSettings import calibration_lockdown_beta_multipliers
 TO_HOURS = 24.0
 
 if __name__ == '__main__':
-
     # command line parsing
     args = process_command_line()
     country = args.country
@@ -21,7 +20,7 @@ if __name__ == '__main__':
     cpu_count = args.cpu_count
     continued_run = args.continued
 
-    name = 'k-groups'
+    name = 'lockdown'
     start_date = '2021-01-01'
     end_date = '2021-05-01'
     random_repeats = 100
@@ -33,21 +32,17 @@ if __name__ == '__main__':
     condensed_summary = True
 
     # experiment parameters
-    # Split citizens in `K_groups` groups and alternatingly install social distancing measures for the groups
-    # `K_groups_weeks` determines for how many weeks this strategy is active
-    k_groups = [2]
     if args.p_adoption is not None:
         p_compliances = [args.p_adoption]
     else:
-        p_compliances = [1.0, 0.75, 0.5, 0.25, 0.1]
+        p_compliances = [1.0, 0.75, 0.5, 0.25, 0.1, 0.05]
 
     if args.smoke_test:
         start_date = '2021-01-01'
         end_date = '2021-02-15'
         random_repeats = 1
-        full_scale = False
-        k_groups = [2]
         p_compliances = [0.75]
+        full_scale = False
 
     # seed
     c = 0
@@ -75,37 +70,31 @@ if __name__ == '__main__':
         verbose=verbose,
     )
 
-    # Isolate k groups for different numbers of groups
-    for groups in k_groups:
-        for p_compliance in p_compliances:
-            # measures
-            max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+    for p_compliance in p_compliances:
+        max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
-            m = [
-                SocialDistancingForKGroups(
-                    t_window=Interval(0.0, TO_HOURS * max_days),
-                    K=groups,
-                    p_stay_home=p_compliance),
+        m = [
+            SocialDistancingForAllMeasure(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_stay_home=p_compliance),
 
-                APrioriBetaMultiplierMeasureByType(beta_multiplier=calibration_lockdown_beta_multipliers)
-                ]
+            APrioriBetaMultiplierMeasureByType(beta_multiplier=calibration_lockdown_beta_multipliers)
+            ]
 
-            simulation_info = options_to_str(
-                K_groups=groups,
-                p_compliance=p_compliance,
-                beta_multiplier=calibration_lockdown_beta_multipliers['education'])
+        simulation_info = options_to_str(p_compliance=p_compliance,
+                                         beta_multiplier=calibration_lockdown_beta_multipliers['education'])
 
-            experiment.add(
-                simulation_info=simulation_info,
-                country=country,
-                area=area,
-                measure_list=m,
-                lockdown_measures_active=False,
-                seed_summary_path=seed_summary_path,
-                set_initial_seeds_to=set_initial_seeds_to,
-                set_calibrated_params_to=calibrated_params,
-                full_scale=full_scale,
-                expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
+        experiment.add(
+            simulation_info=simulation_info,
+            country=country,
+            area=area,
+            measure_list=m,
+            lockdown_measures_active=False,
+            seed_summary_path=seed_summary_path,
+            set_initial_seeds_to=set_initial_seeds_to,
+            set_calibrated_params_to=calibrated_params,
+            full_scale=full_scale,
+            expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
 
     print(f'{experiment_info} configuration done.')
 
