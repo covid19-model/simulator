@@ -10,9 +10,6 @@ import pprint
 import csv
 from datetime import datetime, timedelta
 
-from lib.priorityqueue import PriorityQueue
-from lib.dynamics import DiseaseModel
-from lib.mobilitysim import MobilitySimulator
 from lib.parallel import *
 
 import gpytorch, torch, botorch, sobol_seq, pandas
@@ -26,7 +23,7 @@ from botorch.acquisition.max_value_entropy_search import qMaxValueEntropy
 from botorch.acquisition import OneShotAcquisitionFunction
 import botorch.utils.transforms as transforms
 from botorch.utils.transforms import match_batch_shape, t_batch_mode_transform
-from botorch.utils import standardize 
+from botorch.utils import standardize
 from botorch.models.transforms import Standardize
 
 from botorch.sampling.samplers import SobolQMCNormalSampler, IIDNormalSampler
@@ -51,7 +48,6 @@ from lib.calibrationSettings import (
 )
 
 from lib.data import collect_data_from_df
-from lib.plot import Plotter
 
 from lib.measures import (
     MeasureList,
@@ -877,6 +873,8 @@ def make_bayes_opt_functions(args):
 
         # plot
         if args.plot_fit:
+
+            from lib.plot import Plotter
 
             # generate estimation plot folder if it doesn't exist
             current_directory = os.getcwd()
