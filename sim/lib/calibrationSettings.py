@@ -17,29 +17,31 @@ calibration_data = {
 }
 
 calibration_simulation = {
-    'n_init_samples': 20,  # initial random evaluations
-    'n_iterations': 80,  # iterations of BO
+    'n_init_samples': 10,  # initial random evaluations
+    'n_iterations': 90,  # iterations of BO
     'simulation_roll_outs': 96, # roll-outs done in parallel per parameter setting
     'cpu_count':  multiprocessing.cpu_count(), # cpus used for parallel computation
 }
 
 # parameter bounds
-beta_upper_bound = 0.2
+
+beta_upper_bound_site = 0.1
+beta_upper_bound_household = 0.25
 
 calibration_model_param_bounds_single = {
-    'beta_site': [0.0, beta_upper_bound],
-    'beta_household': [0.0, beta_upper_bound],
+    'beta_site': [0.0, beta_upper_bound_site],
+    'beta_household': [0.0, beta_upper_bound_household],
 }
 
 calibration_model_param_bounds_multi = {
     'betas': {
-        'education': [0.0, beta_upper_bound],
-        'social': [0.0, beta_upper_bound],
-        'bus_stop': [0.0, beta_upper_bound],
-        'office': [0.0, beta_upper_bound],
-        'supermarket': [0.0, beta_upper_bound],
+        'education': [0.0, beta_upper_bound_site],
+        'social': [0.0, beta_upper_bound_site],
+        'bus_stop': [0.0, beta_upper_bound_site],
+        'office': [0.0, beta_upper_bound_site],
+        'supermarket': [0.0, beta_upper_bound_site],
     },
-    'beta_household': [0.0, beta_upper_bound],
+    'beta_household': [0.0, beta_upper_bound_household],
 }
 
 
