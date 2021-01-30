@@ -4,6 +4,7 @@ import collections
 import pprint
 import numpy as np
 import pandas as pd
+import torch
 from scipy import stats as sps
 from scipy.interpolate import interp1d
 from datetime import datetime
@@ -19,6 +20,23 @@ from matplotlib.colors import ListedColormap
 from scipy.interpolate import griddata
 import matplotlib.colors as colors
 
+from lib.calibrationFunctions import (
+    pdict_to_parr, 
+    load_state,
+    downsample_cases,
+    CORNER_SETTINGS_SPACE,
+)
+
+from lib.data import collect_data_from_df
+
+import botorch.utils.transforms as transforms
+
+from lib.calibrationSettings import (
+    calibration_model_param_bounds_single,
+    calibration_start_dates,
+    calibration_lockdown_dates,
+    calibration_mob_paths,
+)
 
 from lib.rt import compute_daily_rts, R_T_RANGE
 import lib.rt_nbinom
@@ -2199,3 +2217,91 @@ class Plotter(object):
         if NO_PLOT:
             plt.close()
         return
+
+    def beta_parameter_heatmap(self, country, area, calibration_state, G_is_objective=True, estimate_mobility_reduction=False,
+                               figsize=(3, 3), cmap='viridis_r', levels=15, scatter=False):
+
+        param_bounds = calibration_model_param_bounds_single
+        sim_bounds = pdict_to_parr(
+            pdict=param_bounds,
+            multi_beta_calibration=False,
+            estimate_mobility_reduction=estimate_mobility_reduction,
+        ).T
+
+        state = load_state(calibration_state)
+        train_theta = state['train_theta']
+        train_G = state['train_G']
+
+        mob_settings = calibration_mob_paths[country][area][1]
+        with open(mob_settings, 'rb') as fp:
+            mob_kwargs = pickle.load(fp)
+
+        data_start_date = calibration_start_dates[country][area]
+        data_end_date = calibration_lockdown_dates[country]['end']
+
+        unscaled_area_cases = collect_data_from_df(country=country, area=area, datatype='new',
+                                                start_date_string=data_start_date, end_date_string=data_end_date)
+        assert (len(unscaled_area_cases.shape) == 2)
+
+        # Scale down cases based on number of people in town and region
+        sim_cases = downsample_cases(unscaled_area_cases, mob_kwargs)
+        n_days, n_age = sim_cases.shape
+
+        G_obs = torch.tensor(sim_cases).reshape(1, n_days * n_age)
+        G_obs_aggregate = torch.tensor(sim_cases).sum(dim=-1)
+
+        def objective(G):
+            return - (G - G_obs_aggregate).pow(2).sum(dim=-1) / n_days
+
+        bo_result = np.zeros((train_theta.shape[0], 3))
+        for t in range(train_theta.shape[0]):
+            theta = train_theta[t]
+            G = train_G[t]
+            real_theta = transforms.unnormalize(theta, sim_bounds)
+            obj = G.item() if G_is_objective else objective(G).item()
+
+            bo_result[t, 0:2] = real_theta
+            bo_result[t, 2] = - obj
+
+        dim_names = {
+            0: 'b_site',
+            1: 'b_house',
+        }
+
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+        fig.subplots_adjust(top=0.8)
+
+        x = bo_result[:, 0]
+        y = bo_result[:, 1]
+
+        # z = bo_result[:, 2]
+        # z = np.sqrt(bo_result[:, 2])
+        z = np.log(bo_result[:, 2])
+        # z = np.log(np.sqrt(bo_result[:, 2]))
+
+        # contour interpolation
+        xi = np.linspace(sim_bounds[0, 0], sim_bounds[1, 0], 100)
+        yi = np.linspace(sim_bounds[0, 1], sim_bounds[1, 1], 100)
+        zi = griddata((x, y), z, (xi[None,:], yi[:,None]), method='cubic')
+        ax.contour(xi, yi, zi, levels, linewidths=0.5, colors='k')
+        ax.contourf(xi, yi, zi, levels, cmap=cmap)
+
+        if scatter:
+            ax.scatter(bo_result[:, 0], bo_result[:, 1], color='white')
+
+
+        ax.set_xlabel(dim_names[0])
+        ax.set_ylabel(dim_names[1])
+        ax.set_xlim((sim_bounds[0, 0] + 0.01,
+                     sim_bounds[1, 0] - 0.01))
+        ax.set_ylim((sim_bounds[0, 1] + 0.01,
+                     sim_bounds[1, 1] - 0.01))
+
+        ax.set_title('log MSE {}-{}'.format(country, area), y=0.98)
+
+        plt.tight_layout()
+        plt.savefig(f'plots/bo-result-{country}-{area}.png', format='png', facecolor=None, dpi=200) 
+
+        plt.show()
+
+
