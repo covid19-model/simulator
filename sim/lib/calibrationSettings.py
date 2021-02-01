@@ -92,7 +92,8 @@ command_line_area_codes = {
         'KL': 'SK Kaiserslautern',
         'RH': 'LK Rheingau-Taunus-Kreis',
         'HB': 'LK Heinsberg',
-        'TR': 'LK Tirschenreuth'
+        'TR': 'LK Tirschenreuth',
+        'SB': 'LK Schwarzwald-Baar-Kreis',
     },
     'CH' : {
         'SZ': 'SZ',     # Canton Schwyz
@@ -123,6 +124,7 @@ calibration_mob_paths = {
         'KL': ['lib/mobility/Kaiserslautern_settings_10.pk', 'lib/mobility/Kaiserslautern_settings_1.pk'],
         'RH': ['lib/mobility/Ruedesheim_settings_10.pk', 'lib/mobility/Ruedesheim_settings_1.pk'],
         'TR': ['lib/mobility/Tirschenreuth_settings_5.pk', 'lib/mobility/Tirschenreuth_settings_1.pk'],
+        'SB': ['lib/mobility/Schwarzwald-Baar_settings_10.pk', 'lib/mobility/Schwarzwald-Baar_settings_1.pk']
     },
     'CH': {
         'VD': ['lib/mobility/Lausanne_settings_10.pk', 'lib/mobility/Lausanne_settings_1.pk'],
@@ -139,6 +141,8 @@ calibration_start_dates = {
         'KL': '2020-03-15',
         'RH': '2020-03-10',
         'TR': '2020-03-13',
+        # FIXME: Set SB to true value
+        'SB': '2020-03-12',
     },
     'CH': {
         'VD': '2020-03-07',
@@ -181,6 +185,7 @@ contact_tracing_adoption = {
 # mobility reduction
 calibration_mobility_reduction = {
     'GER': {
+        'SB': get_mobility_reduction('Germany', 'Baden-Württemberg', calibration_lockdown_dates['GER']['start'], calibration_lockdown_dates['GER']['end']),
         'TU': get_mobility_reduction('Germany', 'Baden-Württemberg', calibration_lockdown_dates['GER']['start'], calibration_lockdown_dates['GER']['end']),
         'KL': get_mobility_reduction('Germany', 'Rhineland-Palatinate', calibration_lockdown_dates['GER']['start'], calibration_lockdown_dates['GER']['end']),
         'RH': get_mobility_reduction('Germany', 'Hessen', calibration_lockdown_dates['GER']['start'], calibration_lockdown_dates['GER']['end']),
