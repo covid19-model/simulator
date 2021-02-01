@@ -92,7 +92,6 @@ if __name__ == '__main__':
         country=country,
         area=area,
         measure_list=m,
-        lockdown_measures_active=False,
         test_update=None,
         seed_summary_path=seed_summary_path,
         set_calibrated_params_to=calibrated_params,

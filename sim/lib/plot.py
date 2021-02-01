@@ -1283,11 +1283,16 @@ class Plotter(object):
             plain_ts = ts
             # Convert x-axis into posix timestamps and use pandas to plot as dates
             ts = days_to_datetime(ts, start_date=start_date)
+            
             # lines
-            ax.plot(ts, posi_mu, label=titles[i], c=self.color_different_scenarios[i])
             ax.fill_between(ts, posi_mu - 2 * posi_sig, posi_mu + 2 * posi_sig,
                             color=self.color_different_scenarios[i],
                             alpha=self.filling_alpha, linewidth=0.0)
+            ax.fill_between(ts, posi_mu - 1 * posi_sig, posi_mu + 1 * posi_sig,
+                            color=self.color_different_scenarios[i],
+                            alpha=1.25 * self.filling_alpha, linewidth=0.0)
+            ax.plot(ts, posi_mu, label=titles[i], c=self.color_different_scenarios[i])
+
         # target
         if small_figure:
             target_widget(targets, start_date, ax, label='Real cases', ms=1.0)

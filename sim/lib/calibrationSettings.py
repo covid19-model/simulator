@@ -102,6 +102,7 @@ command_line_area_codes = {
         'BE': 'BE',     # Canton Bern
         'VD': 'VD',     # Canton Vaud
         'JU': 'JU',     # Canton Jura
+        'BS': 'BS',     # Basel Stadt (Canton)
     }
 }				
 
@@ -131,6 +132,7 @@ calibration_mob_paths = {
         'BE': ['lib/mobility/Bern_settings_10.pk', 'lib/mobility/Bern_settings_1.pk'],
         'TI': ['lib/mobility/Locarno_settings_2.pk', 'lib/mobility/Locarno_settings_1.pk'],
         'JU': ['lib/mobility/Jura_settings_10.pk', 'lib/mobility/Jura_settings_1.pk'],
+        'BS': ['lib/mobility/Basel_settings_10.pk', 'lib/mobility/Basel_settings_1.pk'],
     }
 }
 
@@ -141,14 +143,14 @@ calibration_start_dates = {
         'KL': '2020-03-15',
         'RH': '2020-03-10',
         'TR': '2020-03-13',
-        # FIXME: Set SB to true value
-        'SB': '2020-03-12',
+        'SB': '2020-03-13',
     },
     'CH': {
         'VD': '2020-03-07',
         'BE': '2020-03-06',
         'TI': '2020-03-09',
         'JU': '2020-03-09',
+        'BS': '2020-03-04',
     }
 }
 
@@ -196,5 +198,6 @@ calibration_mobility_reduction = {
         'BE': get_mobility_reduction('Switzerland', 'Canton of Bern', calibration_lockdown_dates['CH']['start'], calibration_lockdown_dates['CH']['end']),
         'TI': get_mobility_reduction('Switzerland', 'Ticino', calibration_lockdown_dates['CH']['start'], calibration_lockdown_dates['CH']['end']),
         'JU': get_mobility_reduction('Switzerland', 'Jura', calibration_lockdown_dates['CH']['start'], calibration_lockdown_dates['CH']['end']),
+        'BS': get_mobility_reduction('Switzerland', 'Basel City', calibration_lockdown_dates['CH']['start'], calibration_lockdown_dates['CH']['end']),
     }
 }

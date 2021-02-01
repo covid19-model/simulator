@@ -40,8 +40,8 @@ if __name__ == '__main__':
 
     calibration_regions = [('CH', 'JU'), ('CH', 'BE')]
     assert (cal_country, cal_area) in calibration_regions
-    validation_regions = {'JU': [('GER', 'SB'), ('GER', 'RH')],
-                          'BE': [('GER', 'TU'), ('GER', 'KL')]}
+    validation_regions = {'JU': [('CH', 'JU'), ('GER', 'SB'), ('GER', 'RH')],
+                          'BE': [('CH', 'BE'), ('GER', 'TU'), ('GER', 'KL')]}
 
     if args.smoke_test:
         random_repeats = 1
@@ -97,7 +97,6 @@ if __name__ == '__main__':
             country=val_country,
             area=val_area,
             measure_list=m,
-            lockdown_measures_active=False,
             test_update=None,
             seed_summary_path=seed_summary_path,
             set_calibrated_params_to=calibrated_params,
