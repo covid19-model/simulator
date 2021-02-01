@@ -71,7 +71,7 @@ if __name__ == '__main__':
 
         calibrated_params = get_calibrated_params(country=cal_country, area=cal_area,
                                                   multi_beta_calibration=False,
-                                                  estimate_mobility_reduction=True)
+                                                  estimate_mobility_reduction=False)
 
         # measures
         max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days

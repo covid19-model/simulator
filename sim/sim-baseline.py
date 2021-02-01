@@ -19,7 +19,7 @@ if __name__ == '__main__':
     cpu_count = args.cpu_count
     continued_run = args.continued
 
-    name = 'baseline-scenario-b'
+    name = 'baseline'
     start_date = '2021-01-01'
     end_date = '2021-05-01'
     random_repeats = 100
@@ -39,10 +39,11 @@ if __name__ == '__main__':
     rd.seed(c)
 
     # Load calibrated parameters up to `maxBOiters` iterations of BO
-    maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
+    # maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
     calibrated_params = get_calibrated_params(country=country, area=area,
                                               multi_beta_calibration=False,
-                                              maxiters=maxBOiters)
+                                              maxiters=None,
+                                              estimate_mobility_reduction=False)
 
     # for debugging purposes
     if args.smoke_test:
@@ -67,7 +68,7 @@ if __name__ == '__main__':
 
     # baseline
     experiment.add(
-        simulation_info='baseline',
+        simulation_info='',
         country=country,
         area=area,
         measure_list=[],

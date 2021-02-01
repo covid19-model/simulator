@@ -42,11 +42,11 @@ if __name__ == '__main__':
     rd.seed(c)
 
     # Load calibrated parameters up to `maxBOiters` iterations of BO
-    maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
+    # maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
     calibrated_params = get_calibrated_params(country=country, area=area,
                                               multi_beta_calibration=False,
-                                              maxiters=maxBOiters,
-                                              estimate_mobility_reduction=True)
+                                              maxiters=None,
+                                              estimate_mobility_reduction=False)
 
     # experiment parameters
     mob_reduction = get_mobility_reduction('Germany', 'Baden-Württemberg', calibration_lockdown_dates['GER']['start'],
