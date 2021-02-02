@@ -1,5 +1,8 @@
 
 import sys
+
+from lib.calibrationSettings import calibration_lockdown_beta_multipliers
+
 if '..' not in sys.path:
     sys.path.append('..')
 
@@ -66,12 +69,16 @@ if __name__ == '__main__':
         verbose=verbose,
     )
 
+    m = [APrioriBetaMultiplierMeasureByType(beta_multiplier=calibration_lockdown_beta_multipliers)]
+
+    sim_info = options_to_str(beta_multiplier=calibration_lockdown_beta_multipliers['education'])
+
     # baseline
     experiment.add(
-        simulation_info='',
+        simulation_info=sim_info,
         country=country,
         area=area,
-        measure_list=[],
+        measure_list=m,
         seed_summary_path=seed_summary_path,
         set_initial_seeds_to=set_initial_seeds_to,
         set_calibrated_params_to=calibrated_params,
