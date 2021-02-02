@@ -22,7 +22,7 @@ if __name__ == '__main__':
     cpu_count = args.cpu_count
     continued_run = args.continued
 
-    name = 'tracing-compliance'
+    name = 'tracing'
     start_date = '2021-01-01'
     end_date = '2021-05-01'
     random_repeats = 100
@@ -126,6 +126,7 @@ if __name__ == '__main__':
 
             simulation_info = options_to_str(
                 p_adoption=p_adoption,
+                test_lag=test_lag,
                 tracing_threshold=smart_tracing_threshold,
                 beta_multiplier=calibration_lockdown_beta_multipliers['education']
             )
