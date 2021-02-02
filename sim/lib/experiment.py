@@ -111,6 +111,8 @@ def process_command_line(return_parser=False):
                         help="only run experiment with a single beacon mode")
     parser.add_argument("--test_lag", type=float,
                         help="only run experiment with the specified test lag")
+    parser.add_argument("--background_exposures", type=float,
+                        help="set number of background exposures per week")
                         
     parser.add_argument("--mobility_reduction", action="store_true",
                         help="flag to turn off mobility reduction")

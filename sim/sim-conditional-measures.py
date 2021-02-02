@@ -93,7 +93,8 @@ if __name__ == '__main__':
 
             simulation_info = options_to_str(
                 max_incidence=max_incidence,
-                p_compliance=p_compliance
+                p_compliance=p_compliance,
+                beta_multiplier=calibration_lockdown_beta_multipliers['education']
             )
 
             experiment.add(

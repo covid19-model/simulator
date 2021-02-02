@@ -30,7 +30,10 @@ if __name__ == '__main__':
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = {}
-    expected_daily_base_expo_per100k = 5 / 7
+    if args.background_exposures:
+        expected_daily_base_expo_per100k = args.background_exposures
+    else:
+        expected_daily_base_expo_per100k = 5 / 7
     condensed_summary = True
 
     # set `True` for narrow-casting plot; should only be done with 1 random restart:
@@ -71,7 +74,8 @@ if __name__ == '__main__':
 
     m = [APrioriBetaMultiplierMeasureByType(beta_multiplier=calibration_lockdown_beta_multipliers)]
 
-    sim_info = options_to_str(beta_multiplier=calibration_lockdown_beta_multipliers['education'])
+    sim_info = options_to_str(expected_daily_base_expo_per100k=expected_daily_base_expo_per100k,
+                              beta_multiplier=calibration_lockdown_beta_multipliers['education'])
 
     # baseline
     experiment.add(

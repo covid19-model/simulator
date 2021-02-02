@@ -395,6 +395,9 @@ class DiseaseModel(object):
         else:
             self.beta_household = 0.0
 
+        self.num_household_exposures = 0
+        self.num_site_exposures = 0
+
         # testing settings
         self.testing_frequency  = testing_params['testing_frequency']
         self.test_targets       = testing_params['test_targets']
@@ -689,6 +692,7 @@ class DiseaseModel(object):
                         (not somebody_isolated):
 
                         self.__process_exposure_event(t=t, i=i, parent=infector, contact=None)
+                        self.num_household_exposures += 1
 
                     # if 2), 3), or 4) were true, i.e. infector not recovered,
                     # a household exposure could happen at a later point, hence sample a new event
@@ -749,6 +753,7 @@ class DiseaseModel(object):
                         (not site_avoided_infection):
 
                         self.__process_exposure_event(t=t, i=i, parent=infector, contact=contact)
+                        self.num_site_exposures += 1
 
                     # if any of 2), 3), 4) were true, i.e. infector not recovered,
                     # an exposure could happen at a later point, hence sample a new event 
