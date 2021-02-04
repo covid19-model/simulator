@@ -356,27 +356,49 @@ def get_lockdown_times(summary):
     return interventions, mean_lockdown_time
 
 
-def get_plot_data(data, quantity, mode):#, labeldict):
+def get_plot_data(data, quantity, mode):
 
     if mode == 'daily':
-        line_cases = data[f'new_{quantity}_mu']
-        error_cases = data[f'new_{quantity}_sig']
-        # ylabel = f'Daily {labeldict[quantity]}'
+        # line_cases = data[f'new_{quantity}_mu']
+        # error_cases = data[f'new_{quantity}_sig']
+
+        # New way
+        length = len(data[f'new_{quantity}_mu'])
+        cumu_cases = data[f'cumu_{quantity}_mu']
+        stepsize = len(cumu_cases)//length
+        daily_cases = np.zeros(length)
+        for i in range(length):
+            daily_cases[i] = cumu_cases[(i+1)*stepsize] - cumu_cases[i * stepsize]
+        line_cases = daily_cases
+        error_cases = np.zeros(len(line_cases))
+
     elif mode == 'cumulative':
         line_cases = data[f'cumu_{quantity}_mu']
         error_cases = data[f'cumu_{quantity}_sig']
-        # ylabel = f'Cumulative {labeldict[quantity]}'
     elif mode == 'total':
         if quantity == 'infected':
             line_cases = data['iasy_mu'] + data['ipre_mu'] + data['isym_mu']
             error_cases = np.sqrt(np.square(data['iasy_sig']) +
                                   np.square(data['ipre_sig']) +
                                   np.square(data['isym_sig']))
-            # ylabel = 'Infected'
         else:
             line_cases = data[f'{quantity}_mu']
             error_cases = data[f'{quantity}_sig']
-            # ylabel = labeldict[quantity]
+    elif mode == 'weekly incidence':
+        # Calculate daily new cases
+        length = len(data[f'new_{quantity}_mu'])
+        cumu_cases = data[f'cumu_{quantity}_mu']
+        stepsize = len(cumu_cases) // length
+        daily_cases = np.zeros(length)
+        for i in range(length):
+            daily_cases[i] = cumu_cases[(i + 1) * stepsize] - cumu_cases[i * stepsize]
+
+        # Calculate running 7 day incidence
+        incidence = np.zeros(length)
+        for i in range(length):
+            incidence[i] = np.sum(daily_cases[max(i - 6, 0):i])
+        line_cases = incidence
+        error_cases = np.zeros(length)
     else:
         NotImplementedError()
-    return line_cases, error_cases# , ylabel
+    return line_cases, error_cases

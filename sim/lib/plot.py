@@ -879,7 +879,7 @@ class Plotter(object):
         '''
 
         assert isinstance(sims[0], str), '`sims` must be list of filepaths'
-        assert mode in ['total', 'daily', 'cumulative']
+        assert mode in ['total', 'daily', 'cumulative', 'weekly incidence']
         assert quantity in ['infected', 'hosp', 'dead']
 
         labeldict = {'total': {'infected': 'Infected',
@@ -891,6 +891,7 @@ class Plotter(object):
                      'daily': {'infected': 'Daily Infections',
                                'hosp': 'Daily Hospitalizations',
                                'dead': 'Daily Fatalities'},
+                     'weekly incidence': {'infected': 'Weekly infection incidence'}
                      }
 
         # Set double figure format
@@ -900,10 +901,14 @@ class Plotter(object):
 
         for i, sim in enumerate(sims):
             data = load_condensed_summary_compat(sim)
-            ts = data['ts'] if not x_axis_dates else days_to_datetime(data['ts'], start_date=start_date)
-
             line_cases, error_cases = get_plot_data(data, quantity=quantity, mode=mode)
-            ylabel = labeldict[mode][quantity]
+
+            if mode in ['daily', 'weekly incidence']:
+                ts = np.arange(0, len(line_cases))
+                if mode == 'daily':
+                    error_cases = np.zeros(len(line_cases))
+            else:
+                ts = data['ts'] if not x_axis_dates else days_to_datetime(data['ts'], start_date=start_date)
 
             # lines
             ax.plot(ts, line_cases, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
@@ -925,6 +930,7 @@ class Plotter(object):
         else:
             ax.set_xlabel(r'$t$ [days]')
 
+        ylabel = labeldict[mode][quantity]
         ax.set_ylabel(ylabel)
 
         if lockdown_at is not None:
