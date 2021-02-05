@@ -132,7 +132,6 @@ if __name__ == '__main__':
                     p_adoption=p_adoption,
                     test_lag=test_lag,
                     tracing_threshold=smart_tracing_threshold,
-                    smart_tracing_threshold=smart_tracing_threshold,
                     # beta_multiplier=calibration_lockdown_beta_multipliers['education'],
                     beta_multiplier=1.0,
                 )
