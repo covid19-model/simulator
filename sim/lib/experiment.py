@@ -113,7 +113,7 @@ def process_command_line(return_parser=False):
                         help="only run experiment with the specified test lag")
     parser.add_argument("--background_exposures", type=float,
                         help="set number of background exposures per week")
-    parser.add_argument(" --tracing_threshold", type=float,
+    parser.add_argument("--tracing_threshold", type=float,
                         help="set smart tracing threshold")
                         
     parser.add_argument("--mobility_reduction", action="store_true",
