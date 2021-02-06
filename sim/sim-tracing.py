@@ -105,7 +105,6 @@ if __name__ == '__main__':
                 def test_update(d):
                     d['smart_tracing_actions'] = ['isolate', 'test']
                     d['test_reporting_lag'] = test_lag
-                    d['tests_per_batch'] = 100000
 
                     # isolation
                     d['smart_tracing_policy_isolate'] = 'advanced-threshold'
