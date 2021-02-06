@@ -44,12 +44,7 @@ if __name__ == '__main__':
     np.random.seed(c)
     rd.seed(c)
 
-    # Load calibrated parameters up to `maxBOiters` iterations of BO
-    # maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
-    calibrated_params = get_calibrated_params(country=country, area=area,
-                                              multi_beta_calibration=False,
-                                              maxiters=None,
-                                              estimate_mobility_reduction=False)
+    calibrated_params = get_calibrated_params(country=country, area=area)
 
     # for debugging purposes
     if args.smoke_test:
@@ -72,13 +67,9 @@ if __name__ == '__main__':
         verbose=verbose,
     )
 
-    m = [
-        #APrioriBetaMultiplierMeasureByType(beta_multiplier=calibration_lockdown_beta_multipliers)
-        ]
+    m = []
 
-    sim_info = options_to_str(expected_daily_base_expo_per100k=expected_daily_base_expo_per100k,
-                              # beta_multiplier=calibration_lockdown_beta_multipliers['education']
-                              beta_multiplier=1.0)
+    sim_info = options_to_str(expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
 
     # baseline
     experiment.add(

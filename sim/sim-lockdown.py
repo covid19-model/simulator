@@ -49,12 +49,7 @@ if __name__ == '__main__':
     np.random.seed(c)
     rd.seed(c)
 
-    # Load calibrated parameters up to `maxBOiters` iterations of BO
-    # maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
-    calibrated_params = get_calibrated_params(country=country, area=area,
-                                              multi_beta_calibration=False,
-                                              maxiters=None,
-                                              estimate_mobility_reduction=False)
+    calibrated_params = get_calibrated_params(country=country, area=area)
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -77,12 +72,9 @@ if __name__ == '__main__':
             SocialDistancingForAllMeasure(
                 t_window=Interval(0.0, TO_HOURS * max_days),
                 p_stay_home=p_compliance),
-
-            APrioriBetaMultiplierMeasureByType(beta_multiplier=calibration_lockdown_beta_multipliers)
             ]
 
-        simulation_info = options_to_str(p_compliance=p_compliance,
-                                         beta_multiplier=calibration_lockdown_beta_multipliers['education'])
+        simulation_info = options_to_str(p_compliance=p_compliance)
 
         experiment.add(
             simulation_info=simulation_info,

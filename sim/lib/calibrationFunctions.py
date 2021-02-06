@@ -298,7 +298,7 @@ def parr_to_pdict(*, parr, multi_beta_calibration, estimate_mobility_reduction):
     return pdict
 
 
-def get_calibrated_params(*, country, area, multi_beta_calibration, estimate_mobility_reduction, maxiters=None):
+def get_calibrated_params(*, country, area, multi_beta_calibration=False, estimate_mobility_reduction=False, maxiters=None):
     """
     Returns calibrated parameters for a `country` and an `area`
     """

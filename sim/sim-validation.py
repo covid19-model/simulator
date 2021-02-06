@@ -69,9 +69,7 @@ if __name__ == '__main__':
             verbose=verbose,
         )
 
-        calibrated_params = get_calibrated_params(country=cal_country, area=cal_area,
-                                                  multi_beta_calibration=False,
-                                                  estimate_mobility_reduction=False)
+        calibrated_params = get_calibrated_params(country=cal_country, area=cal_area)
 
         # measures
         max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
@@ -82,12 +80,6 @@ if __name__ == '__main__':
                         measure_window_in_hours['start'],
                         measure_window_in_hours['end']),
                     p_stay_home_dict=calibration_mobility_reduction[val_country][val_area]),
-
-            BetaMultiplierMeasureByType(
-                t_window=Interval(
-                    measure_window_in_hours['start'],
-                    measure_window_in_hours['end']),
-                beta_multiplier=calibration_lockdown_beta_multipliers)
             ]
 
         sim_info = options_to_str(validation_region=val_area)

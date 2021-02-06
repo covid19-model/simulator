@@ -38,12 +38,7 @@ if __name__ == '__main__':
     np.random.seed(c)
     rd.seed(c)
 
-    # Load calibrated parameters up to `maxBOiters` iterations of BO
-    # maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
-    calibrated_params = get_calibrated_params(country=country, area=area,
-                                              multi_beta_calibration=False,
-                                              maxiters=None,
-                                              estimate_mobility_reduction=False)
+    calibrated_params = get_calibrated_params(country=country, area=area)
 
     # contact tracing experiment parameters
     if args.tracing_threshold is not None:
@@ -104,8 +99,6 @@ if __name__ == '__main__':
                         t_window=Interval(0.0, TO_HOURS * max_days),
                         p_isolate=1.0,
                         smart_tracing_isolation_duration=TO_HOURS * 14.0),
-
-                    #APrioriBetaMultiplierMeasureByType(beta_multiplier=calibration_lockdown_beta_multipliers)
                     ]
 
                 # set testing params via update function of standard testing parameters
@@ -132,8 +125,6 @@ if __name__ == '__main__':
                     p_adoption=p_adoption,
                     test_lag=test_lag,
                     tracing_threshold=smart_tracing_threshold,
-                    # beta_multiplier=calibration_lockdown_beta_multipliers['education'],
-                    beta_multiplier=1.0,
                 )
 
                 experiment.add(
