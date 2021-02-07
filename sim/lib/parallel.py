@@ -248,6 +248,8 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
         num_household_exposures.append(result['num_household_exposures'])
         num_site_exposures.append(result['num_site_exposures'])
 
-    print('Mean site exposures: ', np.mean(num_site_exposures))
-    print('Mean household exposures: ', np.mean(num_household_exposures))
+    if verbose:
+        print('Mean site exposures: ', np.mean(num_site_exposures))
+        print('Mean household exposures: ', np.mean(num_household_exposures))
+
     return summary

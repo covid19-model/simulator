@@ -79,7 +79,7 @@ def condense_summary(summary, metadata=None, acc=500):
     result = Result(metadata=metadata, summary=summary)
     try:    # For compatibility reasons
         n_age_groups = metadata.num_age_groups
-    except KeyError:
+    except (KeyError, AttributeError):
         n_age_groups = None
 
     if acc > summary.max_time:

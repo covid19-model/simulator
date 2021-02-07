@@ -589,8 +589,10 @@ def make_bayes_opt_functions(args):
         param_bounds['p_stay_home'] = [0.0, 1.0]
     
     # remember line executed
+    version_tag_header = subprocess.check_output(["git", "describe", "--always"]).strip().decode(sys.stdout.encoding)
     header.append('=' * 100)
     header.append(datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+    header.append(args.seed + '_' + version_tag_header + '\n')
     header.append('python ' + ' '.join(sys.argv))
     header.append('=' * 100)
 
@@ -872,8 +874,8 @@ def make_bayes_opt_functions(args):
             ]
 
         kwargs['measure_list'] = MeasureList(measure_list)
-
-        # run simulation in parallel,
+        
+        # run simulation in parallel
         summary = launch_parallel_simulations(**kwargs)
 
         # plot
@@ -896,15 +898,13 @@ def make_bayes_opt_functions(args):
             plotter.plot_positives_vs_target(
                 [summary],
                 [label],
-                sim_cases.sum(axis=1),
+                data_country,
+                data_area,
                 filename=plot_filename,
                 figsize=(4, 2),
                 figformat='neurips-double',
-                start_date=data_start_date,
                 ymax=(sim_cases.sum(axis=1).max() * 2).item(),
-                errorevery=1, acc=500,
                 lockdown_label='Interventions',
-                lockdown_at=days_until_lockdown_start,
                 small_figure=True,
                 cluster_compatible=True)
 

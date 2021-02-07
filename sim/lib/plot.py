@@ -1278,14 +1278,18 @@ class Plotter(object):
         fig, ax = plt.subplots(figsize=figsize)
 
         for i, path in enumerate(paths):
-            assert isinstance(path, str), 'Paths need to be a list of strings of paths containing the condensed summary files.'
-            data = load_condensed_summary(path)
-            acc = data['acc']
-            ts = data['ts']
-            posi_mu = data['posi_mu']
-            posi_sig = data['posi_sig']
-            plain_ts = ts
+            if isinstance(path, str):
+                # path of `Result` in `experiment.py`
+                data = load_condensed_summary(path)
+                ts = data['ts']
+                posi_mu = data['posi_mu']
+                posi_sig = data['posi_sig']
+            else:
+                # (uncondensed) summary from `calibrate.py`
+                ts, posi_mu, posi_sig = comp_state_over_time(path, 'posi', acc=500)
+
             # Convert x-axis into posix timestamps and use pandas to plot as dates
+            plain_ts = ts
             ts = days_to_datetime(ts, start_date=start_date)
             
             # lines
