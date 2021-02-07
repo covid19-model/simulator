@@ -178,6 +178,9 @@ calibration_lockdown_beta_multipliers = {
     'office': 0.5, 
     'supermarket': 0.5}
 
+calibration_lockdown_site_closures = ['education', 'social']
+calibration_lockdown_mobility_reduced = ['supermarket', 'bus_stop', 'office']
+
 # contact tracing adoption 
 contact_tracing_adoption = {
     'GER': 0.27,  # as of Nov 12, 2020
@@ -187,17 +190,17 @@ contact_tracing_adoption = {
 # mobility reduction
 calibration_mobility_reduction = {
     'GER': {
-        'SB': get_mobility_reduction('Germany', 'Baden-Württemberg', calibration_lockdown_dates['GER']['start'], calibration_lockdown_dates['GER']['end']),
-        'TU': get_mobility_reduction('Germany', 'Baden-Württemberg', calibration_lockdown_dates['GER']['start'], calibration_lockdown_dates['GER']['end']),
-        'KL': get_mobility_reduction('Germany', 'Rhineland-Palatinate', calibration_lockdown_dates['GER']['start'], calibration_lockdown_dates['GER']['end']),
-        'RH': get_mobility_reduction('Germany', 'Hessen', calibration_lockdown_dates['GER']['start'], calibration_lockdown_dates['GER']['end']),
-        'TR': get_mobility_reduction('Germany', 'Bavaria', calibration_lockdown_dates['GER']['start'], calibration_lockdown_dates['GER']['end']),
+        'SB': get_mobility_reduction('Germany', 'Baden-Württemberg', calibration_lockdown_dates['GER']['start'], calibration_lockdown_dates['GER']['end'], calibration_lockdown_mobility_reduced),
+        'TU': get_mobility_reduction('Germany', 'Baden-Württemberg', calibration_lockdown_dates['GER']['start'], calibration_lockdown_dates['GER']['end'], calibration_lockdown_mobility_reduced),
+        'KL': get_mobility_reduction('Germany', 'Rhineland-Palatinate', calibration_lockdown_dates['GER']['start'], calibration_lockdown_dates['GER']['end'], calibration_lockdown_mobility_reduced),
+        'RH': get_mobility_reduction('Germany', 'Hessen', calibration_lockdown_dates['GER']['start'], calibration_lockdown_dates['GER']['end'], calibration_lockdown_mobility_reduced),
+        'TR': get_mobility_reduction('Germany', 'Bavaria', calibration_lockdown_dates['GER']['start'], calibration_lockdown_dates['GER']['end'], calibration_lockdown_mobility_reduced),
     },
     'CH': {
-        'VD': get_mobility_reduction('Switzerland', 'Vaud', calibration_lockdown_dates['CH']['start'], calibration_lockdown_dates['CH']['end']),
-        'BE': get_mobility_reduction('Switzerland', 'Canton of Bern', calibration_lockdown_dates['CH']['start'], calibration_lockdown_dates['CH']['end']),
-        'TI': get_mobility_reduction('Switzerland', 'Ticino', calibration_lockdown_dates['CH']['start'], calibration_lockdown_dates['CH']['end']),
-        'JU': get_mobility_reduction('Switzerland', 'Jura', calibration_lockdown_dates['CH']['start'], calibration_lockdown_dates['CH']['end']),
-        'BS': get_mobility_reduction('Switzerland', 'Basel City', calibration_lockdown_dates['CH']['start'], calibration_lockdown_dates['CH']['end']),
+        'VD': get_mobility_reduction('Switzerland', 'Vaud', calibration_lockdown_dates['CH']['start'], calibration_lockdown_dates['CH']['end'], calibration_lockdown_mobility_reduced),
+        'BE': get_mobility_reduction('Switzerland', 'Canton of Bern', calibration_lockdown_dates['CH']['start'], calibration_lockdown_dates['CH']['end'], calibration_lockdown_mobility_reduced),
+        'TI': get_mobility_reduction('Switzerland', 'Ticino', calibration_lockdown_dates['CH']['start'], calibration_lockdown_dates['CH']['end'], calibration_lockdown_mobility_reduced),
+        'JU': get_mobility_reduction('Switzerland', 'Jura', calibration_lockdown_dates['CH']['start'], calibration_lockdown_dates['CH']['end'], calibration_lockdown_mobility_reduced),
+        'BS': get_mobility_reduction('Switzerland', 'Basel City', calibration_lockdown_dates['CH']['start'], calibration_lockdown_dates['CH']['end'], calibration_lockdown_mobility_reduced),
     }
 }

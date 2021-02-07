@@ -44,6 +44,7 @@ from lib.calibrationSettings import (
     calibration_mob_paths,
     calibration_start_dates,
     calibration_lockdown_beta_multipliers,
+    calibration_lockdown_site_closures,
     calibration_mobility_reduction,
 )
 
@@ -698,10 +699,11 @@ def make_bayes_opt_functions(args):
     header.append('Parameter bounds: {}'.format(parr_to_pdict(parr=sim_bounds.T, 
         multi_beta_calibration=multi_beta_calibration, 
         estimate_mobility_reduction=estimate_mobility_reduction)))
-    if not estimate_mobility_reduction:
-        header.append(
-            'Fixed lockdown mob. reduction: {}'.format(calibration_mobility_reduction[data_country][data_area]))
 
+    # log fixed measures
+    header.append('Fixed lockdown beta multipliers:   {}'.format(calibration_lockdown_beta_multipliers if args.lockdown_beta_multipliers else None))
+    header.append('Fixed lockdown site closures:      {}'.format(calibration_lockdown_site_closures if calibration_lockdown_site_closures else None))
+    header.append('Fixed lockdown mobility reduction: {}'.format(calibration_mobility_reduction[data_country][data_area] if not estimate_mobility_reduction else None))
 
     # extract lockdown period
     sim_start_date = pd.to_datetime(data_start_date)
@@ -837,33 +839,36 @@ def make_bayes_opt_functions(args):
             SocialDistancingForPositiveMeasureHousehold(
                 t_window=Interval(0.0, max_time), p_isolate=1.0),
         ]
-        # hygienic measures during lockdown
-        if not args.no_lockdown_beta_multipliers:
+
+        # social distancing factor during lockdown
+        # 1 - fixed site closures 
+        p_stay_home_dict_closures = {site_type : 1.0 for site_type in calibration_lockdown_site_closures}
+
+        # 2 - mobility reduction
+        if args.estimate_mobility_reduction:
+            # estimated
+            p_stay_home_dict_mobility_reduced = {k: all_params['p_stay_home']
+                for k in calibration_mobility_reduction[data_country][data_area].keys()}
+        else:
+            # fixed Google mobility reduction
+            p_stay_home_dict_mobility_reduced = calibration_mobility_reduction[data_country][data_area]
+
+        p_stay_home_dict = {**p_stay_home_dict_closures, **p_stay_home_dict_mobility_reduced}
+
+        measure_list += [
+            SocialDistancingBySiteTypeForAllMeasure(
+                t_window=Interval(TO_HOURS * days_until_lockdown_start,
+                                  TO_HOURS * days_until_lockdown_end),
+                p_stay_home_dict=p_stay_home_dict)
+        ]        
+
+        # fixed hygienic measures during lockdown
+        if args.lockdown_beta_multipliers:
             measure_list += [
-                # site specific measures: fixed in advance, outside of calibration
                 BetaMultiplierMeasureByType(
                     t_window=Interval(TO_HOURS * days_until_lockdown_start,
                                       TO_HOURS * days_until_lockdown_end),
                     beta_multiplier=calibration_lockdown_beta_multipliers),
-            ]
-
-        # social distancing factor during lockdown
-        if args.estimate_mobility_reduction:
-            # estimated
-            measure_list += [
-                SocialDistancingForAllMeasure(
-                    t_window=Interval(TO_HOURS * days_until_lockdown_start,
-                                      TO_HOURS * days_until_lockdown_end),
-                    p_stay_home=all_params['p_stay_home'])
-            ]
-        
-        else:
-            # from Google data
-            measure_list += [
-                SocialDistancingBySiteTypeForAllMeasure(
-                    t_window=Interval(TO_HOURS * days_until_lockdown_start,
-                                      TO_HOURS * days_until_lockdown_end),
-                    p_stay_home_dict=calibration_mobility_reduction[data_country][data_area])
             ]
 
         kwargs['measure_list'] = MeasureList(measure_list)

@@ -2224,7 +2224,8 @@ class Plotter(object):
         return
 
     def beta_parameter_heatmap(self, country, area, calibration_state, G_is_objective=True, estimate_mobility_reduction=False,
-                               figsize=(3, 3), cmap='viridis_r', levels=15, scatter=False):
+                               figsize=(3, 3), cmap='viridis_r', levels=None, scatter=False, ceil=None, xmin=None, 
+                               xmax=None, ymin=None, ymax=None):
 
         param_bounds = calibration_model_param_bounds_single
         sim_bounds = pdict_to_parr(
@@ -2279,28 +2280,44 @@ class Plotter(object):
         x = bo_result[:, 0]
         y = bo_result[:, 1]
 
+        # ceil
+        if ceil is not None:
+            bo_result[:, 2] = np.minimum(bo_result[:, 2], ceil)
+
         # z = bo_result[:, 2]
         # z = np.sqrt(bo_result[:, 2])
         z = np.log(bo_result[:, 2])
+        # z = np.log10(bo_result[:, 2])
         # z = np.log(np.sqrt(bo_result[:, 2]))
 
         # contour interpolation
-        xi = np.linspace(sim_bounds[0, 0], sim_bounds[1, 0], 100)
-        yi = np.linspace(sim_bounds[0, 1], sim_bounds[1, 1], 100)
+        xi = np.linspace(xmin or sim_bounds[0, 0], xmax or sim_bounds[1, 0], 100)
+        yi = np.linspace(ymin or sim_bounds[0, 1], ymax or sim_bounds[1, 1], 100)
         zi = griddata((x, y), z, (xi[None,:], yi[:,None]), method='cubic')
-        ax.contour(xi, yi, zi, levels, linewidths=0.5, colors='k')
-        ax.contourf(xi, yi, zi, levels, cmap=cmap)
+
+        if levels is not None:
+            ax.contour(xi, yi, zi, levels, linewidths=0.5, colors='k')
+            contourplot = ax.contourf(xi, yi, zi, levels, cmap=cmap)
+        else:
+            ax.contour(xi, yi, zi, linewidths=0.5, colors='k')
+            contourplot = ax.contourf(xi, yi, zi, cmap=cmap)
 
         if scatter:
             ax.scatter(bo_result[:, 0], bo_result[:, 1], color='white')
 
+        # colorbar
+        # fig.subplots_adjust(right=0.8)
+        # cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+        # fig.colorbar(contourplot, cax=cbar_ax)
+        fig.colorbar(contourplot)
 
+        # axis
         ax.set_xlabel(dim_names[0])
         ax.set_ylabel(dim_names[1])
-        ax.set_xlim((sim_bounds[0, 0] + 0.01,
-                     sim_bounds[1, 0] - 0.01))
-        ax.set_ylim((sim_bounds[0, 1] + 0.01,
-                     sim_bounds[1, 1] - 0.01))
+        ax.set_xlim((xmin or (sim_bounds[0, 0] + 0.01),
+                     xmax or (sim_bounds[1, 0] - 0.01)))
+        ax.set_ylim((ymin or (sim_bounds[0, 1] + 0.01),
+                     ymax or (sim_bounds[1, 1] - 0.01)))
 
         ax.set_title('log MSE {}-{}'.format(country, area), y=0.98)
 

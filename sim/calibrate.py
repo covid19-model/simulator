@@ -57,7 +57,7 @@ if __name__ == '__main__':
         args.niters = 1
         args.rollouts = 2
         args.start = "2020-03-10"
-        args.end = "2020-03-12"
+        # args.end = "2020-03-12"
 
         
     '''

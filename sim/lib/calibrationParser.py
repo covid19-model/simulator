@@ -33,15 +33,15 @@ def make_calibration_parser():
                         help="model simulator noise using standard error of mean")
     parser.add_argument("--normalize-cases", action="store_true",
                         help="use unnormalized case numbers; if not passed, divides all case numbers by target on t=T")
-    parser.add_argument("--estimate_mobility_reduction", action="store_true",
+    parser.add_argument("--estimate-mobility-reduction", action="store_true",
                         help="whether to estimate p_stay_home; if not set, uses Google mobility report")
 
     parser.add_argument("--multi-beta-calibration", action="store_true",
                         help="flag to calibrate an individual beta parameter for each site category/type")
     parser.add_argument("--per-age-group-objective", action="store_true",
                         help="flag to calibrate based on per age-group objective")
-    parser.add_argument("--no-lockdown-beta-multipliers", action="store_true",
-                        help="ignores fixed beta multipliers at sites during the lockdown period")
+    parser.add_argument("--lockdown-beta-multipliers", action="store_true",
+                        help="adds fixed beta multipliers at sites during the lockdown period")
     parser.add_argument("--init-explore-corner-settings", action="store_true",
                         help="flag to also evaluate at corners of bounds during initial exploration")
     parser.add_argument("--log-objective", action="store_true",

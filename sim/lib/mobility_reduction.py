@@ -19,7 +19,7 @@ mobility_change_keywords = {
     'supermarket': 'grocery_and_pharmacy_percent_change_from_baseline',
 }
 
-def get_mobility_reduction(country, region, start_date, end_date):
+def get_mobility_reduction(country, region, start_date, end_date, site_type_list):
 
     # get country dataset
     if country == 'Germany':
@@ -39,7 +39,7 @@ def get_mobility_reduction(country, region, start_date, end_date):
     # average mobility reduction
     mean_mobility_reduction_dict = {
         k: max(0.0, - df[[v]].values.mean() / 100.0) # from perc. reduction to prob. of missing visit
-        for k, v in mobility_change_keywords.items()
+        for k, v in mobility_change_keywords.items() if k in site_type_list
     }
 
     return mean_mobility_reduction_dict
