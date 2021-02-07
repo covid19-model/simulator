@@ -111,6 +111,10 @@ def process_command_line(return_parser=False):
                         help="only run experiment with a single beacon mode")
     parser.add_argument("--test_lag", type=float,
                         help="only run experiment with the specified test lag")
+    parser.add_argument("--background_exposures", type=float,
+                        help="set number of background exposures per week")
+    parser.add_argument("--tracing_threshold", type=float,
+                        help="set smart tracing threshold")
                         
     parser.add_argument("--mobility_reduction", action="store_true",
                         help="flag to turn off mobility reduction")
@@ -320,11 +324,7 @@ class Experiment(object):
 
         measure_list = MeasureList(measure_list)
 
-        # Set testing conditions
-        scaled_test_capacity = get_test_capacity(
-            country, area, mob_settings, end_date_string=self.end_date)
         testing_params = copy.deepcopy(calibration_testing_params)
-        testing_params['tests_per_batch'] = scaled_test_capacity
         testing_params['testing_t_window'] = [0.0, max_time]
         if test_update:
             testing_params = test_update(testing_params)

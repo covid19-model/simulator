@@ -37,12 +37,7 @@ if __name__ == '__main__':
     np.random.seed(c)
     rd.seed(c)
 
-    # Load calibrated parameters up to `maxBOiters` iterations of BO
-    # maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
-    calibrated_params = get_calibrated_params(country=country, area=area,
-                                              multi_beta_calibration=False,
-                                              maxiters=None,
-                                              estimate_mobility_reduction=False)
+    calibrated_params = get_calibrated_params(country=country, area=area)
 
     # experiment parameters
     # Measures become active only if positive tests per week per 100k people exceed `max_pos_tests_per_week_per_100k`.
@@ -87,13 +82,11 @@ if __name__ == '__main__':
                                                 max_pos_tests_per_week_per_100k=max_incidence,
                                                 intervention_times=None,
                                                 init_active=False),
-
-                APrioriBetaMultiplierMeasureByType(beta_multiplier=calibration_lockdown_beta_multipliers)
                 ]
 
             simulation_info = options_to_str(
                 max_incidence=max_incidence,
-                p_compliance=p_compliance
+                p_compliance=p_compliance,
             )
 
             experiment.add(

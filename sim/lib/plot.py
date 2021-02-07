@@ -868,7 +868,6 @@ class Plotter(object):
         return
 
     def compare_quantity(self, sims, titles, quantity='infected', mode='total', ymax=None,
-                         normalization_baseline_path=None,
                          start_date='1970-01-01', xtick_interval=3, x_axis_dates=False,
                          figformat='double', filename='compare_epidemics', figsize=None,
                          lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
@@ -880,7 +879,7 @@ class Plotter(object):
         '''
 
         assert isinstance(sims[0], str), '`sims` must be list of filepaths'
-        assert mode in ['total', 'daily', 'cumulative']
+        assert mode in ['total', 'daily', 'cumulative', 'weekly incidence']
         assert quantity in ['infected', 'hosp', 'dead']
 
         labeldict = {'total': {'infected': 'Infected',
@@ -892,6 +891,7 @@ class Plotter(object):
                      'daily': {'infected': 'Daily Infections',
                                'hosp': 'Daily Hospitalizations',
                                'dead': 'Daily Fatalities'},
+                     'weekly incidence': {'infected': 'Weekly infection incidence'}
                      }
 
         # Set double figure format
@@ -899,24 +899,16 @@ class Plotter(object):
         # Draw figure
         fig, ax = plt.subplots(1, 1, figsize=figsize)
 
-        # Load baseline data
-        # if normalization_baseline_path:
-        #     baseline_data = load_condensed_summary_compat(normalization_baseline_path)
-        #     baseline_cases, _ = get_plot_data(baseline_data, quantity=quantity, mode=mode)
-
         for i, sim in enumerate(sims):
             data = load_condensed_summary_compat(sim)
-            ts = data['ts'] if not x_axis_dates else days_to_datetime(data['ts'], start_date=start_date)
-
             line_cases, error_cases = get_plot_data(data, quantity=quantity, mode=mode)
-            ylabel = labeldict[mode][quantity]
 
-            # if normalization_baseline_path:
-            #     line_cases = 1 - line_cases / baseline_cases
-            #     error_cases = error_cases / baseline_cases
-            #     line_cases = np.nan_to_num(line_cases, nan=0.0)
-            #     error_cases = np.nan_to_num(error_cases, nan=0.0)
-            #     ylabel = f'Reduction in ' + ylabel
+            if mode in ['daily', 'weekly incidence']:
+                ts = np.arange(0, len(line_cases))
+                if mode == 'daily':
+                    error_cases = np.zeros(len(line_cases))
+            else:
+                ts = data['ts'] if not x_axis_dates else days_to_datetime(data['ts'], start_date=start_date)
 
             # lines
             ax.plot(ts, line_cases, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
@@ -938,6 +930,7 @@ class Plotter(object):
         else:
             ax.set_xlabel(r'$t$ [days]')
 
+        ylabel = labeldict[mode][quantity]
         ax.set_ylabel(ylabel)
 
         if lockdown_at is not None:
@@ -1250,11 +1243,10 @@ class Plotter(object):
             plt.close()
         return
 
-    def plot_positives_vs_target(self, sims, titles, targets, title='Example',
-        filename='inference_0', figsize=None, figformat='triple', errorevery=1, acc=17, ymax=None,
-        start_date='1970-01-01', lockdown_label='Lockdown', lockdown_at=None,
-        lockdown_label_y=None, subplot_adjust=None, n_age_groups=None, small_figure=False, 
-        show_legend=True, cluster_compatible=False):
+    def plot_positives_vs_target(self, paths, labels, country, area, ymax=None,
+                                 lockdown_label='Interventions', lockdown_label_y=None,
+                                 filename='Modelfit', show_legend=True,
+                                 figsize=None, figformat='triple', small_figure=False, cluster_compatible=False):
         ''''
         Plots daily tested averaged over random restarts, using error bars for std-dev
         together with targets from inference
@@ -1263,23 +1255,35 @@ class Plotter(object):
         if not cluster_compatible:
             self._set_matplotlib_params(format=figformat)
 
+        # Get target cases for the specific region
+        start_date = calibration_start_dates[country][area]
+        start_date_lockdown = calibration_lockdown_dates[country]['start']
+        end_date = calibration_lockdown_dates[country]['end']
+
+        lockdown_at = (pd.to_datetime(start_date_lockdown) - pd.to_datetime(start_date)).days
+
+        mob_settings_paths = calibration_mob_paths[country][area][1]
+        with open(mob_settings_paths, 'rb') as fp:
+            mob_settings = pickle.load(fp)
+
+        area_cases = collect_data_from_df(country=country,
+                                          area=area,
+                                          datatype='new',
+                                          start_date_string=start_date,
+                                          end_date_string=end_date)
+
+        sim_cases = downsample_cases(area_cases, mob_settings)  # only downscaling due LK data for cities
+        targets = sim_cases.sum(axis=1)
+
         fig, ax = plt.subplots(figsize=figsize)
 
-        for i, sim in enumerate(sims):
-            if isinstance(sim, str):
-                try:
-                    data = load_condensed_summary(sim, acc)
-                except FileNotFoundError:
-                    acc = create_condensed_summary_from_path(sim, acc=acc, n_age_groups=n_age_groups)
-                    data = load_condensed_summary(sim, acc=acc)
-                acc = data['acc']
-                ts = data['ts']
-                posi_mu = data['posi_mu']
-                posi_sig = data['posi_sig']
-            else:
-                if acc > sim.max_time:
-                    acc = int(sim.max_time)
-                ts, posi_mu, posi_sig = comp_state_over_time(sim, 'posi', acc)
+        for i, path in enumerate(paths):
+            assert isinstance(path, str), 'Paths need to be a list of strings of paths containing the condensed summary files.'
+            data = load_condensed_summary(path)
+            acc = data['acc']
+            ts = data['ts']
+            posi_mu = data['posi_mu']
+            posi_sig = data['posi_sig']
             plain_ts = ts
             # Convert x-axis into posix timestamps and use pandas to plot as dates
             ts = days_to_datetime(ts, start_date=start_date)
@@ -1291,7 +1295,7 @@ class Plotter(object):
             ax.fill_between(ts, posi_mu - 1 * posi_sig, posi_mu + 1 * posi_sig,
                             color=self.color_different_scenarios[i],
                             alpha=1.25 * self.filling_alpha, linewidth=0.0)
-            ax.plot(ts, posi_mu, label=titles[i], c=self.color_different_scenarios[i])
+            ax.plot(ts, posi_mu, label=labels[i], c=self.color_different_scenarios[i])
 
         # target
         if small_figure:
@@ -1576,29 +1580,24 @@ class Plotter(object):
         if NO_PLOT:
             plt.close()
 
-    def plot_daily_nbinom_rts(self, path, filename='daily_nbinom_rts_0',
-                              slider_size=24.0, window_size=24.*7, end_cutoff=24.*10,
-                              figsize=None, figformat='double', ymax=None, acc=500,
+    def plot_daily_nbinom_rts(self, path, filename='daily_nbinom_rts',
+                              figsize=None, figformat='double', ymax=None,
                               cmap_range=(0.5, 1.5), subplots_adjust={'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96},
                               lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
-                              x_axis_dates=True, xtick_interval=2, xlim=None):
+                              x_axis_dates=False, xtick_interval=2, xlim=None):
         # Set this plot with double figures parameters
         self._set_matplotlib_params(format=figformat)
 
-        # Compute statistics
-        try:
-            data = load_condensed_summary(path, acc)
-        except FileNotFoundError:
-            acc = create_condensed_summary_from_path(sim, acc=acc)
-            data = load_condensed_summary(sim, acc)
-
+        assert isinstance(path, str), '`path` must be a string.'
+        data = load_condensed_summary(path)
+        metadata = data['metadata']
         df = data['nbinom_rts']
             
         # Format dates
         if x_axis_dates:
             # Cast time of end of interval to datetime
             df['date_end'] = days_to_datetime(
-                df['t1'] / 24, start_date=result.metadata.start_date)
+                df['t1'] / 24, start_date=metadata.start_date)
             # Aggregate results by date
             df_agg = df.groupby('date_end').agg({'Rt': ['mean', 'std'],
                                                 'kt': ['mean', 'std']})
@@ -1607,16 +1606,18 @@ class Plotter(object):
             df_agg = df.groupby('time').agg({'Rt': ['mean', 'std'],
                                              'kt': ['mean', 'std']})
         # Build dot colormap: black to white to red
-        ABOVE = [1,0,0]
-        MIDDLE = [1,1,1]
-        BELOW = [0,0,0]
+        ABOVE = [1, 0, 0]
+        MIDDLE = [1, 1, 1]
+        BELOW = [0, 0, 0]
         cmap_raw = ListedColormap(np.r_[
-            np.linspace(BELOW,MIDDLE,25),
-            np.linspace(MIDDLE,ABOVE,25)
+            np.linspace(BELOW, MIDDLE, 25),
+            np.linspace(MIDDLE, ABOVE, 25)
         ])
+
         def cmap_clipped(y):
             vmin, vmax = cmap_range
             return cmap_raw((np.clip(y, vmin, vmax) - vmin) / (vmax - vmin))
+
         # Plot figure
         fig, ax = plt.subplots(1, 1, figsize=figsize)
         y_m = df_agg.Rt['mean']
@@ -1632,7 +1633,7 @@ class Plotter(object):
         # extra
         if lockdown_at is not None:
             xshift = (2.5 * pd.to_timedelta(pd.to_datetime(df_agg.index[-1])
-                      - pd.to_datetime(result.metadata.start_date), 'd') / 54)
+                      - pd.to_datetime(metadata.start_date), 'd') / 54)
             ax.axvline(pd.to_datetime(lockdown_at), c='black', ls='--',
                        label='_nolegend_', zorder=-200)
             ax.text(x=lockdown_at + pd.Timedelta(lockdown_xshift, unit='d'),
@@ -1667,8 +1668,8 @@ class Plotter(object):
         if NO_PLOT:
             plt.close()
 
-    def plot_nbinom_distributions(self, *, path, acc=500, figsize=FIG_SIZE_TRIPLE_TALL, figformat='triple',
-                                  label_range=[], ymax=None, filename='nbinom_dist_0'):
+    def plot_nbinom_distributions(self, *, path, figsize=FIG_SIZE_TRIPLE_TALL, figformat='triple',
+                                  label_range=[], ymax=None, filename='nbinom_dist'):
         """
         Plot the distribution of number of secondary cases along with their Negative-Binomial fits
         for the experiment summary in `result` for several ranges of times.
@@ -1676,18 +1677,16 @@ class Plotter(object):
         """
 
         # Compute statistics
-        try:
-            data = load_condensed_summary(path, acc)
-        except FileNotFoundError:
-            acc = create_condensed_summary_from_path(sim, acc=acc)
-            data = load_condensed_summary(sim, acc)
+        assert isinstance(path, str), '`path` must be a string.'
+        data = load_condensed_summary(path)
+        metadata = data['metadata']
+        df = data['nbinom_dist']
 
         x_range = np.arange(0, 20)
-        t0_range = [50 * 24.0]
-        window_size = 10.0 * 24
-        interval_range = [(t0, t0 + window_size) for t0 in t0_range]
-        df = data['nbinom_dist']
-            
+        t0 = 50 * 24.0
+        # window_size = 10.0 * 24
+        # interval_range = [(t0, t0 + window_size) for t0 in t0_range]
+
         # Aggregate results by time
         df_agg = df.groupby('t0').agg({'nbinom_pmf': list,
                                     'Rt': ['mean', 'std'],
@@ -1695,47 +1694,49 @@ class Plotter(object):
         # Set triple figure params
         self._set_matplotlib_params(format=figformat)
         # Draw figures
-        for i, (t0, label) in enumerate(zip(t0_range, label_range)):
-            fig, ax = plt.subplots(1, 1, figsize=figsize)
-            # Extract data for the plot
-            row_df = df.loc[df.t0 == t0]
-            row_df_agg = df_agg.loc[t0]
-            y_nbinom = np.nanmean(np.vstack(row_df_agg['nbinom_pmf']), axis=0)
-            # Plot histogram
-            plt.hist(np.hstack(row_df['num_sec_cases']),
-                    bins=x_range, density=True,
-                    color='darkgray',
-                    align='left', width=0.8,
-                    label='Empirical')
-            # Plot NB pmf
-            plt.plot(x_range, y_nbinom,
-                    color='k',
-                    label='NB')
-            # Write estimates in text
-            text_x = 0.999
-            text_y = 0.28
-            plt.text(text_x, text_y + 0.15, transform=ax.transAxes, horizontalalignment='right',
-                    s=r'$R_t ~=~' + f"{row_df_agg['Rt']['mean']:.2f} \pm ({row_df_agg['Rt']['std']:.2f})$")
-            plt.text(text_x, text_y, transform=ax.transAxes, horizontalalignment='right',
-                    s=r'$k_t ~=~' + f"{row_df_agg['kt']['mean']:.2f} \pm ({row_df_agg['kt']['std']:.2f})$")
-            # Set layout and labels
-            plt.ylim(top=ymax)
-            ax.yaxis.set_major_locator(ticker.MultipleLocator(0.2))
-            plt.xlabel('Number of Secondary Cases')
-            plt.ylabel('Probability')
-            plt.legend(loc='upper right')
-            # Set default axis style
-            self._set_default_axis_settings(ax=ax)
-            plt.subplots_adjust(left=0.22, bottom=0.22, right=0.99, top=0.95)
-            # Save figure
-            fpath = f"plots/prob-secondaryCases-{filename}-{i}-{label}.pdf"
-            print('Save:', fpath)
-            plt.savefig(fpath)
-            os.system(f'pdfcrop "${fpath}" tmp.pdf && mv tmp.pdf "${fpath}"')
+        #for i, (t0, label) in enumerate(zip(t0_range, label_range)):
+
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+        # Extract data for the plot
+        row_df = df.loc[df.t0 == t0]
+        row_df_agg = df_agg.loc[t0]
+        y_nbinom = np.nanmean(np.vstack(row_df_agg['nbinom_pmf']), axis=0)
+        # Plot histogram
+        plt.hist(np.hstack(row_df['num_sec_cases']),
+                bins=x_range, density=True,
+                color='darkgray',
+                align='left', width=0.8,
+                label='Empirical')
+        # Plot NB pmf
+        plt.plot(x_range, y_nbinom,
+                color='k',
+                label='NB')
+        # Write estimates in text
+        text_x = 0.999
+        text_y = 0.28
+        plt.text(text_x, text_y + 0.15, transform=ax.transAxes, horizontalalignment='right',
+                s=r'$R_t ~=~' + f"{row_df_agg['Rt']['mean']:.2f} \pm ({row_df_agg['Rt']['std']:.2f})$")
+        plt.text(text_x, text_y, transform=ax.transAxes, horizontalalignment='right',
+                s=r'$k_t ~=~' + f"{row_df_agg['kt']['mean']:.2f} \pm ({row_df_agg['kt']['std']:.2f})$")
+        # Set layout and labels
+        plt.ylim(top=ymax)
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(0.2))
+        plt.xlabel('Number of Secondary Cases')
+        plt.ylabel('Probability')
+        plt.legend(loc='upper right')
+        # Set default axis style
+        self._set_default_axis_settings(ax=ax)
+        plt.subplots_adjust(left=0.22, bottom=0.22, right=0.99, top=0.95)
+        # Save figure
+        fpath = f"plots/prob-secondaryCases-{filename}.pdf"
+        print('Save:', fpath)
+        plt.savefig(fpath)
+        os.system(f'pdfcrop "${fpath}" tmp.pdf && mv tmp.pdf "${fpath}"')
+        if NO_PLOT:
             plt.close()
 
     def plot_roc_curve(self, titles, summaries=None, paths=None, action='isolate', figformat='double',
-                       filename='roc_example', figsize=None):
+                       filename='roc_example', figsize=None, use_medical_labels=False):
         ''''
         ROC curve
         '''
@@ -1833,6 +1834,9 @@ class Plotter(object):
                                   'tpr': tpr_of_means, 
                                   'prec': precision_of_means}
 
+                if name == 'SPECT':
+                    name += 's'
+
                 # lines
                 axs[0].plot(fpr_of_means, tpr_of_means, linestyle='-', label=name, c=self.color_different_scenarios[j])
                 # axs[1].plot(tpr_of_means, precision_of_means, linestyle='-', label=name, c=self.color_different_scenarios[j])
@@ -1901,8 +1905,12 @@ class Plotter(object):
         # diagonal
         axs[0].plot(xs, xs, linestyle='dotted', c='black')
 
-        axs[0].set_xlabel('FPR')
-        axs[0].set_ylabel('TPR')
+        if use_medical_labels:
+            axs[0].set_xlabel('1-Specificity')
+            axs[0].set_ylabel('Sensitivity')
+        else:
+            axs[0].set_xlabel('FPR')
+            axs[0].set_ylabel('TPR')
 
         # axs[1].set_xlabel('Recall')
         # axs[1].set_ylabel('Precision')
@@ -2149,69 +2157,78 @@ class Plotter(object):
             plt.close()
         return
 
-
-    def compare_peak_reduction(self, path_dict, baseline_path, ps_adoption, titles,
+    def compare_peak_reduction(self, path_list, baseline_path, ps_adoption, titles,
                                mode='cumu_infected', ymax=1.0,
                                figformat='double', filename='cumulative_reduction', figsize=None,
                                show_legend=True, legend_is_left=False, subplot_adjust=None):
 
         if mode == 'cumu_infected':
             key = 'cumu_infected_'
-            ylabel = 'Reduction in infections'
+            ylabel = '\% reduction of infections'
         elif mode == 'hosp':
             key = 'hosp_'
-            ylabel = 'Reduction in peak hospitalizations'
+            ylabel = '\% reduction of peak hosp.'
         elif mode == 'dead':
             key = 'cumu_dead_'
-            ylabel = 'Reduction in fatalities'
+            ylabel = '% reduction of fatalities'
 
         # Set double figure format
         self._set_matplotlib_params(format=figformat)
         # Draw figure
         fig, ax = plt.subplots(1, 1, figsize=figsize)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
 
         baseline_data = load_condensed_summary(baseline_path)
-        baseline_norm = np.max(baseline_data[key+'mu'])
+        baseline_norm = np.max(baseline_data[key + 'mu'])
 
-        ps_adoption = ps_adoption + [0]
+        ps_adoption = np.asarray(ps_adoption) * 100
 
-        for i, paths in enumerate(path_dict.values()):
+        # colors = self.color_different_scenarios
+        colors = ['#377eb8', '#bd0026', '#f03b20', '#fd8d3c', '#fecc5c', '#ffffb2']
+        zorders = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+
+        for i, paths in enumerate(path_list):
             cumu_rel_mean = []
             cumu_rel_std = []
             for path in paths:
                 data = load_condensed_summary(path)
                 maxidx = np.argmax(data[key + 'mu'])
-                cumu_rel_mean.append(data[key+'mu'][maxidx] / baseline_norm)
-                cumu_rel_std.append(data[key+'sig'][maxidx] / baseline_norm)
+                cumu_rel_mean.append(data[key + 'mu'][maxidx] / baseline_norm)
+                cumu_rel_std.append(data[key + 'sig'][maxidx] / baseline_norm)
 
-            # Append value for p_adoption=0 (baseline)
-            cumu_rel_mean.append(1.0)
-            cumu_rel_std.append(0.0)
-            cumu_rel_mean = 1 - np.asarray(cumu_rel_mean)
-            cumu_rel_std = np.asarray(cumu_rel_std)
+            cumu_rel_mean = (1 - np.asarray(cumu_rel_mean)) * 100
+            cumu_rel_std = np.asarray(cumu_rel_std) * 100
 
-            ax.errorbar(ps_adoption, cumu_rel_mean, yerr=cumu_rel_std, label=titles[i],
-                         c=self.color_different_scenarios[i], linestyle='-', elinewidth=0.8, capsize=3.0)
+            bars = ax.errorbar(ps_adoption, cumu_rel_mean, yerr=cumu_rel_std, label=titles[i],
+                               c=colors[i], linestyle='-', elinewidth=0.8, capsize=3.0, zorder=zorders[i])
 
-        ax.set_xlim(left=np.min(ps_adoption), right=np.max(ps_adoption))
-        ax.set_ylim(ymax=ymax, ymin=0.0)
+            # # Turn off clipping of error bars at 100% adoption
+            # for e in bars[1]:
+            #     e.set_clip_on(False)
+
+        ax.set_xscale('log')
+
+        ax.set_xlim(left=np.min(ps_adoption), right=104)
+        ax.set_ylim(ymax=100, ymin=0.0)
+        ax.set_xticks(ps_adoption)
+        ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
 
         ax.set_ylabel(ylabel)
-        ax.set_xlabel('Adoption probability')
-
+        ax.set_xlabel('\% adoption')
 
         if show_legend:
             # legend
             if legend_is_left:
                 leg = ax.legend(loc='upper left',
-                          bbox_to_anchor=(0.001, 0.999),
-                          bbox_transform=ax.transAxes,
-                          )
+                                bbox_to_anchor=(0.001, 0.999),
+                                bbox_transform=ax.transAxes,
+                                )
             else:
                 leg = ax.legend(loc='upper right',
-                          bbox_to_anchor=(0.999, 0.999),
-                          bbox_transform=ax.transAxes,
-                          )
+                                bbox_to_anchor=(0.999, 0.999),
+                                bbox_transform=ax.transAxes,
+                                )
 
         subplot_adjust = subplot_adjust or {'bottom': 0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         plt.subplots_adjust(**subplot_adjust)
@@ -2270,8 +2287,8 @@ class Plotter(object):
             bo_result[t, 2] = - obj
 
         dim_names = {
-            0: 'b_site',
-            1: 'b_house',
+            0: r'$\beta_{site}$',
+            1: r'$\beta_{house}$',
         }
 
         fig, ax = plt.subplots(1, 1, figsize=figsize)

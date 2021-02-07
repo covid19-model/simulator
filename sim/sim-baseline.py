@@ -1,5 +1,8 @@
 
 import sys
+
+from lib.calibrationSettings import calibration_lockdown_beta_multipliers
+
 if '..' not in sys.path:
     sys.path.append('..')
 
@@ -27,7 +30,10 @@ if __name__ == '__main__':
     verbose = True
     seed_summary_path = None
     set_initial_seeds_to = {}
-    expected_daily_base_expo_per100k = 5 / 7
+    if args.background_exposures:
+        expected_daily_base_expo_per100k = args.background_exposures
+    else:
+        expected_daily_base_expo_per100k = 5 / 7
     condensed_summary = True
 
     # set `True` for narrow-casting plot; should only be done with 1 random restart:
@@ -38,12 +44,7 @@ if __name__ == '__main__':
     np.random.seed(c)
     rd.seed(c)
 
-    # Load calibrated parameters up to `maxBOiters` iterations of BO
-    # maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
-    calibrated_params = get_calibrated_params(country=country, area=area,
-                                              multi_beta_calibration=False,
-                                              maxiters=None,
-                                              estimate_mobility_reduction=False)
+    calibrated_params = get_calibrated_params(country=country, area=area)
 
     # for debugging purposes
     if args.smoke_test:
@@ -66,12 +67,16 @@ if __name__ == '__main__':
         verbose=verbose,
     )
 
+    m = []
+
+    sim_info = options_to_str(expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
+
     # baseline
     experiment.add(
-        simulation_info='',
+        simulation_info=sim_info,
         country=country,
         area=area,
-        measure_list=[],
+        measure_list=m,
         seed_summary_path=seed_summary_path,
         set_initial_seeds_to=set_initial_seeds_to,
         set_calibrated_params_to=calibrated_params,

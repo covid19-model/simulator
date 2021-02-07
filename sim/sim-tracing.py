@@ -22,7 +22,7 @@ if __name__ == '__main__':
     cpu_count = args.cpu_count
     continued_run = args.continued
 
-    name = 'tracing-compliance'
+    name = 'tracing'
     start_date = '2021-01-01'
     end_date = '2021-05-01'
     random_repeats = 100
@@ -38,25 +38,23 @@ if __name__ == '__main__':
     np.random.seed(c)
     rd.seed(c)
 
-    # Load calibrated parameters up to `maxBOiters` iterations of BO
-    # maxBOiters = 40 if area in ['BE', 'JU', 'RH'] else None
-    calibrated_params = get_calibrated_params(country=country, area=area,
-                                              multi_beta_calibration=False,
-                                              maxiters=None,
-                                              estimate_mobility_reduction=False)
+    calibrated_params = get_calibrated_params(country=country, area=area)
 
     # contact tracing experiment parameters
-    smart_tracing_threshold = 0.016
+    if args.tracing_threshold is not None:
+        smart_tracing_thresholds = [args.tracing_threshold]
+    else:
+        smart_tracing_thresholds = [0.016, 0.05, 0.1]
 
     if args.test_lag is not None:
         test_lags = [args.test_lag]
     else:
-        test_lags = [48.0, 24.0, 3.0, 1.0]
+        test_lags = [48.0]#, 24.0, 3.0, 1.0]
 
     if args.p_adoption is not None:
         ps_adoption = [args.p_adoption]
     else:
-        ps_adoption = [1.0, 0.75, 0.5, 0.25, 0.1, 0.05]
+        ps_adoption = [1.0, 0.75, 0.5, 0.25, 0.1, 0.05, 0.0]
 
 
     if args.smoke_test:
@@ -81,67 +79,65 @@ if __name__ == '__main__':
     )
 
     # contact tracing experiment for various options
-    for test_lag in test_lags:
-        for p_adoption in ps_adoption:
+    for smart_tracing_threshold in smart_tracing_thresholds:
+        for test_lag in test_lags:
+            for p_adoption in ps_adoption:
 
-            # measures
-            max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+                # measures
+                max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
-            m = [
-                # standard tracing measures
-                ComplianceForAllMeasure(
-                    t_window=Interval(0.0, TO_HOURS * max_days),
-                    p_compliance=p_adoption),
-                SocialDistancingForSmartTracing(
-                    t_window=Interval(0.0, TO_HOURS * max_days),
-                    p_stay_home=1.0,
-                    smart_tracing_isolation_duration=TO_HOURS * 14.0),
-                SocialDistancingForSmartTracingHousehold(
-                    t_window=Interval(0.0, TO_HOURS * max_days),
-                    p_isolate=1.0,
-                    smart_tracing_isolation_duration=TO_HOURS * 14.0),
+                m = [
+                    # standard tracing measures
+                    ComplianceForAllMeasure(
+                        t_window=Interval(0.0, TO_HOURS * max_days),
+                        p_compliance=p_adoption),
+                    SocialDistancingForSmartTracing(
+                        t_window=Interval(0.0, TO_HOURS * max_days),
+                        p_stay_home=1.0,
+                        smart_tracing_isolation_duration=TO_HOURS * 14.0),
+                    SocialDistancingForSmartTracingHousehold(
+                        t_window=Interval(0.0, TO_HOURS * max_days),
+                        p_isolate=1.0,
+                        smart_tracing_isolation_duration=TO_HOURS * 14.0),
+                    ]
 
-                APrioriBetaMultiplierMeasureByType(beta_multiplier=calibration_lockdown_beta_multipliers)
-                ]
+                # set testing params via update function of standard testing parameters
+                def test_update(d):
+                    d['smart_tracing_actions'] = ['isolate', 'test']
+                    d['test_reporting_lag'] = test_lag
 
-            # set testing params via update function of standard testing parameters
-            def test_update(d):
-                d['smart_tracing_actions'] = ['isolate', 'test']
-                d['test_reporting_lag'] = test_lag
-                d['tests_per_batch'] = 100000
+                    # isolation
+                    d['smart_tracing_policy_isolate'] = 'advanced-threshold'
+                    d['smart_tracing_isolation_threshold'] = smart_tracing_threshold
+                    d['smart_tracing_isolated_contacts'] = 100000
+                    d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
 
-                # isolation
-                d['smart_tracing_policy_isolate'] = 'advanced-threshold'
-                d['smart_tracing_isolation_threshold'] = smart_tracing_threshold
-                d['smart_tracing_isolated_contacts'] = 100000
-                d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
+                    # testing
+                    d['smart_tracing_policy_test'] = 'advanced-threshold'
+                    d['smart_tracing_testing_threshold'] = smart_tracing_threshold
+                    d['smart_tracing_tested_contacts'] = 100000
+                    d['trigger_tracing_after_posi_trace_test'] = False
 
-                # testing
-                d['smart_tracing_policy_test'] = 'advanced-threshold'
-                d['smart_tracing_testing_threshold'] = smart_tracing_threshold
-                d['smart_tracing_tested_contacts'] = 100000
-                d['trigger_tracing_after_posi_trace_test'] = False
+                    return d
 
-                return d
+                simulation_info = options_to_str(
+                    p_adoption=p_adoption,
+                    test_lag=test_lag,
+                    tracing_threshold=smart_tracing_threshold,
+                )
 
-            simulation_info = options_to_str(
-                p_adoption=p_adoption,
-                tracing_threshold=smart_tracing_threshold,
-                beta_multiplier=calibration_lockdown_beta_multipliers['education']
-            )
+                experiment.add(
+                    simulation_info=simulation_info,
+                    country=country,
+                    area=area,
+                    measure_list=m,
+                    test_update=test_update,
+                    seed_summary_path=seed_summary_path,
+                    set_initial_seeds_to=set_initial_seeds_to,
+                    set_calibrated_params_to=calibrated_params,
+                    full_scale=full_scale,
+                    expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
 
-            experiment.add(
-                simulation_info=simulation_info,
-                country=country,
-                area=area,
-                measure_list=m,
-                test_update=test_update,
-                seed_summary_path=seed_summary_path,
-                set_initial_seeds_to=set_initial_seeds_to,
-                set_calibrated_params_to=calibrated_params,
-                full_scale=full_scale,
-                expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
-                
     print(f'{experiment_info} configuration done.')
 
     # execute all simulations
