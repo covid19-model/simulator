@@ -55,6 +55,7 @@ if __name__ == '__main__':
         ps_adoption = [args.p_adoption]
     else:
         ps_adoption = [1.0, 0.75, 0.5, 0.25, 0.1, 0.05, 0.0]
+        # ps_adoption = [1.0, 0.75, 0.5, 0.4, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05]
 
 
     if args.smoke_test:

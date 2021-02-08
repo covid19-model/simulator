@@ -35,7 +35,7 @@ if __name__ == '__main__':
     if args.p_adoption is not None:
         p_compliances = [args.p_adoption]
     else:
-        p_compliances = [1.0, 0.75, 0.5, 0.25, 0.1, 0.05]
+        p_compliances = [1.0, 0.75, 0.5, 0.4, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05]
 
     if args.smoke_test:
         start_date = '2021-01-01'
