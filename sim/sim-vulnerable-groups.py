@@ -37,7 +37,7 @@ if __name__ == '__main__':
     else:
         p_compliances = [1.0, 0.75, 0.5, 0.25, 0.1, 0.05]
         # p_compliances = [1.0, 0.75, 0.5, 0.4, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05]
-        
+
     if args.smoke_test:
         start_date = '2021-01-01'
         end_date = '2021-02-15'
@@ -78,6 +78,32 @@ if __name__ == '__main__':
                 )),
             ]
 
+        m += [
+            # standard tracing measures for non tracing experiments
+            ComplianceForAllMeasure(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_compliance=0.0),
+            SocialDistancingForSmartTracingHousehold(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_isolate=1.0,
+                smart_tracing_isolation_duration=TO_HOURS * 14.0),
+            ]
+
+        # set testing params via update function of standard testing parameters
+        def test_update(d):
+            d['smart_tracing_actions'] = ['isolate', 'test']
+            d['test_reporting_lag'] = 48.0
+
+            # isolation
+            d['smart_tracing_policy_isolate'] = 'basic'
+            d['smart_tracing_isolated_contacts'] = 100000
+
+            # testing
+            d['smart_tracing_policy_test'] = 'basic'
+            d['smart_tracing_tested_contacts'] = 100000
+            d['trigger_tracing_after_posi_trace_test'] = False
+            return d
+
         simulation_info = options_to_str(p_compliance=p_compliance)
 
         experiment.add(
@@ -85,6 +111,7 @@ if __name__ == '__main__':
             country=country,
             area=area,
             measure_list=m,
+            test_update=test_update,
             seed_summary_path=seed_summary_path,
             set_initial_seeds_to=set_initial_seeds_to,
             set_calibrated_params_to=calibrated_params,

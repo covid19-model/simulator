@@ -82,11 +82,6 @@ if __name__ == '__main__':
                     p_stay_home_dict=calibration_mobility_reduction[val_country][val_area]),
             ]
 
-        # In calibration/validation we do not isolate and test household members
-        def test_update(testing_params):
-            testing_params['smart_tracing_actions'] = []
-            return testing_params
-
         sim_info = options_to_str(validation_region=val_area)
 
         experiment.add(
@@ -94,7 +89,6 @@ if __name__ == '__main__':
             country=val_country,
             area=val_area,
             measure_list=m,
-            test_update=test_update,
             seed_summary_path=seed_summary_path,
             set_calibrated_params_to=calibrated_params,
             set_initial_seeds_to=set_initial_seeds_to,
