@@ -326,8 +326,6 @@ class Experiment(object):
 
         testing_params = copy.deepcopy(calibration_testing_params)
         testing_params['testing_t_window'] = [0.0, max_time]
-        # Even if no tracing measures are active, we assume that household members of positively tested individuals
-        # get isolated and tested.
         if test_update:
             testing_params = test_update(testing_params)
 
