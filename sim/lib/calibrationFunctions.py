@@ -332,6 +332,30 @@ def get_calibrated_params(*, country, area, multi_beta_calibration=False, estima
     return param_dict
 
 
+def get_calibrated_params_from_path(path, estimate_mobility_reduction=False):
+    """
+    Returns calibrated parameters for a `country` and an `area`
+    """
+
+    state = load_state(path)
+    theta = state['train_theta']
+    best_observed_idx = state['best_observed_idx']
+    norm_params = theta[best_observed_idx]
+    param_bounds = ( calibration_model_param_bounds_single)
+
+    if estimate_mobility_reduction:
+        param_bounds['p_stay_home'] = [0.0, 1.0]
+
+    sim_bounds = pdict_to_parr(
+        pdict=param_bounds, multi_beta_calibration=False,
+        estimate_mobility_reduction=estimate_mobility_reduction).T
+
+    params = transforms.unnormalize(norm_params, sim_bounds)
+    param_dict = parr_to_pdict(parr=params, multi_beta_calibration=False,
+                               estimate_mobility_reduction=estimate_mobility_reduction)
+    return param_dict
+
+
 def get_unique_calibration_params(*, country, area, multi_beta_calibration, estimate_mobility_reduction, maxiters=None):
     """
     Returns all unique parameter settings that ** improved ** the objective

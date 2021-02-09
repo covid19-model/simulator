@@ -8,7 +8,7 @@ import pandas as pd
 from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
 from lib.calibrationSettings import calibration_lockdown_beta_multipliers
-from lib.calibrationFunctions import get_calibrated_params
+from lib.calibrationFunctions import get_calibrated_params, get_calibrated_params_from_path
 
 TO_HOURS = 24.0
 
@@ -37,7 +37,11 @@ if __name__ == '__main__':
     np.random.seed(c)
     rd.seed(c)
 
-    calibrated_params = get_calibrated_params(country=country, area=area)
+    if not args.calibration_state:
+        calibrated_params = get_calibrated_params(country=country, area=area)
+    else:
+        calibrated_params = get_calibrated_params_from_path(args.calibration_state)
+        print('Loaded non-standard calibration state.')
 
     # experiment parameters
     # Measures become active only if positive tests per week per 100k people exceed `max_pos_tests_per_week_per_100k`.

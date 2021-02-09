@@ -10,7 +10,7 @@ import random as rd
 import pandas as pd
 from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
-from lib.calibrationFunctions import get_calibrated_params
+from lib.calibrationFunctions import get_calibrated_params, get_calibrated_params_from_path
 
 TO_HOURS = 24.0
 
@@ -45,7 +45,11 @@ if __name__ == '__main__':
     np.random.seed(c)
     rd.seed(c)
 
-    calibrated_params = get_calibrated_params(country=country, area=area)
+    if not args.calibration_state:
+        calibrated_params = get_calibrated_params(country=country, area=area)
+    else:
+        calibrated_params = get_calibrated_params_from_path(args.calibration_state)
+        print('Loaded non-standard calibration state.')
 
     # for debugging purposes
     if args.smoke_test:

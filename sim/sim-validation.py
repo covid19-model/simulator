@@ -12,7 +12,8 @@ from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
 from lib.calibrationSettings import calibration_lockdown_dates, calibration_start_dates, \
     calibration_lockdown_beta_multipliers, calibration_mobility_reduction
-from lib.calibrationFunctions import get_calibrated_params, get_unique_calibration_params
+from lib.calibrationFunctions import get_calibrated_params, get_unique_calibration_params, \
+    get_calibrated_params_from_path
 
 TO_HOURS = 24.0
 
@@ -69,7 +70,11 @@ if __name__ == '__main__':
             verbose=verbose,
         )
 
-        calibrated_params = get_calibrated_params(country=cal_country, area=cal_area)
+        if not args.calibration_state:
+            calibrated_params = get_calibrated_params(country=cal_country, area=cal_area)
+        else:
+            calibrated_params = get_calibrated_params_from_path(args.calibration_state)
+            print('Loaded non-standard calibration state.')
 
         # measures
         max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days

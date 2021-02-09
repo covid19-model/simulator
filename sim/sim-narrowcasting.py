@@ -8,7 +8,7 @@ import pandas as pd
 from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
 from lib.calibrationSettings import calibration_lockdown_dates, calibration_start_dates, calibration_lockdown_beta_multipliers
-from lib.calibrationFunctions import get_calibrated_params
+from lib.calibrationFunctions import get_calibrated_params, get_calibrated_params_from_path
 from lib.mobility_reduction import get_mobility_reduction
 
 TO_HOURS = 24.0
@@ -41,7 +41,11 @@ if __name__ == '__main__':
     np.random.seed(c)
     rd.seed(c)
 
-    calibrated_params = get_calibrated_params(country=country, area=area)
+    if not args.calibration_state:
+        calibrated_params = get_calibrated_params(country=country, area=area)
+    else:
+        calibrated_params = get_calibrated_params_from_path(args.calibration_state)
+        print('Loaded non-standard calibration state.')
 
     # experiment parameters
     mob_reduction = get_mobility_reduction('Germany', 'Baden-Württemberg', calibration_lockdown_dates['GER']['start'],
