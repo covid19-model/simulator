@@ -76,20 +76,10 @@ if __name__ == '__main__':
 
     m = []
 
-    m += [
-        # standard tracing measures for non tracing experiments
-        ComplianceForAllMeasure(
-            t_window=Interval(0.0, TO_HOURS * max_days),
-            p_compliance=0.0),
-        SocialDistancingForSmartTracingHousehold(
-            t_window=Interval(0.0, TO_HOURS * max_days),
-            p_isolate=1.0,
-            smart_tracing_isolation_duration=TO_HOURS * 14.0),
-    ]
-
     # set testing params via update function of standard testing parameters
     def test_update(d):
-        d['smart_tracing_actions'] = ['isolate', 'test']
+        d['smart_tracing_households_only'] = True
+        d['smart_tracing_actions'] = ['test']
         d['test_reporting_lag'] = 48.0
 
         # isolation

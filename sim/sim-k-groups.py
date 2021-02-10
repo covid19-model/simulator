@@ -39,7 +39,7 @@ if __name__ == '__main__':
     if args.p_adoption is not None:
         p_compliances = [args.p_adoption]
     else:
-        p_compliances = [1.0, 0.75, 0.5, 0.25, 0.1, 0.05]
+        p_compliances = [1.0, 0.75, 0.5, 0.25, 0.1, 0.05, 0.0]
         # p_compliances = [1.0, 0.75, 0.5, 0.4, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05]
 
     if args.smoke_test:
@@ -88,20 +88,10 @@ if __name__ == '__main__':
                     p_stay_home=p_compliance),
                 ]
 
-            m += [
-                # standard tracing measures for non tracing experiments
-                ComplianceForAllMeasure(
-                    t_window=Interval(0.0, TO_HOURS * max_days),
-                    p_compliance=0.0),
-                SocialDistancingForSmartTracingHousehold(
-                    t_window=Interval(0.0, TO_HOURS * max_days),
-                    p_isolate=1.0,
-                    smart_tracing_isolation_duration=TO_HOURS * 14.0),
-                ]
-
             # set testing params via update function of standard testing parameters
             def test_update(d):
-                d['smart_tracing_actions'] = ['isolate', 'test']
+                d['smart_tracing_households_only'] = True
+                d['smart_tracing_actions'] = ['test']
                 d['test_reporting_lag'] = 48.0
 
                 # isolation

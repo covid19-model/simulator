@@ -761,7 +761,7 @@ class SocialDistancingForKGroups(Measure):
         # Init time window
         super().__init__(t_window)
         self.K = K
-        assert 0 < p_stay_home <= 1.0, ValueError('`p_stay_home` should be in [0, 1.0]')
+        assert 0 <= p_stay_home <= 1.0, ValueError('`p_stay_home` should be in [0, 1.0]')
         self.p_stay_home = p_stay_home
 
     def init_run(self, n_people, n_visits):

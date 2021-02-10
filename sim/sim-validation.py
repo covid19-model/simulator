@@ -11,7 +11,7 @@ import pandas as pd
 from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
 from lib.calibrationSettings import calibration_lockdown_dates, calibration_start_dates, \
-    calibration_lockdown_beta_multipliers, calibration_mobility_reduction
+    calibration_lockdown_beta_multipliers, calibration_mobility_reduction, calibration_lockdown_site_closures
 from lib.calibrationFunctions import get_calibrated_params, get_unique_calibration_params, \
     get_calibrated_params_from_path
 
@@ -79,12 +79,16 @@ if __name__ == '__main__':
         # measures
         max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
+        p_stay_home_dict_mobility_reduced = calibration_mobility_reduction[val_country][val_area]
+        p_stay_home_dict_closures = {site_type: 1.0 for site_type in calibration_lockdown_site_closures}
+        p_stay_home_dict = {**p_stay_home_dict_closures, **p_stay_home_dict_mobility_reduced}
+
         m = [
             SocialDistancingBySiteTypeForAllMeasure(
                     t_window=Interval(
                         measure_window_in_hours['start'],
                         measure_window_in_hours['end']),
-                    p_stay_home_dict=calibration_mobility_reduction[val_country][val_area]),
+                    p_stay_home_dict=p_stay_home_dict),
             ]
 
         sim_info = options_to_str(validation_region=val_area)

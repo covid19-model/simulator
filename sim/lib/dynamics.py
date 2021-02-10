@@ -411,6 +411,7 @@ class DiseaseModel(object):
         
         # smart tracing settings
         self.smart_tracing_actions             = testing_params['smart_tracing_actions']
+        self.smart_tracing_households_only     = testing_params['smart_tracing_households_only']
         self.smart_tracing_contact_delta       = testing_params['smart_tracing_contact_delta']
 
         self.smart_tracing_policy_isolate      = testing_params['smart_tracing_policy_isolate']
@@ -1492,9 +1493,10 @@ class DiseaseModel(object):
 
         # if the individual is tested positive, process contact tracing when active and intended
         if self.state['posi'][i] and (self.smart_tracing_actions != []) and trigger_tracing_if_positive:
-            self.__update_smart_tracing(t, i)
             self.__update_smart_tracing_housholds(t, i)
-    
+            if not self.smart_tracing_households_only:
+                self.__update_smart_tracing(t, i)
+
     def __update_smart_tracing(self, t, i):
         '''
         Updates smart tracing policy for individual `i` at time `t`.
