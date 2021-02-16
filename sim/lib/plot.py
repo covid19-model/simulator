@@ -2162,7 +2162,7 @@ class Plotter(object):
         return
 
     def compare_peak_reduction(self, path_list, baseline_path, ps_adoption, titles,
-                               mode='cumu_infected', ymax=1.0,
+                               mode='cumu_infected', log_xscale=True,
                                figformat='double', filename='cumulative_reduction', figsize=None,
                                show_legend=True, legend_is_left=False, subplot_adjust=None):
 
@@ -2211,7 +2211,8 @@ class Plotter(object):
             # for e in bars[1]:
             #     e.set_clip_on(False)
 
-        ax.set_xscale('log')
+        if log_xscale:
+            ax.set_xscale('log')
 
         ax.set_xlim(left=np.min(ps_adoption), right=104)
         ax.set_ylim(ymax=100, ymin=0.0)

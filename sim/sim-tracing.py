@@ -7,7 +7,8 @@ import random as rd
 import pandas as pd
 from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
-from lib.calibrationFunctions import get_calibrated_params
+from lib.calibrationFunctions import get_calibrated_params, get_calibrated_params_from_path
+from lib.distributions import CovidDistributions
 from lib.calibrationSettings import calibration_lockdown_beta_multipliers
 
 
@@ -38,23 +39,32 @@ if __name__ == '__main__':
     np.random.seed(c)
     rd.seed(c)
 
-    calibrated_params = get_calibrated_params(country=country, area=area)
+    if not args.calibration_state:
+        calibrated_params = get_calibrated_params(country=country, area=area)
+    else:
+        calibrated_params = get_calibrated_params_from_path(args.calibration_state)
+        print('Loaded non-standard calibration state.')
 
     # contact tracing experiment parameters
+    min_contact_time = 0.25  # hours
+
     if args.tracing_threshold is not None:
         smart_tracing_thresholds = [args.tracing_threshold]
     else:
-        smart_tracing_thresholds = [0.016, 0.05, 0.1]
+        distr = CovidDistributions(country=country)
+        smart_tracing_threshold = (min_contact_time * calibrated_params['beta_site']
+                                   * (1 - np.exp(distr.gamma * (- distr.delta))))
 
     if args.test_lag is not None:
         test_lags = [args.test_lag]
     else:
-        test_lags = [48.0]#, 24.0, 3.0, 1.0]
+        test_lags = [48.0, 24.0, 3.0, 1.0]
 
     if args.p_adoption is not None:
         ps_adoption = [args.p_adoption]
     else:
         ps_adoption = [1.0, 0.75, 0.5, 0.25, 0.1, 0.05, 0.0]
+        # ps_adoption = [1.0, 0.75, 0.5, 0.4, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05]
 
 
     if args.smoke_test:

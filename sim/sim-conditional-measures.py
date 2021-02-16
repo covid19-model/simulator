@@ -8,7 +8,7 @@ import pandas as pd
 from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
 from lib.calibrationSettings import calibration_lockdown_beta_multipliers
-from lib.calibrationFunctions import get_calibrated_params
+from lib.calibrationFunctions import get_calibrated_params, get_calibrated_params_from_path
 
 TO_HOURS = 24.0
 
@@ -37,7 +37,11 @@ if __name__ == '__main__':
     np.random.seed(c)
     rd.seed(c)
 
-    calibrated_params = get_calibrated_params(country=country, area=area)
+    if not args.calibration_state:
+        calibrated_params = get_calibrated_params(country=country, area=area)
+    else:
+        calibrated_params = get_calibrated_params_from_path(args.calibration_state)
+        print('Loaded non-standard calibration state.')
 
     # experiment parameters
     # Measures become active only if positive tests per week per 100k people exceed `max_pos_tests_per_week_per_100k`.
@@ -50,7 +54,8 @@ if __name__ == '__main__':
     if args.p_adoption is not None:
         p_compliances = [args.p_adoption]
     else:
-        p_compliances = [1.0, 0.75, 0.5, 0.25, 0.1, 0.05]
+        p_compliances = [1.0, 0.75, 0.5, 0.25, 0.1, 0.05, 0.0]
+        # p_compliances = [1.0, 0.75, 0.5, 0.4, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05]
 
     if args.smoke_test:
         start_date = '2021-01-01'
@@ -82,7 +87,23 @@ if __name__ == '__main__':
                                                 max_pos_tests_per_week_per_100k=max_incidence,
                                                 intervention_times=None,
                                                 init_active=False),
-                ]
+            ]
+
+            # set testing params via update function of standard testing parameters
+            def test_update(d):
+                d['smart_tracing_households_only'] = True
+                d['smart_tracing_actions'] = ['test']
+                d['test_reporting_lag'] = 48.0
+
+                # isolation
+                d['smart_tracing_policy_isolate'] = 'basic'
+                d['smart_tracing_isolated_contacts'] = 100000
+
+                # testing
+                d['smart_tracing_policy_test'] = 'basic'
+                d['smart_tracing_tested_contacts'] = 100000
+                d['trigger_tracing_after_posi_trace_test'] = False
+                return d
 
             simulation_info = options_to_str(
                 max_incidence=max_incidence,
@@ -94,6 +115,7 @@ if __name__ == '__main__':
                 country=country,
                 area=area,
                 measure_list=m,
+                test_update=test_update,
                 seed_summary_path=seed_summary_path,
                 set_calibrated_params_to=calibrated_params,
                 set_initial_seeds_to=set_initial_seeds_to,

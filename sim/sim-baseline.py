@@ -7,9 +7,10 @@ if '..' not in sys.path:
     sys.path.append('..')
 
 import random as rd
+import pandas as pd
 from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
-from lib.calibrationFunctions import get_calibrated_params
+from lib.calibrationFunctions import get_calibrated_params, get_calibrated_params_from_path
 
 TO_HOURS = 24.0
 
@@ -44,7 +45,11 @@ if __name__ == '__main__':
     np.random.seed(c)
     rd.seed(c)
 
-    calibrated_params = get_calibrated_params(country=country, area=area)
+    if not args.calibration_state:
+        calibrated_params = get_calibrated_params(country=country, area=area)
+    else:
+        calibrated_params = get_calibrated_params_from_path(args.calibration_state)
+        print('Loaded non-standard calibration state.')
 
     # for debugging purposes
     if args.smoke_test:
@@ -67,7 +72,25 @@ if __name__ == '__main__':
         verbose=verbose,
     )
 
+    max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+
     m = []
+
+    # set testing params via update function of standard testing parameters
+    def test_update(d):
+        d['smart_tracing_households_only'] = True
+        d['smart_tracing_actions'] = ['test']
+        d['test_reporting_lag'] = 48.0
+
+        # isolation
+        d['smart_tracing_policy_isolate'] = 'basic'
+        d['smart_tracing_isolated_contacts'] = 100000
+
+        # testing
+        d['smart_tracing_policy_test'] = 'basic'
+        d['smart_tracing_tested_contacts'] = 100000
+        d['trigger_tracing_after_posi_trace_test'] = False
+        return d
 
     sim_info = options_to_str(expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
 
@@ -77,6 +100,7 @@ if __name__ == '__main__':
         country=country,
         area=area,
         measure_list=m,
+        test_update=test_update,
         seed_summary_path=seed_summary_path,
         set_initial_seeds_to=set_initial_seeds_to,
         set_calibrated_params_to=calibrated_params,

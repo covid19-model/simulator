@@ -59,6 +59,7 @@ calibration_testing_params = {
     # smart tracing
     'smart_tracing_contact_delta': 10 * TO_HOURS,
     'smart_tracing_actions': [], # any of `isolate`, `test`
+    'smart_tracing_households_only': False,
 
     'smart_tracing_policy_isolate': None, # one of None, `basic`, `advanced`, `advanced-threshold`
     'smart_tracing_isolated_contacts': 0,

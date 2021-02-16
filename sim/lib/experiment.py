@@ -115,7 +115,9 @@ def process_command_line(return_parser=False):
                         help="set number of background exposures per week")
     parser.add_argument("--tracing_threshold", type=float,
                         help="set smart tracing threshold")
-                        
+
+    parser.add_argument("--calibration_state", type=str,
+                        help="specify path of calibration state")
     parser.add_argument("--mobility_reduction", action="store_true",
                         help="flag to turn off mobility reduction")
     parser.add_argument("--continued", action="store_true",

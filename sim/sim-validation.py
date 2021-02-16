@@ -11,8 +11,9 @@ import pandas as pd
 from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
 from lib.calibrationSettings import calibration_lockdown_dates, calibration_start_dates, \
-    calibration_lockdown_beta_multipliers, calibration_mobility_reduction
-from lib.calibrationFunctions import get_calibrated_params, get_unique_calibration_params
+    calibration_lockdown_beta_multipliers, calibration_mobility_reduction, calibration_lockdown_site_closures
+from lib.calibrationFunctions import get_calibrated_params, get_unique_calibration_params, \
+    get_calibrated_params_from_path
 
 TO_HOURS = 24.0
 
@@ -69,17 +70,25 @@ if __name__ == '__main__':
             verbose=verbose,
         )
 
-        calibrated_params = get_calibrated_params(country=cal_country, area=cal_area)
+        if not args.calibration_state:
+            calibrated_params = get_calibrated_params(country=cal_country, area=cal_area)
+        else:
+            calibrated_params = get_calibrated_params_from_path(args.calibration_state)
+            print('Loaded non-standard calibration state.')
 
         # measures
         max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+
+        p_stay_home_dict_mobility_reduced = calibration_mobility_reduction[val_country][val_area]
+        p_stay_home_dict_closures = {site_type: 1.0 for site_type in calibration_lockdown_site_closures}
+        p_stay_home_dict = {**p_stay_home_dict_closures, **p_stay_home_dict_mobility_reduced}
 
         m = [
             SocialDistancingBySiteTypeForAllMeasure(
                     t_window=Interval(
                         measure_window_in_hours['start'],
                         measure_window_in_hours['end']),
-                    p_stay_home_dict=calibration_mobility_reduction[val_country][val_area]),
+                    p_stay_home_dict=p_stay_home_dict),
             ]
 
         sim_info = options_to_str(validation_region=val_area)
@@ -89,7 +98,6 @@ if __name__ == '__main__':
             country=val_country,
             area=val_area,
             measure_list=m,
-            test_update=None,
             seed_summary_path=seed_summary_path,
             set_calibrated_params_to=calibrated_params,
             set_initial_seeds_to=set_initial_seeds_to,
