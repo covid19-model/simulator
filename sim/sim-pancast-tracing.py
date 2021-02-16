@@ -40,15 +40,21 @@ if __name__ == '__main__':
     expected_daily_base_expo_per100k = 5 / 7
     condensed_summary = True
 
-    # contact tracing experiment parameters
-    ps_adoption = [1.0, 0.5, 0.25, 0.1, 0.05]
-    p_recall = 0.1
-    p_manual_reachability = 0.5
+    # ================ fixed contact tracing parameters ================
+    # p_recall = 0.1
+    # p_manual_reachability = 0.5
     smart_tracing_threshold = 0.016
-    beacon_modes = ['visit_freq', 'random']
+    # ==================================================================
+
+    # ============== variable contact tracing parameters ===============
+    ps_adoption = [1.0, 0.5, 0.25, 0.1, 0.05]
+    beacon_modes = ['visit_freq']   # ['visit_freq', 'random']
+    manual_tracings = [dict(p_recall=0.1, p_manual_reachability=0.5), dict(p_recall=0.0, p_manual_reachability=0.0)]
     sites_with_beacons = [0.02, 0.05, 0.1, 0.25, 1.0]
-    beta_dispersions = [1.0]    # [10.0, 5.0, 2.0, 1.0]
-    mean_invariant_beta_scaling = True
+    combine_p2p_beacon = [False, True]
+    beta_dispersions = [1.0]
+    mean_invariant_beta_scaling = False
+    # ==================================================================
 
     if args.p_adoption is not None:
         ps_adoption = [args.p_adoption]
@@ -79,7 +85,7 @@ if __name__ == '__main__':
         end_date = '2021-02-15'
         random_repeats = 1
         full_scale = False
-        ps_adoption = [0.1, 0.9]
+        ps_adoption = [0.1]#, 0.9]
         sites_with_beacons = [0.05]
         p_willing_to_share = 1.0
         ps_recall = 1.0
@@ -102,96 +108,106 @@ if __name__ == '__main__':
     )
 
     # contact tracing experiment for various options
-    for beta_dispersion in beta_dispersions:
-        beta_multipliers = get_invariant_beta_multiplier(beta_dispersion, country, area,
-                                                         use_invariant_rescaling=mean_invariant_beta_scaling,
-                                                         verbose=True)
-        for beacon_proportion in sites_with_beacons:
-            for beacon_mode in beacon_modes:
-                for p_adoption in ps_adoption:
-                    beacon_config = dict(mode=beacon_mode, proportion_with_beacon=beacon_proportion,
-                                         beta_multipliers=beta_multipliers)
+    # for beta_dispersion in beta_dispersions:
+    #     beta_multipliers = get_invariant_beta_multiplier(beta_dispersion, country, area,
+    #                                                      use_invariant_rescaling=mean_invariant_beta_scaling,
+    #                                                      verbose=True)
+    for beacon_proportion in sites_with_beacons:
+        for beacon_mode in beacon_modes:
+            for p_adoption in ps_adoption:
+                for p2p_beacon in combine_p2p_beacon:
+                    for k, manual_tracing in enumerate(manual_tracings):
+                        beacon_config = dict(mode=beacon_mode, proportion_with_beacon=beacon_proportion,
+                                             p2p_beacon=p2p_beacon,
+                                             # beta_multipliers=beta_multipliers
+                                             )
 
-                    # measures
-                    max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
-                    m = [
-                        # Manual contact tracing
-                        # infectors not compliant with digital tracing may reveal their mobility trace upon positive testing
-                        ManualTracingForAllMeasure(
-                            t_window=Interval(0.0, TO_HOURS * max_days),
-                            p_participate=1.0,
-                            p_recall=p_recall),
-                        # contact persons not compliant with digital tracing may be reached via phone
-                        ManualTracingReachabilityForAllMeasure(
-                            t_window=Interval(0.0, TO_HOURS * max_days),
-                            p_reachable=p_manual_reachability),
+                        # Run different manual tracing settings only for p2p_beacon=False
+                        if p2p_beacon and k > 0:
+                            continue
 
-                        # standard tracing measures
-                        ComplianceForAllMeasure(
-                            t_window=Interval(0.0, TO_HOURS * max_days),
-                            p_compliance=p_adoption),
-                        SocialDistancingForSmartTracing(
-                            t_window=Interval(0.0, TO_HOURS * max_days),
-                            p_stay_home=1.0,
-                            smart_tracing_isolation_duration=TO_HOURS * 14.0),
-                        SocialDistancingForSmartTracingHousehold(
-                            t_window=Interval(0.0, TO_HOURS * max_days),
-                            p_isolate=1.0,
-                            smart_tracing_isolation_duration=TO_HOURS * 14.0),
-                        ]
-
-                    if args.mobility_reduction:
-                        m += [
-                            # mobility reduction since the beginning of the pandemic
-                            SocialDistancingBySiteTypeForAllMeasure(
+                        # measures
+                        max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+                        m = [
+                            # Manual contact tracing
+                            # infectors not compliant with digital tracing may reveal their mobility trace upon positive testing
+                            ManualTracingForAllMeasure(
                                 t_window=Interval(0.0, TO_HOURS * max_days),
-                                p_stay_home_dict=mobility_reduction[country][area]),
-                        ]
+                                p_participate=1.0,
+                                p_recall=manual_tracing['p_recall']),
+                            # contact persons not compliant with digital tracing may be reached via phone
+                            ManualTracingReachabilityForAllMeasure(
+                                t_window=Interval(0.0, TO_HOURS * max_days),
+                                p_reachable=manual_tracing['p_manual_reachability']),
 
-                    # set testing params via update function of standard testing parameters
-                    def test_update(d):
-                        d['smart_tracing_actions'] = ['isolate', 'test']
-                        d['test_reporting_lag'] = 48.0
-                        d['tests_per_batch'] = 100000
+                            # standard tracing measures
+                            ComplianceForAllMeasure(
+                                t_window=Interval(0.0, TO_HOURS * max_days),
+                                p_compliance=p_adoption),
+                            SocialDistancingForSmartTracing(
+                                t_window=Interval(0.0, TO_HOURS * max_days),
+                                p_stay_home=1.0,
+                                smart_tracing_isolation_duration=TO_HOURS * 14.0),
+                            SocialDistancingForSmartTracingHousehold(
+                                t_window=Interval(0.0, TO_HOURS * max_days),
+                                p_isolate=1.0,
+                                smart_tracing_isolation_duration=TO_HOURS * 14.0),
+                            ]
 
-                        # isolation
-                        d['smart_tracing_policy_isolate'] = 'advanced-threshold'
-                        d['smart_tracing_isolation_threshold'] = smart_tracing_threshold
-                        d['smart_tracing_isolated_contacts'] = 100000
-                        d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
+                        if args.mobility_reduction:
+                            m += [
+                                # mobility reduction since the beginning of the pandemic
+                                SocialDistancingBySiteTypeForAllMeasure(
+                                    t_window=Interval(0.0, TO_HOURS * max_days),
+                                    p_stay_home_dict=mobility_reduction[country][area]),
+                            ]
 
-                        # testing
-                        d['smart_tracing_policy_test'] = 'advanced-threshold'
-                        d['smart_tracing_testing_threshold'] = smart_tracing_threshold
-                        d['smart_tracing_tested_contacts'] = 100000
-                        d['trigger_tracing_after_posi_trace_test'] = False
+                        # set testing params via update function of standard testing parameters
+                        def test_update(d):
+                            d['smart_tracing_actions'] = ['isolate', 'test']
+                            d['test_reporting_lag'] = 48.0
+                            d['tests_per_batch'] = 100000
 
-                        # Tracing compliance
-                        d['p_willing_to_share'] = 1.0
-                        return d
+                            # isolation
+                            d['smart_tracing_policy_isolate'] = 'advanced-threshold'
+                            d['smart_tracing_isolation_threshold'] = smart_tracing_threshold
+                            d['smart_tracing_isolated_contacts'] = 100000
+                            d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
+
+                            # testing
+                            d['smart_tracing_policy_test'] = 'advanced-threshold'
+                            d['smart_tracing_testing_threshold'] = smart_tracing_threshold
+                            d['smart_tracing_tested_contacts'] = 100000
+                            d['trigger_tracing_after_posi_trace_test'] = False
+
+                            # Tracing compliance
+                            d['p_willing_to_share'] = 1.0
+                            return d
 
 
-                    simulation_info = options_to_str(
-                        p_adoption=p_adoption,
-                        p_recall=p_recall,
-                        beacon_proportion=beacon_proportion,
-                        beacon_mode=beacon_mode,
-                        beta_dispersion=beta_dispersion,
-                    )
+                        simulation_info = options_to_str(
+                            p_adoption=p_adoption,
+                            beacon_proportion=beacon_proportion,
+                            beacon_mode=beacon_mode,
+                            p2p_beacon=p2p_beacon,
+                            p_recall=manual_tracing['p_recall'],
+                            p_manual_reachability=manual_tracing['p_manual_reachability'],
+                            # beta_dispersion=beta_dispersion,
+                        )
 
-                    experiment.add(
-                        simulation_info=simulation_info,
-                        country=country,
-                        area=area,
-                        measure_list=m,
-                        beacon_config=beacon_config,
-                        test_update=test_update,
-                        seed_summary_path=seed_summary_path,
-                        set_initial_seeds_to=set_initial_seeds_to,
-                        set_calibrated_params_to=calibrated_params,
-                        full_scale=full_scale,
-                        lockdown_measures_active=False,
-                        expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
+                        experiment.add(
+                            simulation_info=simulation_info,
+                            country=country,
+                            area=area,
+                            measure_list=m,
+                            beacon_config=beacon_config,
+                            test_update=test_update,
+                            seed_summary_path=seed_summary_path,
+                            set_initial_seeds_to=set_initial_seeds_to,
+                            set_calibrated_params_to=calibrated_params,
+                            full_scale=full_scale,
+                            lockdown_measures_active=False,
+                            expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
 
     print(f'{experiment_info} configuration done.')
 

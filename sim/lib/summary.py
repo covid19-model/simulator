@@ -79,7 +79,7 @@ def condense_summary(summary, metadata=None, acc=500):
     result = Result(metadata=metadata, summary=summary)
     try:    # For compatibility reasons
         n_age_groups = metadata.num_age_groups
-    except KeyError:
+    except (KeyError, AttributeError):
         n_age_groups = None
 
     if acc > summary.max_time:
@@ -143,6 +143,8 @@ def condense_summary(summary, metadata=None, acc=500):
         print('Could not save secondary infection statistics due to the time window being to small.')
         nbinom_dist, nbinom_rts = None, None
 
+    r_eff_mu, r_eff_sig, r_eff_samples = compute_effectiv_reproduction_number(summary)
+
     data = {'metadata': metadata,
             'acc': acc,
             'max_time': summary.max_time,
@@ -168,9 +170,38 @@ def condense_summary(summary, metadata=None, acc=500):
             'tracing_stats': tracing_stats,
             'nbinom_dist': nbinom_dist,
             'nbinom_rts': nbinom_rts,
+            'r_eff_samples': r_eff_samples,
+            'r_eff_mu': r_eff_mu,
+            'r_eff_sig': r_eff_sig,
             }
 
     return data
+
+
+def compute_effectiv_reproduction_number(summary):
+    if summary.max_time > 10 * 7 * TO_HOURS:
+        tmax = summary.max_time - 14 * TO_HOURS
+    else:
+        tmax = summary.max_time
+
+    r_eff_samples = []
+    for r in range(summary.random_repeats):
+        infectious_individuals_r = state_started_before(summary, r, 'isym', tmax)
+        infectious_individuals_r += state_started_before(summary, r, 'iasy', tmax)
+        infectious_individuals_r += state_started_before(summary, r, 'ipre', tmax)
+        infectious_individuals = infectious_individuals_r > 0
+
+        children = (summary.children_count_iasy[r] +
+                    summary.children_count_ipre[r] +
+                    summary.children_count_isym[r])
+        valid_children = children[infectious_individuals]
+        r_eff_samples.append(np.mean(valid_children))
+
+    r_eff_mu = np.mean(r_eff_samples)
+    r_eff_sig = np.std(r_eff_samples)
+    print(f'R_eff = {r_eff_mu} +- {r_eff_sig}')
+    print('R_eff samples: ', r_eff_samples)
+    return r_eff_mu, r_eff_sig, r_eff_samples
 
 
 def is_state_at(summary, r, state, t):
@@ -356,27 +387,49 @@ def get_lockdown_times(summary):
     return interventions, mean_lockdown_time
 
 
-def get_plot_data(data, quantity, mode):#, labeldict):
+def get_plot_data(data, quantity, mode):
 
     if mode == 'daily':
-        line_cases = data[f'new_{quantity}_mu']
-        error_cases = data[f'new_{quantity}_sig']
-        # ylabel = f'Daily {labeldict[quantity]}'
+        # line_cases = data[f'new_{quantity}_mu']
+        # error_cases = data[f'new_{quantity}_sig']
+
+        # New way
+        length = len(data[f'new_{quantity}_mu'])
+        cumu_cases = data[f'cumu_{quantity}_mu']
+        stepsize = len(cumu_cases)//length
+        daily_cases = np.zeros(length)
+        for i in range(length):
+            daily_cases[i] = cumu_cases[(i+1)*stepsize] - cumu_cases[i * stepsize]
+        line_cases = daily_cases
+        error_cases = np.zeros(len(line_cases))
+
     elif mode == 'cumulative':
         line_cases = data[f'cumu_{quantity}_mu']
         error_cases = data[f'cumu_{quantity}_sig']
-        # ylabel = f'Cumulative {labeldict[quantity]}'
     elif mode == 'total':
         if quantity == 'infected':
             line_cases = data['iasy_mu'] + data['ipre_mu'] + data['isym_mu']
             error_cases = np.sqrt(np.square(data['iasy_sig']) +
                                   np.square(data['ipre_sig']) +
                                   np.square(data['isym_sig']))
-            # ylabel = 'Infected'
         else:
             line_cases = data[f'{quantity}_mu']
             error_cases = data[f'{quantity}_sig']
-            # ylabel = labeldict[quantity]
+    elif mode == 'weekly incidence':
+        # Calculate daily new cases
+        length = len(data[f'new_{quantity}_mu'])
+        cumu_cases = data[f'cumu_{quantity}_mu']
+        stepsize = len(cumu_cases) // length
+        daily_cases = np.zeros(length)
+        for i in range(length):
+            daily_cases[i] = cumu_cases[(i + 1) * stepsize] - cumu_cases[i * stepsize]
+
+        # Calculate running 7 day incidence
+        incidence = np.zeros(length)
+        for i in range(length):
+            incidence[i] = np.sum(daily_cases[max(i - 6, 0):i])
+        line_cases = incidence
+        error_cases = np.zeros(length)
     else:
         NotImplementedError()
-    return line_cases, error_cases# , ylabel
+    return line_cases, error_cases

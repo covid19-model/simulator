@@ -2145,20 +2145,25 @@ class Plotter(object):
             plt.close()
         return
 
-    def compare_peak_reduction(self, path_list, baseline_path, ps_adoption, titles,
-                               mode='cumu_infected', log_xscale=True,
+    def compare_peak_reduction(self, path_list, baseline_path=None, ps_adoption=None, titles=None,
+                               mode='cumu_infected', show_reduction=True, log_xscale=True,
                                figformat='double', filename='cumulative_reduction', figsize=None,
                                show_legend=True, legend_is_left=False, subplot_adjust=None):
 
+        show_reduction = show_reduction and (baseline_path is not None)
+
         if mode == 'cumu_infected':
             key = 'cumu_infected_'
-            ylabel = '\% reduction of infections'
+            ylabel = r'\% reduction of infections' if show_reduction else 'Cumulative infected'
         elif mode == 'hosp':
             key = 'hosp_'
-            ylabel = '\% reduction of peak hosp.'
+            ylabel = r'\% reduction of peak hosp.' if show_reduction else 'Peak hospitalizations'
         elif mode == 'dead':
             key = 'cumu_dead_'
-            ylabel = '% reduction of fatalities'
+            ylabel = r'\% reduction of fatalities' if show_reduction else 'Fatalities'
+        elif mode == 'r_eff':
+            key = 'r_eff_'
+            ylabel = r'R_{\rm eff}'
 
         # Set double figure format
         self._set_matplotlib_params(format=figformat)
@@ -2167,8 +2172,11 @@ class Plotter(object):
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
 
-        baseline_data = load_condensed_summary(baseline_path)
-        baseline_norm = np.max(baseline_data[key + 'mu'])
+        if show_reduction:
+            baseline_data = load_condensed_summary(baseline_path)
+            baseline_norm = np.max(baseline_data[key + 'mu'])
+        else:
+            baseline_norm = 1.0
 
         ps_adoption = np.asarray(ps_adoption) * 100
 
@@ -2177,18 +2185,19 @@ class Plotter(object):
         zorders = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
 
         for i, paths in enumerate(path_list):
-            cumu_rel_mean = []
-            cumu_rel_std = []
+            rel_mean = []
+            rel_std = []
             for path in paths:
                 data = load_condensed_summary(path)
                 maxidx = np.argmax(data[key + 'mu'])
-                cumu_rel_mean.append(data[key + 'mu'][maxidx] / baseline_norm)
-                cumu_rel_std.append(data[key + 'sig'][maxidx] / baseline_norm)
+                rel_mean.append(data[key + 'mu'][maxidx] / baseline_norm)
+                rel_std.append(data[key + 'sig'][maxidx] / baseline_norm)
 
-            cumu_rel_mean = (1 - np.asarray(cumu_rel_mean)) * 100
-            cumu_rel_std = np.asarray(cumu_rel_std) * 100
+            if show_reduction:
+                rel_mean = (1 - np.asarray(rel_mean)) * 100
+                rel_std = np.asarray(rel_std) * 100
 
-            bars = ax.errorbar(ps_adoption, cumu_rel_mean, yerr=cumu_rel_std, label=titles[i],
+            bars = ax.errorbar(ps_adoption, rel_mean, yerr=rel_std, label=titles[i],
                                c=colors[i], linestyle='-', elinewidth=0.8, capsize=3.0, zorder=zorders[i])
 
             # # Turn off clipping of error bars at 100% adoption

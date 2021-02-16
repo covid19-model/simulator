@@ -122,7 +122,7 @@ def create_ParallelSummary_from_DiseaseModel(sim, store_mob=False):
         summary.mob.append(sim.mob)
     
     summary.people_age[0, :] = sim.mob.people_age
-        
+
     summary.children_count_iasy[0, :] = sim.children_count_iasy
     summary.children_count_ipre[0, :] = sim.children_count_ipre
     summary.children_count_isym[0, :] = sim.children_count_isym
@@ -229,7 +229,7 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
             summary.mob.append(result['mob']) 
 
         summary.people_age[r, :] = result['people_age']
-        
+
         summary.children_count_iasy[r, :] = result['children_count_iasy']
         summary.children_count_ipre[r, :] = result['children_count_ipre']
         summary.children_count_isym[r, :] = result['children_count_isym']

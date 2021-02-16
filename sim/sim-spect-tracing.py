@@ -40,14 +40,20 @@ if __name__ == '__main__':
     expected_daily_base_expo_per100k = 5 / 7
     condensed_summary = True
 
-    # contact tracing experiment parameters
-    ps_adoption = [1.0, 0.5, 0.25, 0.1, 0.05, 0.0]
-    p_recall = 0.1
-    p_manual_reachability = 0.5
+    # ================ fixed contact tracing parameters ================
+    # p_recall = 0.1
+    # p_manual_reachability = 0.5
     smart_tracing_threshold = 0.016
     beacon_config = None
-    beta_dispersions = [1.0]    # [10.0, 5.0, 2.0, 1.0]
-    mean_invariant_beta_scaling = True
+    mean_invariant_beta_scaling = False
+    # ==================================================================
+
+    # ============== variable contact tracing parameters ===============
+    ps_adoption = [1.0, 0.5, 0.25, 0.1, 0.05, 0.0]
+    manual_tracings = [dict(p_recall=0.1, p_manual_reachability=0.5), dict(p_recall=0.0, p_manual_reachability=0.0)]
+    beta_dispersions = [1.0]
+    # ==================================================================
+
 
     if args.p_adoption is not None:
         ps_adoption = [args.p_adoption]
@@ -67,10 +73,10 @@ if __name__ == '__main__':
     # for debugging purposes
     if args.smoke_test:
         start_date = '2021-01-01'
-        end_date = '2021-07-01'
-        random_repeats = 2
+        end_date = '2021-04-01'
+        random_repeats = 10
         full_scale = False
-        ps_adoption = [0.5]
+        ps_adoption = [0.0]
         beta_dispersions = [1.0]
 
     # create experiment object
@@ -87,13 +93,14 @@ if __name__ == '__main__':
         verbose=verbose,
     )
 
-    for beta_dispersion in beta_dispersions:
-        beta_multipliers = get_invariant_beta_multiplier(beta_dispersion, country, area,
-                                                         use_invariant_rescaling=mean_invariant_beta_scaling,
-                                                         verbose=True)
+    # for beta_dispersion in beta_dispersions:
+    #     beta_multipliers = get_invariant_beta_multiplier(beta_dispersion, country, area,
+    #                                                      use_invariant_rescaling=mean_invariant_beta_scaling,
+    #                                                      verbose=True)
 
-        # contact tracing experiment for various options
-        for p_adoption in ps_adoption:
+    # contact tracing experiment for various options
+    for p_adoption in ps_adoption:
+        for k, manual_tracing in enumerate(manual_tracings):
 
             # measures
             max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
@@ -104,11 +111,11 @@ if __name__ == '__main__':
                 ManualTracingForAllMeasure(
                     t_window=Interval(0.0, TO_HOURS * max_days),
                     p_participate=1.0,
-                    p_recall=p_recall),
+                    p_recall=manual_tracing['p_recall']),
                 # contact persons not compliant with digital tracing may be reached via phone
                 ManualTracingReachabilityForAllMeasure(
                     t_window=Interval(0.0, TO_HOURS * max_days),
-                    p_reachable=p_manual_reachability),
+                    p_reachable=manual_tracing['p_manual_reachability']),
 
                 # standard tracing measures
                 ComplianceForAllMeasure(
@@ -156,7 +163,9 @@ if __name__ == '__main__':
 
             simulation_info = options_to_str(
                 p_adoption=p_adoption,
-                beta_dispersion=beta_dispersion,
+                p_recall=manual_tracing['p_recall'],
+                p_manual_reachability=manual_tracing['p_manual_reachability'],
+                #beta_dispersion=beta_dispersion,
             )
 
             experiment.add(

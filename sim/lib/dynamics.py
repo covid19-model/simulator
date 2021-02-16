@@ -1773,12 +1773,18 @@ class DiseaseModel(object):
         # 3) i recalls visit in manual contact interview and j is compliant with beacon tracing and the site at which
         #    the contact happened has a beacon
         # 4) i is compliant with beacon tracing and j is manually reachable
+        # 5) P2P + beacon only: i and j are compliant but there is no beacon in place (-> tracing via P2P system)
         digital_tracable = is_i_compliant and is_j_compliant and ((self.mob.beacon_config is None) or site_has_beacon)
         offline_manual_tracable = i_recalls_visit and is_j_manually_tracable
         manual_beacon_tracable = i_recalls_visit and is_j_compliant and site_has_beacon
         beacon_manual_reachable = is_i_compliant and site_has_beacon and is_j_manually_tracable
 
-        contact_tracable = (digital_tracable or offline_manual_tracable or
+        additional_p2p_tracable = False
+        if self.mob.beacon_config:
+            if 'p2p_beacon' in self.mob.beacon_config.keys():
+                additional_p2p_tracable = is_i_compliant and is_j_compliant and self.mob.beacon_config['p2p_beacon']
+
+        contact_tracable = (digital_tracable or offline_manual_tracable or additional_p2p_tracable or
                             manual_beacon_tracable or beacon_manual_reachable)
 
         if not contact_tracable:
