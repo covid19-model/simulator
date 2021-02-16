@@ -16,6 +16,7 @@ import matplotlib
 import re
 import multiprocessing
 import torch
+import subprocess
 
 from botorch import fit_gpytorch_model
 from botorch.exceptions import BadInitialCandidatesWarning
@@ -73,7 +74,7 @@ if __name__ == '__main__':
 
     # logger
     logger = CalibrationLogger(
-        filename=args.filename, 
+        filename=args.filename + '_' + subprocess.check_output(["git", "describe", "--always"]).strip().decode(sys.stdout.encoding),
         multi_beta_calibration=args.multi_beta_calibration,
         estimate_mobility_reduction=args.estimate_mobility_reduction,
         verbose=not args.not_verbose)
