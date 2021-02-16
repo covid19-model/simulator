@@ -276,7 +276,7 @@ def parr_to_pdict(*, parr, multi_beta_calibration):
     return pdict
 
 
-def get_calibrated_params(*, country, area, multi_beta_calibration, maxiters=None):
+def get_calibrated_params(*, country, area, multi_beta_calibration=None, maxiters=None):
     """
     Returns calibrated parameters for a `country` and an `area`
     """
@@ -299,6 +299,27 @@ def get_calibrated_params(*, country, area, multi_beta_calibration, maxiters=Non
         pdict=param_bounds, multi_beta_calibration=multi_beta_calibration).T
     params = transforms.unnormalize(norm_params, sim_bounds)
     param_dict = parr_to_pdict(parr=params, multi_beta_calibration=multi_beta_calibration)
+    return param_dict
+
+
+def get_calibrated_params_from_path(path, estimate_mobility_reduction=False):
+    """
+    Returns calibrated parameters loaded from file.
+    """
+
+    state = load_state(path)
+    theta = state['train_theta']
+    best_observed_idx = state['best_observed_idx']
+    norm_params = theta[best_observed_idx]
+    param_bounds = calibration_model_param_bounds_single
+
+    if estimate_mobility_reduction:
+        param_bounds['p_stay_home'] = [0.0, 1.0]
+
+    sim_bounds = pdict_to_parr(pdict=param_bounds, multi_beta_calibration=False).T
+
+    params = transforms.unnormalize(norm_params, sim_bounds)
+    param_dict = parr_to_pdict(parr=params, multi_beta_calibration=False,)
     return param_dict
 
 

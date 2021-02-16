@@ -109,7 +109,15 @@ def process_command_line(return_parser=False):
                         help="only run experiment with a single beacon proportion")
     parser.add_argument("--beacon_mode",
                         help="only run experiment with a single beacon mode")
-                        
+    parser.add_argument("--test_lag", type=float,
+                        help="only run experiment with the specified test lag")
+    parser.add_argument("--background_exposures", type=float,
+                        help="set number of background exposures per week")
+    parser.add_argument("--tracing_threshold", type=float,
+                        help="set smart tracing threshold")
+
+    parser.add_argument("--calibration_state", type=str,
+                        help="specify path of calibration state")
     parser.add_argument("--mobility_reduction", action="store_true",
                         help="flag to turn off mobility reduction")
     parser.add_argument("--continued", action="store_true",
@@ -155,7 +163,7 @@ class Experiment(object):
         verbose,
         cpu_count=None,
         multi_beta_calibration=False,
-        condensed_summary=False,
+        condensed_summary=True,
         continued_run=False):
 
         self.experiment_info = experiment_info
@@ -203,7 +211,6 @@ class Experiment(object):
         country,
         area,        
         measure_list,
-        lockdown_measures_active=True,
         full_scale=True,
         test_update=None,
         seed_summary_path=None,
@@ -316,31 +323,9 @@ class Experiment(object):
                 t_window=Interval(0.0, max_time), p_isolate=1.0),
         ]
 
-        # Add standard measures if simulation is happening during lockdown
-        # Set lockdown_measures_active to False to explore counterfactual scenarios
-        if lockdown_measures_active:
-            measure_list += [
-
-                # social distancing factor during lockdown: calibrated
-                SocialDistancingForAllMeasure(
-                    t_window=Interval(TO_HOURS * days_until_lockdown_start,
-                                    TO_HOURS * days_until_lockdown_end),
-                    p_stay_home=p_stay_home_calibrated),
-
-                # site specific measures: fixed in advance, outside of calibration
-                BetaMultiplierMeasureByType(
-                    t_window=Interval(TO_HOURS * days_until_lockdown_start,
-                                    TO_HOURS * days_until_lockdown_end),
-                    beta_multiplier=calibration_lockdown_beta_multipliers)
-            ]
-
         measure_list = MeasureList(measure_list)
 
-        # Set testing conditions
-        scaled_test_capacity = get_test_capacity(
-            country, area, mob_settings, end_date_string=self.end_date)
         testing_params = copy.deepcopy(calibration_testing_params)
-        testing_params['tests_per_batch'] = scaled_test_capacity
         testing_params['testing_t_window'] = [0.0, max_time]
         if test_update:
             testing_params = test_update(testing_params)
@@ -397,7 +382,8 @@ class Experiment(object):
 
         # generate experiment folder
         current_directory = os.getcwd()
-        directory = os.path.join(current_directory, ROOT, self.experiment_info)        
+        directory = os.path.join(current_directory, ROOT, self.experiment_info + '-' + get_version_tag())
+        # directory = os.path.join(current_directory, ROOT, self.get_sim_path(self.sims[0]))
         if not os.path.exists(directory):
             os.makedirs(directory)
         

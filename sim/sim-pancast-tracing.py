@@ -15,7 +15,7 @@ import argparse
 from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
 from lib.calibrationSettings import calibration_lockdown_dates, calibration_mob_paths, calibration_states, contact_tracing_adoption
-from lib.calibrationFunctions import get_calibrated_params
+from lib.calibrationFunctions import get_calibrated_params, get_calibrated_params_from_path
 from lib.settings.mobility_reduction import mobility_reduction
 
 TO_HOURS = 24.0
@@ -74,10 +74,11 @@ if __name__ == '__main__':
     np.random.seed(c)
     rd.seed(c)
 
-    # Load calibrated parameters up to `maxBOiters` iterations of BO
-    calibrated_params = get_calibrated_params(country=country, area=area,
-                                              multi_beta_calibration=False,
-                                              maxiters=None)
+    if not args.calibration_state:
+        calibrated_params = get_calibrated_params(country=country, area=area)
+    else:
+        calibrated_params = get_calibrated_params_from_path(args.calibration_state)
+        print('Loaded non-standard calibration state.')
 
     # for debugging purposes
     if args.smoke_test:
@@ -206,7 +207,6 @@ if __name__ == '__main__':
                             set_initial_seeds_to=set_initial_seeds_to,
                             set_calibrated_params_to=calibrated_params,
                             full_scale=full_scale,
-                            lockdown_measures_active=False,
                             expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
 
     print(f'{experiment_info} configuration done.')
