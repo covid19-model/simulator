@@ -1,4 +1,4 @@
-
+import sys
 import time
 import bisect
 import copy
@@ -152,23 +152,23 @@ def pp_launch(r, kwargs, distributions, params, initial_counts, testing_params, 
         thresholds_roc=thresholds_roc,
         verbose=False)
 
+    ml = copy.deepcopy(sim.measure_list)
+    if not store_measure_bernoullis:
+        ml.exit_run()
+
     result = {
-        'state' : sim.state,
+        'state': sim.state,
         'state_started_at': sim.state_started_at,
         'state_ended_at': sim.state_ended_at,
-        'measure_list' : copy.deepcopy(sim.measure_list),
-        'people_age' : sim.mob.people_age,
+        'measure_list': ml,
+        'people_age': sim.mob.people_age,
         'children_count_iasy': sim.children_count_iasy,
         'children_count_ipre': sim.children_count_ipre,
         'children_count_isym': sim.children_count_isym,
-        'tracing_stats' : sim.tracing_stats,
+        'tracing_stats': sim.tracing_stats,
     }
     if store_mob:
         result['mob'] = sim.mob
-
-    ml = result['measure_list']
-    if not store_measure_bernoullis:
-        ml.exit_run()
 
     return result
 

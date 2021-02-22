@@ -433,3 +433,36 @@ def get_plot_data(data, quantity, mode):
     else:
         NotImplementedError()
     return line_cases, error_cases
+
+
+def get_rt(data, p_infected, area_population, average_up_to_p_infected=False):
+    proportion_infected = data['cumu_infected_mu'] / area_population
+    closest_element = np.argmin(np.abs(np.asarray(proportion_infected) - p_infected))
+    time = data['ts'][closest_element]
+    index = np.argmin(np.abs(np.asarray(data['nbinom_rts'].t1) / 24.0 - time))
+    rts = data['nbinom_rts'].groupby('t1').agg({'Rt': ['mean', 'std']})
+
+    if average_up_to_p_infected:
+        start_index = 0
+        rt = np.mean(list(rts.Rt['mean'])[start_index:index])
+        rt_std = np.mean(list(rts.Rt['std'])[start_index:index])
+    else:
+        rt = list(rts.Rt['mean'])[index]
+        rt_std = list(rts.Rt['std'])[index]
+    return rt, rt_std
+
+
+def get_tracing_probability(mode, p_adoption, p_manual_reachability, p_recall, p_beacon=None):
+    if mode == 'SPECTs':
+        p_digital = p_adoption ** 2
+        p_manual = p_recall * p_manual_reachability * (1 - p_digital)
+        p_tracing = p_digital + p_manual
+    elif mode == 'PanCast':
+        p_digital = p_adoption ** 2 * p_beacon
+        p_digital_manual = p_beacon * p_adoption * p_manual_reachability * (1 - p_digital)
+        p_manual_digital = p_beacon * p_adoption * p_recall * (1 - p_digital) * (1 - p_digital_manual)
+        p_manual = p_recall * p_manual_reachability * (1 - p_digital) * (1 - p_digital_manual) * (1 - p_manual_digital)
+        p_tracing = p_digital + p_digital_manual + p_manual_digital + p_manual
+    else:
+        NotImplementedError('`mode` can only be in ["SPECTs", "PanCast"]')
+    return p_tracing
