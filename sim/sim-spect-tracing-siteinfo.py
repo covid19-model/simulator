@@ -51,7 +51,7 @@ if __name__ == '__main__':
     # ============== variable contact tracing parameters ===============
     ps_adoption = [1.0, 0.5, 0.25, 0.1, 0.05, 0.0]
     isolation_caps = [0.005, 0.01, 0.02, 0.05, 0.1]
-    manual_tracings = [dict(p_recall=0.1, p_manual_reachability=0.5)]
+    manual_tracings = [dict(p_recall=0.0, p_manual_reachability=0.0)]
     # ==================================================================
 
 
