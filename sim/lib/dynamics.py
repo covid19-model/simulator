@@ -90,6 +90,7 @@ class DiseaseModel(object):
 
         self.queue = PriorityQueue()
         self.testing_queue = PriorityQueue()
+        self.isolation_queue = PriorityQueue()
 
         '''
         State and queue codes (transition event into this state)
@@ -576,6 +577,8 @@ class DiseaseModel(object):
             # check if testing processing
             if event == 'execute_tests':
                 self.__update_testing_queue(t)
+                if self.smart_tracing_policy_isolate == 'advanced-global-budget':
+                    self.__process_isolation_queue(t)
                 continue
 
             # check termination
@@ -1400,6 +1403,23 @@ class DiseaseModel(object):
         else:
             raise ValueError('Unknown queue policy')
 
+    def __process_isolation_queue(self, t):
+        if 'isolate' not in self.smart_tracing_actions:
+            return
+
+        ctr = 0
+        while ctr < self.smart_tracing_isolated_contacts and (len(self.isolation_queue) > 0):
+            i, time = self.isolation_queue.pop()
+            # If person should have been isolated more than 14 days ago, skip them
+            if time < t - 14 * TO_HOURS:
+                continue
+            else:
+                ctr += 1
+                self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=i)
+                self.measure_list.start_containment(SocialDistancingForSmartTracingHousehold, t=t, j=i)
+                self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracing, t=t, j=i)
+                self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracingHousehold, t=t, j=i)
+
     def __update_testing_queue(self, t):
         """
         Processes testing queue by popping the first `self.tests_per_batch` tests
@@ -1557,6 +1577,11 @@ class DiseaseModel(object):
                     emp_survival_prob=emp_survival_prob, 
                     budget=self.smart_tracing_isolated_contacts)
 
+            elif self.smart_tracing_policy_isolate == 'advanced-global-budget':
+                for j in valid_contacts_with_j.keys():
+                    self.isolation_queue.push((j, t), priority=emp_survival_prob[j])
+                contacts_isolation = []
+
             elif self.smart_tracing_policy_isolate == 'advanced-threshold':
                 contacts_isolation, _ = self.__tracing_policy_advanced_threshold(
                     t=t, contacts_with_j=valid_contacts_with_j, 
@@ -1619,10 +1644,13 @@ class DiseaseModel(object):
 
             # contact tracing action
             if 'isolate' in self.smart_tracing_actions:
-                self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=j)
-                self.measure_list.start_containment(SocialDistancingForSmartTracingHousehold, t=t, j=j)
-                self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracing, t=t, j=j)
-                self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracingHousehold, t=t, j=j)
+                if not self.smart_tracing_policy_isolate == 'advanced-global-budged':
+                    self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=j)
+                    self.measure_list.start_containment(SocialDistancingForSmartTracingHousehold, t=t, j=j)
+                    self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracing, t=t, j=j)
+                    self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracingHousehold, t=t, j=j)
+                else:
+                    self.isolation_queue.push((i, t), priority=0.0)
 
             if 'test' in self.smart_tracing_actions:
                 # don't test positive people twice

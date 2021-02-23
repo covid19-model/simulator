@@ -1838,239 +1838,238 @@ class Plotter(object):
                (p_adoption and p_recall and p_manual_reachability and p_beacon) is not None
         assert (summaries or paths) is not None and (summaries and paths) is None, "Specify either summaries or paths"
         self._set_matplotlib_params(format=figformat)
-        fig, ax = plt.subplots(1, 1, figsize=figsize)
-        axs = [ax]
-        # fig, axs = plt.subplots(1, 2, figsize=figsize)
+        if isinstance(p_adoption, list):
+            fig, axs = plt.subplots(1, len(p_adoption), figsize=figsize)
+            ps_adoption = p_adoption
+        else:
+            fig, ax = plt.subplots(1, 1, figsize=figsize)
+            axs = [ax]
+            ps_adoption = [p_adoption] if p_adoption else [None]
 
-        if paths:
-            try:
-                summaries = [load_condensed_summary(path) for path in paths]
-            except FileNotFoundError:
-                for path in paths:
-                    _ = create_condensed_summary_from_path(path)
-                summaries = [load_condensed_summary(path) for path in paths]
-
-        for i, summary in enumerate(summaries):
-
-            if paths: # If condensed summary
-                tracing_stats = summary['tracing_stats']
-            else:
-                print('exposed:', np.sum(summary.state_started_at['expo'] < np.inf, axis=1).mean())
-                tracing_stats = summary.tracing_stats
-            thresholds = list(tracing_stats.keys())
-
-            policies = dict()
-            colorind = 0
-            p_tracings = []
-
-            for j, (name, policy) in enumerate([('SPECT', 'no_sites'), ('PanCast', 'sites')]):
-                if name == 'SPECT' or p_beacon is None:
-                    ps_beacon = [None]
+        for plt_index, p_adoption in enumerate(ps_adoption):
+            for i, path in enumerate(paths):
+                summary = load_condensed_summary(path)
+                if paths: # If condensed summary
+                    tracing_stats = summary['tracing_stats']
                 else:
-                    p_beacon = np.sort(p_beacon)[::-1]
-                    ps_beacon = p_beacon
-                for p_beac in ps_beacon:
+                    print('exposed:', np.sum(summary.state_started_at['expo'] < np.inf, axis=1).mean())
+                    tracing_stats = summary.tracing_stats
+                thresholds = list(tracing_stats.keys())
 
-                    fpr_mean, fpr_std = [], []
-                    tpr_mean, tpr_std = [], []
+                policies = dict()
+                p_tracings = []
+                colorind = 0
 
-                    precision_mean, precision_std = [], []
-                    recall_mean, recall_std = [], []
+                for j, (name, policy) in enumerate([('SPECT', 'no_sites'), ('PanCast', 'sites')]):
+                    if name == 'SPECT' or p_beacon is None:
+                        ps_beacon = [None]
+                    else:
+                        p_beacon = np.sort(p_beacon)[::-1]
+                        ps_beacon = p_beacon
+                    for p_beac in ps_beacon:
 
-                    fpr_of_means = []
-                    tpr_of_means = []
-                    precision_of_means = []
-                    recall_of_means = []
+                        fpr_mean, fpr_std = [], []
+                        tpr_mean, tpr_std = [], []
 
-                    fpr_single_runs = [[] for _ in range(len(tracing_stats[thresholds[0]][policy]['isolate']['tn']))]
-                    tpr_single_runs = [[] for _ in range(len(tracing_stats[thresholds[0]][policy]['isolate']['tn']))]
+                        precision_mean, precision_std = [], []
+                        recall_mean, recall_std = [], []
 
-                    if p_adoption is not None:
-                        if name == 'PanCast':
-                            p_tracing = get_tracing_probability('PanCast',
-                                                                        p_adoption=p_adoption,
-                                                                        p_manual_reachability=p_manual_reachability,
-                                                                        p_recall=p_recall,
-                                                                        p_beacon=p_beac)
-                            p_tracings.append(p_tracing)
-                        elif name == 'SPECT':
-                            p_tracing = get_tracing_probability('SPECTs',
-                                                                      p_adoption=p_adoption,
-                                                                      p_manual_reachability=p_manual_reachability,
-                                                                      p_recall=p_recall,
-                                                                      p_beacon=None)
-                            p_tracings.append(p_tracing)
-                        else:
-                            raise NotImplementedError()
-                    print(p_tracing)
-                    for t, thres in enumerate(thresholds):
+                        fpr_of_means = []
+                        tpr_of_means = []
+                        precision_of_means = []
+                        recall_of_means = []
 
-                        stats = copy.copy(tracing_stats[thres][policy][action])
+                        fpr_single_runs = [[] for _ in range(len(tracing_stats[thresholds[0]][policy]['isolate']['tn']))]
+                        tpr_single_runs = [[] for _ in range(len(tracing_stats[thresholds[0]][policy]['isolate']['tn']))]
 
                         if p_adoption is not None:
-                            orig_fp = np.asarray(stats['fp'])
-                            orig_tp = np.asarray(stats['tp'])
-                            stats['fp'] = np.asarray(stats['fp']) * p_tracing
-                            stats['tp'] = np.asarray(stats['tp']) * p_tracing
-                            stats['tn'] = np.asarray(stats['tn']) + orig_fp * (1-p_tracing)
-                            stats['fn'] = np.asarray(stats['fn']) + orig_tp * (1-p_tracing)
+                            if name == 'PanCast':
+                                p_tracing = get_tracing_probability('PanCast',
+                                                                            p_adoption=p_adoption,
+                                                                            p_manual_reachability=p_manual_reachability,
+                                                                            p_recall=p_recall,
+                                                                            p_beacon=p_beac)
+                                p_tracings.append(p_tracing)
+                            elif name == 'SPECT':
+                                p_tracing = get_tracing_probability('SPECTs',
+                                                                          p_adoption=p_adoption,
+                                                                          p_manual_reachability=p_manual_reachability,
+                                                                          p_recall=p_recall,
+                                                                          p_beacon=None)
+                                p_tracings.append(p_tracing)
+                            else:
+                                raise NotImplementedError()
 
-                        # FPR = FP/(FP + TN) [isolate + not infected / not infected]
-                        # [if FP = 0 and TN = 0, set to 0]
-                        fprs = stats['fp'] / (stats['fp'] + stats['tn'])
-                        fprs = np.nan_to_num(fprs, nan=0.0)
-                        fpr_mean.append(np.mean(fprs).item())
-                        fpr_std.append(np.std(fprs).item())
-                        fpr_of_means.append(stats['fp'].mean() / (stats['fp'].mean() + stats['tn'].mean()))
+                        for t, thres in enumerate(thresholds):
 
-                        for r in range(len(fpr_single_runs)):
-                            fpr_single_runs[r].append(fprs[r])
+                            stats = copy.copy(tracing_stats[thres][policy][action])
 
-                        # TPR = TP/(TP + FN) [isolate + infected / infected]
-                        # = RECALL
-                        # [if TP = 0 and FN = 0, set to 0]
-                        tprs = stats['tp'] / (stats['tp'] + stats['fn'])
-                        tprs = np.nan_to_num(tprs, nan=0.0)
-                        tpr_mean.append(np.mean(tprs).item())
-                        tpr_std.append(np.std(tprs).item())
-                        tpr_of_means.append(stats['tp'].mean() / (stats['tp'].mean() + stats['fn'].mean()))
+                            if p_adoption is not None:
+                                orig_fp = np.asarray(stats['fp'])
+                                orig_tp = np.asarray(stats['tp'])
+                                stats['fp'] = np.asarray(stats['fp']) * p_tracing
+                                stats['tp'] = np.asarray(stats['tp']) * p_tracing
+                                stats['tn'] = np.asarray(stats['tn']) + orig_fp * (1-p_tracing)
+                                stats['fn'] = np.asarray(stats['fn']) + orig_tp * (1-p_tracing)
 
-                        for r in range(len(tpr_single_runs)):
-                            tpr_single_runs[r].append(tprs[r])
+                            # FPR = FP/(FP + TN) [isolate + not infected / not infected]
+                            # [if FP = 0 and TN = 0, set to 0]
+                            fprs = stats['fp'] / (stats['fp'] + stats['tn'])
+                            fprs = np.nan_to_num(fprs, nan=0.0)
+                            fpr_mean.append(np.mean(fprs).item())
+                            fpr_std.append(np.std(fprs).item())
+                            fpr_of_means.append(stats['fp'].mean() / (stats['fp'].mean() + stats['tn'].mean()))
 
-                        # precision = TP/(TP + FP)
-                        precs = stats['tp'] / (stats['tp'] + stats['fp'])
-                        precs = np.nan_to_num(precs, nan=0.0)
-                        precision_mean.append(np.mean(precs).item())
-                        precision_std.append(np.std(precs).item())
-                        precision_of_means.append(stats['tp'].mean() / (stats['tp'].mean() + stats['fp'].mean()))
+                            for r in range(len(fpr_single_runs)):
+                                fpr_single_runs[r].append(fprs[r])
 
-                        # if i == 0:
-                        if verbose:
-                            print("{:1.3f}   TP {:5.2f} FP {:5.2f}  TN {:5.2f}  FN {:5.2f}".format(
-                                thres, stats['tp'].mean(), stats['fp'].mean(), stats['tn'].mean(), stats['fn'].mean()
-                            ))
-                            if t == len(thresholds) - 1:
-                                print(" P {:5.2f}  N {:5.2f}".format(
-                                    (stats['fn'] + stats['tp']).mean(), (stats['fp'] + stats['tn']).mean()
+                            # TPR = TP/(TP + FN) [isolate + infected / infected]
+                            # = RECALL
+                            # [if TP = 0 and FN = 0, set to 0]
+                            tprs = stats['tp'] / (stats['tp'] + stats['fn'])
+                            tprs = np.nan_to_num(tprs, nan=0.0)
+                            tpr_mean.append(np.mean(tprs).item())
+                            tpr_std.append(np.std(tprs).item())
+                            tpr_of_means.append(stats['tp'].mean() / (stats['tp'].mean() + stats['fn'].mean()))
+
+                            for r in range(len(tpr_single_runs)):
+                                tpr_single_runs[r].append(tprs[r])
+
+                            # precision = TP/(TP + FP)
+                            precs = stats['tp'] / (stats['tp'] + stats['fp'])
+                            precs = np.nan_to_num(precs, nan=0.0)
+                            precision_mean.append(np.mean(precs).item())
+                            precision_std.append(np.std(precs).item())
+                            precision_of_means.append(stats['tp'].mean() / (stats['tp'].mean() + stats['fp'].mean()))
+
+                            # if i == 0:
+                            if verbose:
+                                print("{:1.3f}   TP {:5.2f} FP {:5.2f}  TN {:5.2f}  FN {:5.2f}".format(
+                                    thres, stats['tp'].mean(), stats['fp'].mean(), stats['tn'].mean(), stats['fn'].mean()
                                 ))
+                                if t == len(thresholds) - 1:
+                                    print(" P {:5.2f}  N {:5.2f}".format(
+                                        (stats['fn'] + stats['tp']).mean(), (stats['fp'] + stats['tn']).mean()
+                                    ))
 
-                    policies[name] = {'fpr': fpr_of_means,
-                                      'tpr': tpr_of_means,
-                                      'prec': precision_of_means}
+                        policies[name] = {'fpr': fpr_of_means,
+                                          'tpr': tpr_of_means,
+                                          'prec': precision_of_means}
 
-                    if name == 'SPECT':
-                        name += 's'
+                        if name == 'SPECT':
+                            name += 's'
 
-                    # lines
-                    if p_adoption is not None:
-                        colors = ['#377eb8', '#bd0026', '#f03b20', '#fd8d3c', '#fecc5c', '#ffffb2']
-                        if name == 'PanCast':
-                            longname = name + f', {int(p_beac*100)}\%'
+                        # lines
+                        if p_adoption is not None:
+                            colors = ['#377eb8', '#bd0026', '#f03b20', '#fd8d3c', '#fecc5c', '#ffffb2']
+                            if name == 'PanCast':
+                                longname = name + f', {int(p_beac*100)}\%'
+                            else:
+                                longname = name
+
+                            axs[plt_index].plot(fpr_of_means, tpr_of_means, linestyle='-', label=longname, c=colors[colorind])
+                            colorind += 1
                         else:
-                            longname = name
-                        axs[0].plot(fpr_of_means, tpr_of_means, linestyle='-', label=longname, c=colors[colorind])
-                        colorind += 1
-                    else:
-                        colors = ['#377eb8', '#e41a1c',]
-                        axs[0].plot(fpr_of_means, tpr_of_means, linestyle='-', label=name, c=colors[j])
+                            colors = ['#377eb8', '#e41a1c',]
+                            axs[0].plot(fpr_of_means, tpr_of_means, linestyle='-', label=name, c=colors[j])
 
-                    # axs[1].plot(tpr_of_means, precision_of_means, linestyle='-', label=name, c=self.color_different_scenarios[j])
-                    # axs[0].plot(fpr_mean, tpr_mean, linestyle='-', label=name, c=self.color_different_scenarios[j])
-                    # axs[1].plot(tpr_mean, precision_mean, linestyle='-', label=name, c=self.color_different_scenarios[j])
+                        # axs[1].plot(tpr_of_means, precision_of_means, linestyle='-', label=name, c=self.color_different_scenarios[j])
+                        # axs[0].plot(fpr_mean, tpr_mean, linestyle='-', label=name, c=self.color_different_scenarios[j])
+                        # axs[1].plot(tpr_mean, precision_mean, linestyle='-', label=name, c=self.color_different_scenarios[j])
 
-            # for each FPR bucket, collect TPR and prec values
-            policy_bin_values = dict()
-            n_bins = 6
-            bins = np.linspace(0.0, 1.0, n_bins)
-            for n in range(bins.shape[0] - 1):
-                print(f'index {n + 1} : {bins[n]} - {bins[n + 1]}')
+                # for each FPR bucket, collect TPR and prec values
+                policy_bin_values = dict()
+                n_bins = 6
+                bins = np.linspace(0.0, 1.0, n_bins)
+                for n in range(bins.shape[0] - 1):
+                    print(f'index {n + 1} : {bins[n]} - {bins[n + 1]}')
 
-            for policy in ['SPECT', 'PanCast']:
-                fprs = np.array(policies[policy]['fpr'])
-                tprs = np.array(policies[policy]['tpr'])
-                precs = np.array(policies[policy]['prec'])
+                for policy in ['SPECT', 'PanCast']:
+                    fprs = np.array(policies[policy]['fpr'])
+                    tprs = np.array(policies[policy]['tpr'])
+                    precs = np.array(policies[policy]['prec'])
 
-                inds = np.digitize(fprs, bins)
+                    inds = np.digitize(fprs, bins)
 
-                bin_values_fpr = collections.defaultdict(list)
-                bin_values_tpr = collections.defaultdict(list)
-                bin_values_prec = collections.defaultdict(list)
+                    bin_values_fpr = collections.defaultdict(list)
+                    bin_values_tpr = collections.defaultdict(list)
+                    bin_values_prec = collections.defaultdict(list)
 
-                for i in range(fprs.shape[0]):
-                    bin_values_fpr[inds[i]].append(fprs[i])
-                    bin_values_tpr[inds[i]].append(tprs[i])
-                    bin_values_prec[inds[i]].append(precs[i])
+                    for i in range(fprs.shape[0]):
+                        bin_values_fpr[inds[i]].append(fprs[i])
+                        bin_values_tpr[inds[i]].append(tprs[i])
+                        bin_values_prec[inds[i]].append(precs[i])
 
-                # form mean of each bucket
-                policy_bin_values[policy] = {
-                    'fpr' : {k:np.array(lst).mean().item() for k, lst in bin_values_fpr.items()},
-                    'tpr' : {k:np.array(lst).mean().item() for k, lst in bin_values_tpr.items()},
-                    'prec': {k: np.array(lst).mean().item() for k, lst in bin_values_prec.items()},
-                }
+                    # form mean of each bucket
+                    policy_bin_values[policy] = {
+                        'fpr' : {k:np.array(lst).mean().item() for k, lst in bin_values_fpr.items()},
+                        'tpr' : {k:np.array(lst).mean().item() for k, lst in bin_values_tpr.items()},
+                        'prec': {k: np.array(lst).mean().item() for k, lst in bin_values_prec.items()},
+                    }
 
-            # print improvement pancast over spect
-            # pprint.pprint(policy_bin_values)
-            for metric in ['tpr', 'prec']:
+                # print improvement pancast over spect
+                # pprint.pprint(policy_bin_values)
+                for metric in ['tpr', 'prec']:
 
-                relative_percentage = []
-                
-                for ind in policy_bin_values['SPECT']['fpr'].keys():
+                    relative_percentage = []
 
-                    # only check bins where both have values
-                    if (ind not in policy_bin_values['PanCast'][metric].keys()) or\
-                       (ind not in policy_bin_values['SPECT'][metric].keys()):
-                       continue
+                    for ind in policy_bin_values['SPECT']['fpr'].keys():
 
-                    # ignore edge bins
-                    if ind <= 1 or ind >= n_bins - 1:
-                        continue 
+                        # only check bins where both have values
+                        if (ind not in policy_bin_values['PanCast'][metric].keys()) or\
+                           (ind not in policy_bin_values['SPECT'][metric].keys()):
+                           continue
 
-                    relative_percentage.append(
-                        (ind, policy_bin_values['PanCast'][metric][ind] / policy_bin_values['SPECT'][metric][ind])
-                    )
+                        # ignore edge bins
+                        if ind <= 1 or ind >= n_bins - 1:
+                            continue
 
-                try:
-                    argmaxval, maxval = max(relative_percentage, key=lambda x: x[1])
-                    print('Maximum relative % PanCast/SPECT (excluding boundary)', metric, maxval * 100, 'bin: ', argmaxval)
-                except ValueError:
-                    print('Could not compute Maximum relative % PanCast/SPECT (excluding boundary)')
+                        relative_percentage.append(
+                            (ind, policy_bin_values['PanCast'][metric][ind] / policy_bin_values['SPECT'][metric][ind])
+                        )
 
-        maximum = 1.0 if p_adoption is None else max(p_tracings)
-        for ax in axs:
-            ax.set_xlim((0.0, maximum))
-            ax.set_ylim((0.0, maximum))
+                    try:
+                        argmaxval, maxval = max(relative_percentage, key=lambda x: x[1])
+                        print('Maximum relative % PanCast/SPECT (excluding boundary)', metric, maxval * 100, 'bin: ', argmaxval)
+                    except ValueError:
+                        print('Could not compute Maximum relative % PanCast/SPECT (excluding boundary)')
 
-        # diagonal
-        xs = np.linspace(0, maximum, num=500)
-        axs[0].plot(xs, xs, linestyle='dotted', c='black')
+            maximum = 1.0 if p_adoption is None else max(p_tracings)
+            # for ax in axs:
+            axs[plt_index].set_xlim((0.0, maximum))
+            axs[plt_index].set_ylim((0.0, maximum))
 
-        if use_medical_labels:
-            axs[0].set_xlabel('1-Specificity')
-            axs[0].set_ylabel('Sensitivity')
-        else:
-            axs[0].set_xlabel('FPR')
-            axs[0].set_ylabel('TPR')
+            # diagonal
+            xs = np.linspace(0, maximum, num=500)
+            axs[plt_index].plot(xs, xs, linestyle='dotted', c='black')
 
-        # axs[1].set_xlabel('Recall')
-        # axs[1].set_ylabel('Precision')
+            if use_medical_labels:
+                axs[plt_index].set_xlabel('1-Specificity')
+                axs[plt_index].set_ylabel('Sensitivity')
+            else:
+                axs[plt_index].set_xlabel('FPR')
+                axs[plt_index].set_ylabel('TPR')
 
-        # Set default axes style
-        # self._set_default_axis_settings(ax=ax)
-        if maximum < 1.0:
-            #axs[0].ticklabel_format(axis="x", style="sci", scilimits=(0, 0))
-            #axs[0].ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
-            axs[0].set_aspect('equal', 'box')
+            # axs[1].set_xlabel('Recall')
+            # axs[1].set_ylabel('Precision')
 
-        leg = axs[0].legend(loc='lower right')
+            # Set default axes style
+            # self._set_default_axis_settings(ax=ax)
+            axs[plt_index].set_aspect('equal', 'box')
+
+            if p_adoption:
+                axs[plt_index].set_title(f'{int(p_adoption*100)}\% adoption')
+
+            leg = axs[plt_index].legend(loc='lower right')
         # leg = axs[1].legend(loc='top right')
 
         # subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         # plt.subplots_adjust(**subplot_adjust)
 
+        plt.tight_layout()
         plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
                     dpi=DPI, bbox_inches='tight')
-        plt.tight_layout()
+        # plt.tight_layout()
         if NO_PLOT:
             plt.close()
         return
@@ -2254,6 +2253,138 @@ class Plotter(object):
             xi = np.linspace(xbounds[0], xbounds[1], 100)
             yi = np.linspace(ybounds[0], ybounds[1], 100)
             zi = griddata((x, y), z, (xi[None,:], yi[:,None]), method=interpolate)
+
+            # contour plot
+            axs[t].contour(xi, yi, zi, linewidths=0.5, colors='k', norm=norm, levels=levels)
+            contourplot = axs[t].contourf(xi, yi, zi, cmap=cmap, norm=norm, levels=levels)
+
+            # axis
+            axs[t].set_xlim(xbounds)
+            axs[t].set_ylim(ybounds)
+            axs[t].set_title(title)
+
+            axs[t].set_yticks(list(axs[t].get_yticks())[1:] + [ybounds[0]])
+            axs[t].set_yticks([10, 25, 40, 55, 70, 85, 100])
+
+            if t == 0:
+                axs[t].set_ylabel(ylabel)
+            else:
+                pass
+
+        # layout and color bar
+        fig.tight_layout()
+        fig.subplots_adjust(right=0.8)
+
+        # [left, bottom, width, height]
+        cbar_ax = fig.add_axes([0.87, 0.17, 0.05, 0.7])
+        cbar = matplotlib.colorbar.ColorbarBase(
+            cbar_ax, cmap=plt.cm.RdYlGn,
+            norm=norm,
+            boundaries=levels,
+            ticks=levels[::2],
+            orientation='vertical')
+        cbar.set_label(colorbar_label, labelpad=5.0)
+
+        # save
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+                    dpi=DPI, bbox_inches='tight')
+
+        if NO_PLOT:
+            plt.close()
+        return
+
+    def manual_tracing_heatmap(self, mode, xlabel, ylabel, paths, path_labels, baseline_path, figformat='double',
+                                  filename='manual_tracing_heatmap_0', figsize=None, acc=500, interpolate='linear',  # or `cubic`
+                                  width_ratio=4, cmap='jet'):
+        ''''
+        Plots heatmap of average R_t
+            paths:              list with tuples (x, y, path)
+            relative_window:    relative range of max_time used for R_t average
+        '''
+        if mode == 'cumu_infected':
+            key = 'cumu_infected_'
+            colorbar_label = r'\% reduction of infections'
+        elif mode == 'hosp':
+            key = 'hosp_'
+            colorbar_label = r'\% reduction of peak hosp.'
+        elif mode == 'dead':
+            key = 'cumu_dead_'
+            colorbar_label = r'\% reduction of deaths'
+
+        # set double figure format
+        self._set_matplotlib_params(format=figformat)
+
+        # draw figure
+        fig, axs = plt.subplots(1, 2, figsize=figsize, gridspec_kw={'width_ratios': [1, width_ratio]})
+
+
+        # extract data
+        zval_means_all = []
+        for p in paths:
+
+            zval_means = []
+            for xval, yval, path in p:
+                data = load_condensed_summary(path, acc)
+
+                # extract z value given (x, y)
+                series = data[key + 'mu']
+                if 'cumu' in key:
+                    # last
+                    zval = (1 - series[-1] / baseline_series[-1]) * 100
+                else:
+                    # peak
+                    zval = (1 - series.max() / baseline_series.max()) * 100
+
+                zval_means.append(((xval * 100 if xval is not None else xval), yval * 100, zval.item()))
+
+            zval_means_all.append(zval_means)
+
+        # define min and max for both plots
+        zmin, zmax_color, zmax_colorbar = 0, 90, 90
+        stepsize = 5
+        norm = colors.Normalize(vmin=zmin, vmax=zmax_color)
+        levels = np.arange(zmin, zmax_colorbar + stepsize, stepsize)
+
+        # generate heatmaps
+        for t, title in enumerate(path_labels):
+
+            x, y, z = zip(*zval_means_all[t])
+
+            if x[0] is None:
+                # move 1D data on a 2D manifold for plotting
+                xbounds = (-0.1, 0.1)
+                ybounds = min(y), max(y)
+
+                x = [xbounds[0] for _ in y] + [xbounds[1] for _ in y]
+                y = y + y
+                z = z + z
+
+                axs[t].xaxis.set_major_formatter(plt.NullFormatter())
+                axs[t].xaxis.set_minor_formatter(plt.NullFormatter())
+                axs[t].xaxis.set_major_locator(plt.NullLocator())
+                axs[t].xaxis.set_minor_locator(plt.NullLocator())
+
+            else:
+                x = np.log(x)
+                xbounds = min(x), max(x)
+                ybounds = min(y), max(y)
+
+                axs[t].set_xlabel(xlabel)
+
+                # x ticks
+                @ticker.FuncFormatter
+                def major_formatter(x_, pos):
+                    return r"{:3.0f}".format(np.exp(x_))
+
+                # for some reason, FixedLocator makes tick labels falsely bold
+                # axs[t].xaxis.set_major_locator(ticker.FixedLocator(x))
+                axs[t].xaxis.set_major_locator(CustomSitesProportionFixedLocator())
+                axs[t].xaxis.set_major_formatter(major_formatter)
+
+            # contour interpolation
+            xi = np.linspace(xbounds[0], xbounds[1], 100)
+            yi = np.linspace(ybounds[0], ybounds[1], 100)
+            zi = griddata((x, y), z, (xi[None, :], yi[:, None]), method=interpolate)
 
             # contour plot
             axs[t].contour(xi, yi, zi, linewidths=0.5, colors='k', norm=norm, levels=levels)

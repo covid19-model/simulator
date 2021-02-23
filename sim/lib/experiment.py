@@ -10,8 +10,8 @@ from collections import namedtuple, defaultdict
 import botorch.utils.transforms as transforms
 import argparse
 from lib.calibrationFunctions import (
-    pdict_to_parr, parr_to_pdict, save_state, load_state, 
-    get_calibrated_params, gen_initial_seeds, get_test_capacity, downsample_cases)
+    pdict_to_parr, parr_to_pdict, save_state, load_state,
+    get_calibrated_params, gen_initial_seeds, get_test_capacity, downsample_cases, extract_seeds_from_summary)
 from lib.mobilitysim import MobilitySimulator
 from lib.parallel import launch_parallel_simulations
 from lib.distributions import CovidDistributions
@@ -115,6 +115,8 @@ def process_command_line(return_parser=False):
                         help="set number of background exposures per week")
     parser.add_argument("--tracing_threshold", type=float,
                         help="set smart tracing threshold")
+    parser.add_argument("--isolation_cap", type=float,
+                        help="set maximum of newly isolated people per day")
 
     parser.add_argument("--calibration_state", type=str,
                         help="specify path of calibration state")
@@ -291,10 +293,11 @@ class Experiment(object):
             initial_seeds = set_initial_seeds_to
 
         # Load calibrated model parameters for this area
-        calibrated_params = get_calibrated_params(
-            country=country, area=area, multi_beta_calibration=self.multi_beta_calibration)
         if set_calibrated_params_to is not None:
-            calibrated_params = set_calibrated_params_to 
+            calibrated_params = set_calibrated_params_to
+        else:
+            calibrated_params = get_calibrated_params(
+                country=country, area=area, multi_beta_calibration=self.multi_beta_calibration)
             
         p_stay_home_calibrated = calibrated_params['p_stay_home']
 
@@ -313,8 +316,7 @@ class Experiment(object):
             'betas': betas,
             'beta_household': calibrated_params['beta_household'],
         }        
-
-        # Add standard measure of positives staying isolated 
+        # Add standard measure of positives staying isolated
         measure_list += [
             # standard behavior of positively tested: full isolation
             SocialDistancingForPositiveMeasure(
