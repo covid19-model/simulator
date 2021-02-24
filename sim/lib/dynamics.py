@@ -1399,14 +1399,14 @@ class DiseaseModel(object):
 
         # fifo: first in, first out
         if self.test_queue_policy == 'fifo':
-            self.testing_queue.push((i, trigger_tracing_if_positive), priority=t)
+            self.testing_queue.push((i, t, trigger_tracing_if_positive), priority=t)
 
         # exposure-risk: has the following order of priority in queue:
         # 1) symptomatic tests, with `fifo` ordering (`priority = - max_time + t`)
         # 2) contact tracing tests: household members (`priority = 0.0`)
         # 3) contact tracing tests: contacts at sites (`priority` = lower empirical survival probability prioritized) 
         elif self.test_queue_policy == 'exposure-risk':
-            self.testing_queue.push((i, trigger_tracing_if_positive), priority=priority)
+            self.testing_queue.push((i, t, trigger_tracing_if_positive), priority=priority)
 
         else:
             raise ValueError('Unknown queue policy')
@@ -1438,8 +1438,12 @@ class DiseaseModel(object):
         while (ctr < self.tests_per_batch) and (len(self.testing_queue) > 0):
 
             # get next individual to be tested
+            i, time, trigger_tracing_if_positive = self.testing_queue.pop()
+            # If person should have been isolated more than 14 days ago, skip them
+            if time < t - 14 * TO_HOURS:
+                continue
+
             ctr += 1
-            i, trigger_tracing_if_positive = self.testing_queue.pop()
 
             # determine test result preemptively, to account for the individual's state at the time of testing
             if self.state['expo'][i] or self.state['ipre'][i] or self.state['isym'][i] or self.state['iasy'][i]:

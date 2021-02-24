@@ -17,7 +17,7 @@ from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
 from lib.calibrationSettings import calibration_lockdown_dates, calibration_mob_paths, calibration_states, contact_tracing_adoption
 from lib.calibrationFunctions import get_calibrated_params, get_calibrated_params_from_path
-from lib.settings.mobility_reduction import mobility_reduction
+from lib.mobility_reduction import get_mobility_reduction
 
 TO_HOURS = 24.0
 
@@ -43,7 +43,7 @@ if __name__ == '__main__':
 
     # ================ fixed contact tracing parameters ================
     smart_tracing_threshold = 0.0
-    use_beta_multipliers = True
+    p2p_beacon = False
     # ==================================================================
 
     # ============== variable contact tracing parameters ===============
@@ -105,30 +105,30 @@ if __name__ == '__main__':
         random_repeats=random_repeats,
         cpu_count=cpu_count,
         full_scale=full_scale,
-        multi_beta_calibration=use_beta_multipliers,
+        multi_beta_calibration=True,
         condensed_summary=condensed_summary,
         continued_run=continued_run,
         verbose=verbose,
     )
 
-    if use_beta_multipliers:
-        print('Using beta multipliers with invariance normalization.')
-        beta_multipliers = {'education': 3.0,
-                            'social': 6.0,
-                            'bus_stop': 1/5.0,
-                            'office': 4.0,
-                            'supermarket': 2.0}
-        beta_multipliers = compute_mean_invariant_beta_multipliers(beta_multipliers=beta_multipliers,
-                                                                   country=country, area=area,
-                                                                   max_time=28 * TO_HOURS,
-                                                                   full_scale=full_scale,
-                                                                   weighting='integrated_contact_time',
-                                                                   mode='rescale_all')
-        betas = {}
-        for key in beta_multipliers.keys():
-            betas[key] = calibrated_params['beta_site'] * beta_multipliers[key]
-        calibrated_params['betas'] = betas
-        del calibrated_params['beta_site']
+    print('Using beta multipliers with invariance normalization.')
+    beta_multipliers = {'education': 3.0,
+                        'social': 6.0,
+                        'bus_stop': 1/5.0,
+                        'office': 4.0,
+                        'supermarket': 2.0}
+    beta_multipliers = compute_mean_invariant_beta_multipliers(beta_multipliers=beta_multipliers,
+                                                               country=country, area=area,
+                                                               max_time=28 * TO_HOURS,
+                                                               full_scale=full_scale,
+                                                               weighting='integrated_contact_time',
+                                                               mode='rescale_all')
+    betas = {}
+    for key in beta_multipliers.keys():
+        betas[key] = calibrated_params['beta_site'] * beta_multipliers[key]
+    calibrated_params['betas'] = betas
+    del calibrated_params['beta_site']
+
 
     for beacon_proportion in sites_with_beacons:
         for beacon_mode in beacon_modes:
@@ -165,19 +165,12 @@ if __name__ == '__main__':
                                 smart_tracing_isolation_duration=TO_HOURS * 14.0),
                             ]
 
-                        if args.mobility_reduction:
-                            m += [
-                                # mobility reduction since the beginning of the pandemic
-                                SocialDistancingBySiteTypeForAllMeasure(
-                                    t_window=Interval(0.0, TO_HOURS * max_days),
-                                    p_stay_home_dict=mobility_reduction[country][area]),
-                            ]
-
                         # set testing params via update function of standard testing parameters
                         def test_update(d):
                             d['smart_tracing_actions'] = ['isolate', 'test']
                             d['test_reporting_lag'] = 48.0
-                            d['tests_per_batch'] = 100000
+                            d['tests_per_batch'] = int(isolation_cap / 14 * area_population)
+                            d['test_queue_policy'] = 'exposure-risk'
 
                             # isolation
                             d['smart_tracing_policy_isolate'] = 'advanced-global-budget'
@@ -186,7 +179,7 @@ if __name__ == '__main__':
                             d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
 
                             # testing
-                            d['smart_tracing_policy_test'] = 'advanced-threshold'
+                            d['smart_tracing_policy_test'] = 'advanced'
                             d['smart_tracing_testing_threshold'] = smart_tracing_threshold
                             d['smart_tracing_tested_contacts'] = 100000
                             d['trigger_tracing_after_posi_trace_test'] = False
@@ -200,10 +193,10 @@ if __name__ == '__main__':
                             p_adoption=p_adoption,
                             beacon_proportion=beacon_proportion,
                             beacon_mode=beacon_mode,
-                            p2p_beacon=False,
+                            p2p_beacon=p2p_beacon,
                             p_recall=manual_tracing['p_recall'],
                             p_manual_reachability=manual_tracing['p_manual_reachability'],
-                            beta_dispersion=use_beta_multipliers,
+                            delta_manual_tracing=manual_tracing['delta_manual_tracing'],
                             isolation_cap=isolation_cap
                         )
 

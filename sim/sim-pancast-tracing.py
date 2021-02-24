@@ -16,7 +16,7 @@ from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
 from lib.calibrationSettings import calibration_lockdown_dates, calibration_mob_paths, calibration_states, contact_tracing_adoption
 from lib.calibrationFunctions import get_calibrated_params, get_calibrated_params_from_path
-from lib.settings.mobility_reduction import mobility_reduction
+from lib.mobility_reduction import get_mobility_reduction
 
 TO_HOURS = 24.0
 
@@ -41,19 +41,18 @@ if __name__ == '__main__':
     condensed_summary = True
 
     # ================ fixed contact tracing parameters ================
-    # p_recall = 0.1
-    # p_manual_reachability = 0.5
     smart_tracing_threshold = 0.016
+    assert False, 'Set smart_tracing_treshold correctly'
     # ==================================================================
 
     # ============== variable contact tracing parameters ===============
     ps_adoption = [1.0, 0.5, 0.25, 0.1, 0.05]
-    beacon_modes = ['visit_freq']   # ['visit_freq', 'random']
-    manual_tracings = [dict(p_recall=0.1, p_manual_reachability=0.5), dict(p_recall=0.0, p_manual_reachability=0.0)]
+    beacon_modes = ['visit_freq', 'random']
+    manual_tracings = [dict(p_recall=0.1, p_manual_reachability=0.5, delta_manual_tracing=0.0),
+                       dict(p_recall=0.1, p_manual_reachability=0.5, delta_manual_tracing=24.0),
+                       dict(p_recall=0.0, p_manual_reachability=0.0, delta_manual_tracing=0.0)]
     sites_with_beacons = [0.02, 0.05, 0.1, 0.25, 1.0]
     combine_p2p_beacon = [False, True]
-    beta_dispersions = [1.0]
-    mean_invariant_beta_scaling = False
     # ==================================================================
 
     if args.p_adoption is not None:
@@ -68,17 +67,20 @@ if __name__ == '__main__':
     if args.beacon_mode is not None:
         beacon_modes = [args.beacon_mode]
 
-
-    # seed
-    c = 0
-    np.random.seed(c)
-    rd.seed(c)
-
     if not args.calibration_state:
         calibrated_params = get_calibrated_params(country=country, area=area)
     else:
         calibrated_params = get_calibrated_params_from_path(args.calibration_state)
         print('Loaded non-standard calibration state.')
+
+    distr = CovidDistributions(country=country)
+    smart_tracing_threshold = (min_contact_time * calibrated_params['beta_site']
+                               * (1 - np.exp(distr.gamma * (- distr.delta))))
+
+    # seed
+    c = 0
+    np.random.seed(c)
+    rd.seed(c)
 
     # for debugging purposes
     if args.smoke_test:
@@ -108,23 +110,21 @@ if __name__ == '__main__':
         verbose=verbose,
     )
 
-    # contact tracing experiment for various options
-    # for beta_dispersion in beta_dispersions:
-    #     beta_multipliers = get_invariant_beta_multiplier(beta_dispersion, country, area,
-    #                                                      use_invariant_rescaling=mean_invariant_beta_scaling,
-    #                                                      verbose=True)
     for beacon_proportion in sites_with_beacons:
-        for beacon_mode in beacon_modes:
-            for p_adoption in ps_adoption:
+        for p_adoption in ps_adoption:
+            for beacon_mode in beacon_modes:
                 for p2p_beacon in combine_p2p_beacon:
                     for k, manual_tracing in enumerate(manual_tracings):
                         beacon_config = dict(mode=beacon_mode, proportion_with_beacon=beacon_proportion,
                                              p2p_beacon=p2p_beacon,
-                                             # beta_multipliers=beta_multipliers
                                              )
 
                         # Run different manual tracing settings only for p2p_beacon=False
                         if p2p_beacon and k > 0:
+                            continue
+
+                        # Run beacon mode random only for p2p_beacon=False and standard manual_tracing
+                        if beacon_mode == 'random' and (p2p_beacon or k > 0):
                             continue
 
                         # measures
@@ -155,14 +155,6 @@ if __name__ == '__main__':
                                 smart_tracing_isolation_duration=TO_HOURS * 14.0),
                             ]
 
-                        if args.mobility_reduction:
-                            m += [
-                                # mobility reduction since the beginning of the pandemic
-                                SocialDistancingBySiteTypeForAllMeasure(
-                                    t_window=Interval(0.0, TO_HOURS * max_days),
-                                    p_stay_home_dict=mobility_reduction[country][area]),
-                            ]
-
                         # set testing params via update function of standard testing parameters
                         def test_update(d):
                             d['smart_tracing_actions'] = ['isolate', 'test']
@@ -183,6 +175,7 @@ if __name__ == '__main__':
 
                             # Tracing compliance
                             d['p_willing_to_share'] = 1.0
+                            d['delta_manual_tracing'] = manual_tracing['delta_manual_tracing']
                             return d
 
 
@@ -193,7 +186,7 @@ if __name__ == '__main__':
                             p2p_beacon=p2p_beacon,
                             p_recall=manual_tracing['p_recall'],
                             p_manual_reachability=manual_tracing['p_manual_reachability'],
-                            # beta_dispersion=beta_dispersion,
+                            delta_manual_tracing=manual_tracing['delta_manual_tracing']
                         )
 
                         experiment.add(

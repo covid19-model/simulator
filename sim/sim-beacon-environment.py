@@ -8,7 +8,7 @@ import pandas as pd
 from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
 from lib.calibrationFunctions import get_calibrated_params
-from lib.settings.mobility_reduction import mobility_reduction
+from lib.mobility_reduction import get_mobility_reduction
 from lib.settings.beta_dispersion import get_invariant_beta_multiplier
 
 

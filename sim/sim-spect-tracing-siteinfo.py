@@ -17,7 +17,7 @@ from lib.measures import *
 from lib.experiment import Experiment, options_to_str, process_command_line
 from lib.calibrationSettings import calibration_lockdown_dates, calibration_mob_paths, calibration_states, contact_tracing_adoption
 from lib.calibrationFunctions import get_calibrated_params, get_calibrated_params_from_path
-from lib.settings.mobility_reduction import mobility_reduction
+from lib.mobility_reduction import get_mobility_reduction
 
 TO_HOURS = 24.0
 
@@ -51,7 +51,7 @@ if __name__ == '__main__':
     # ============== variable contact tracing parameters ===============
     ps_adoption = [1.0, 0.5, 0.25, 0.1, 0.05, 0.0]
     isolation_caps = [0.005, 0.01, 0.02, 0.05, 0.1]
-    manual_tracings = [dict(p_recall=0.0, p_manual_reachability=0.0)]
+    manual_tracings = [dict(p_recall=0.0, p_manual_reachability=0.0, delta_manual_tracing=0.0)]
     # ==================================================================
 
 
@@ -64,16 +64,16 @@ if __name__ == '__main__':
     if args.isolation_cap is not None:
         isolation_caps = [args.isolation_cap]
 
-    # seed
-    c = 0
-    np.random.seed(c)
-    rd.seed(c)
-
     if not args.calibration_state:
         calibrated_params = get_calibrated_params(country=country, area=area)
     else:
         calibrated_params = get_calibrated_params_from_path(args.calibration_state)
         print('Loaded non-standard calibration state.')
+
+    # seed
+    c = 0
+    np.random.seed(c)
+    rd.seed(c)
 
     # for debugging purposes
     if args.smoke_test:
@@ -128,12 +128,10 @@ if __name__ == '__main__':
 
                 m = [
                     # Manual contact tracing
-                    # infectors not compliant with digital tracing may reveal their mobility trace upon positive testing
                     ManualTracingForAllMeasure(
                         t_window=Interval(0.0, TO_HOURS * max_days),
                         p_participate=1.0,
                         p_recall=manual_tracing['p_recall']),
-                    # contact persons not compliant with digital tracing may be reached via phone
                     ManualTracingReachabilityForAllMeasure(
                         t_window=Interval(0.0, TO_HOURS * max_days),
                         p_reachable=manual_tracing['p_manual_reachability']),
@@ -152,19 +150,12 @@ if __name__ == '__main__':
                         smart_tracing_isolation_duration=TO_HOURS * 14.0),
                     ]
 
-                if args.mobility_reduction:
-                    m += [
-                        # mobility reduction since the beginning of the pandemic
-                        SocialDistancingBySiteTypeForAllMeasure(
-                            t_window=Interval(0.0, TO_HOURS * max_days),
-                            p_stay_home_dict=mobility_reduction[country][area]),
-                    ]
-
                 # set testing params via update function of standard testing parameters
                 def test_update(d):
                     d['smart_tracing_actions'] = ['isolate', 'test']
                     d['test_reporting_lag'] = 48.0
-                    d['tests_per_batch'] = 100000
+                    d['tests_per_batch'] = int(isolation_cap / 14 * area_population)
+                    d['test_queue_policy'] = 'exposure-risk'
 
                     # isolation
                     d['smart_tracing_policy_isolate'] = 'advanced-global-budget'
@@ -173,7 +164,7 @@ if __name__ == '__main__':
                     d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
 
                     # testing
-                    d['smart_tracing_policy_test'] = 'advanced-threshold'
+                    d['smart_tracing_policy_test'] = 'advanced'
                     d['smart_tracing_testing_threshold'] = smart_tracing_threshold
                     d['smart_tracing_tested_contacts'] = 100000
                     d['trigger_tracing_after_posi_trace_test'] = False
@@ -186,7 +177,7 @@ if __name__ == '__main__':
                     p_adoption=p_adoption,
                     p_recall=manual_tracing['p_recall'],
                     p_manual_reachability=manual_tracing['p_manual_reachability'],
-                    beta_dispersion=use_beta_multipliers,
+                    delta_manual_tracing=manual_tracing['delta_manual_tracing'],
                     isolation_cap=isolation_cap
                 )
 
