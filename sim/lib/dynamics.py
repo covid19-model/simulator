@@ -425,6 +425,7 @@ class DiseaseModel(object):
             'smart_tracing_stats_window', (0.0, self.max_time))
 
         self.smart_tracing_p_willing_to_share  = testing_params['p_willing_to_share']
+        self.delta_manual_tracing = testing_params['delta_manual_tracing']
 
         if 'isolate' in self.smart_tracing_actions \
             and self.smart_tracing_isolated_contacts == 0:
@@ -1536,11 +1537,14 @@ class DiseaseModel(object):
             p_reveal_visit=self.smart_tracing_p_willing_to_share)
 
         # filter which contacts were valid in dict keyed by individual
-        valid_contacts_with_j = defaultdict(list)   
-        for contact in infectors_contacts:            
-            if self.__is_tracing_contact_valid(t=t, i=i, contact=contact):
+        valid_contacts_with_j = defaultdict(list)
+        digitally_traced = defaultdict(list)
+        for contact in infectors_contacts:
+            is_valid, is_digitally_traced = self.__is_tracing_contact_valid(t=t, i=i, contact=contact)
+            if is_valid:
                 j = contact.indiv_i
                 valid_contacts_with_j[j].append(contact)
+                digitally_traced[j].append(is_digitally_traced)
         
         # if needed, compute empirical survival probability for all contacts
         if ('isolate' in self.smart_tracing_actions and self.smart_tracing_policy_isolate != 'basic') or \
@@ -1617,19 +1621,29 @@ class DiseaseModel(object):
         '''Execute contact tracing actions for selected contacts'''
         if 'isolate' in self.smart_tracing_actions:
             for j, _ in contacts_isolation:
-                self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=j)
-                self.measure_list.start_containment(SocialDistancingForSmartTracingHousehold, t=t, j=j)
-                self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracing, t=t, j=j)
-                self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracingHousehold, t=t, j=j)
+                if True in digitally_traced[j]:
+                    delta = 0.0
+                else:
+                    delta = self.delta_manual_tracing
+
+                self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t+delta, j=j)
+                self.measure_list.start_containment(SocialDistancingForSmartTracingHousehold, t=t+delta, j=j)
+                self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracing, t=t+delta, j=j)
+                self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracingHousehold, t=t+delta, j=j)
 
         if 'test' in self.smart_tracing_actions:
             for j, _ in contacts_testing:
+                if True in digitally_traced[j]:
+                    delta = 0.0
+                else:
+                    delta = self.delta_manual_tracing
+
                 if self.smart_tracing_policy_test == 'basic':
-                    self.__apply_for_testing(t=t, i=j, priority=1.0, 
+                    self.__apply_for_testing(t=t+delta, i=j, priority=1.0,
                         trigger_tracing_if_positive=self.trigger_tracing_after_posi_trace_test)
                 elif self.smart_tracing_policy_test == 'advanced' \
                     or self.smart_tracing_policy_test == 'advanced-threshold':
-                    self.__apply_for_testing(t=t, i=j, priority=emp_survival_prob[j], 
+                    self.__apply_for_testing(t=t+delta, i=j, priority=emp_survival_prob[j],
                         trigger_tracing_if_positive=self.trigger_tracing_after_posi_trace_test)
                 else:
                     raise ValueError('Invalid smart tracing policy.')
@@ -1758,7 +1772,7 @@ class DiseaseModel(object):
         )
 
         if (not i_has_valid_status) or (not j_has_valid_status):
-            return False
+            return False, None
         
         '''Check contact tracing channels'''
         # check if i is complaint with digital tracing
@@ -1815,7 +1829,7 @@ class DiseaseModel(object):
                             manual_beacon_tracable or beacon_manual_reachable)
 
         if not contact_tracable:
-            return False
+            return False, None
 
         '''Check SocialDistancing measures'''
         is_i_contained = self.is_person_home_from_visit_due_to_measure(
@@ -1826,10 +1840,10 @@ class DiseaseModel(object):
             site_type=self.site_dict[self.site_type[site_id]])
 
         if is_i_contained or is_j_contained:
-            return False
+            return False, None
 
         # if all of the above checks passed, then contact is valid
-        return True
+        return True, digital_tracable
 
     def __compute_empirical_survival_probability(self, *, t, i, j, contacts_i_j, base_rate=1.0, ignore_sites=False):
         """ Compute empirical survival probability of individual j due to node i at time t"""

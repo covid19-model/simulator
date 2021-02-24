@@ -67,8 +67,9 @@ calibration_testing_params = {
     'smart_tracing_testing_threshold': 1.0,
     'trigger_tracing_after_posi_trace_test' : True,
 
-    # beacons
+    # beacons and manual tracing
     'p_willing_to_share': 1.0,
+    'delta_manual_tracing': 1.0
 }
 
 # BO acquisition function optimization (Knowledge gradient)

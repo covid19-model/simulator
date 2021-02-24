@@ -1,6 +1,7 @@
 
 import sys, os
 
+from lib.mobilitysim import compute_mean_invariant_beta_multipliers
 from lib.settings.beta_dispersion import get_invariant_beta_multiplier
 
 if '..' not in sys.path:
@@ -75,11 +76,12 @@ if __name__ == '__main__':
     # for debugging purposes
     if args.smoke_test:
         start_date = '2021-01-01'
-        end_date = '2021-04-01'
-        random_repeats = 10
+        end_date = '2021-02-01'
+        random_repeats = 2
         full_scale = False
         ps_adoption = [0.0]
         beta_dispersions = [1.0]
+        manual_tracings = [dict(p_recall=0.1, p_manual_reachability=0.5)]
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -95,10 +97,6 @@ if __name__ == '__main__':
         verbose=verbose,
     )
 
-    # for beta_dispersion in beta_dispersions:
-    #     beta_multipliers = get_invariant_beta_multiplier(beta_dispersion, country, area,
-    #                                                      use_invariant_rescaling=mean_invariant_beta_scaling,
-    #                                                      verbose=True)
 
     # contact tracing experiment for various options
     for p_adoption in ps_adoption:

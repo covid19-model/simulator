@@ -199,8 +199,6 @@ def compute_effectiv_reproduction_number(summary):
 
     r_eff_mu = np.mean(r_eff_samples)
     r_eff_sig = np.std(r_eff_samples)
-    print(f'R_eff = {r_eff_mu} +- {r_eff_sig}')
-    print('R_eff samples: ', r_eff_samples)
     return r_eff_mu, r_eff_sig, r_eff_samples
 
 
@@ -452,15 +450,21 @@ def get_rt(data, p_infected, area_population, average_up_to_p_infected=False):
     return rt, rt_std
 
 
-def get_tracing_probability(mode, p_adoption, p_manual_reachability, p_recall, p_beacon=None):
+def get_tracing_probability(mode, p_adoption, p_manual_reachability, p_recall, p_beacon=0.0):
+    # assert 0.0 <= p_adoption <= 1.0
+    # assert 0.0 <= p_manual_reachability <= 1.0
+    # assert 0.0 <= p_recall <= 1.0
+    # assert 0.0 <= p_beacon <= 1.0
+
+    assert False, 'This is still broken, need to fix it'
     if mode == 'SPECTs':
         p_digital = p_adoption ** 2
         p_manual = p_recall * p_manual_reachability * (1 - p_digital)
         p_tracing = p_digital + p_manual
     elif mode == 'PanCast':
-        p_digital = p_adoption ** 2 * p_beacon
-        p_digital_manual = p_beacon * p_adoption * p_manual_reachability * (1 - p_digital)
-        p_manual_digital = p_beacon * p_adoption * p_recall * (1 - p_digital) * (1 - p_digital_manual)
+        p_digital = (p_adoption ** 2) * p_beacon
+        p_digital_manual = p_beacon * p_adoption * (1 - p_adoption) * p_manual_reachability * (1 - p_digital)
+        p_manual_digital = p_beacon * p_adoption * (1 - p_adoption) * p_recall * (1 - p_digital) * (1 - p_digital_manual)
         p_manual = p_recall * p_manual_reachability * (1 - p_digital) * (1 - p_digital_manual) * (1 - p_manual_digital)
         p_tracing = p_digital + p_digital_manual + p_manual_digital + p_manual
     else:

@@ -178,7 +178,6 @@ if __name__ == '__main__':
             set_initial_seeds_to=set_initial_seeds_to,
             set_calibrated_params_to=calibrated_params,
             full_scale=full_scale,
-            lockdown_measures_active=False,
             expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
                 
     print(f'{experiment_info} configuration done.')
