@@ -1,4 +1,4 @@
-import sys
+
 import time
 import bisect
 import copy
@@ -165,7 +165,9 @@ def pp_launch(r, kwargs, distributions, params, initial_counts, testing_params, 
         'children_count_iasy': sim.children_count_iasy,
         'children_count_ipre': sim.children_count_ipre,
         'children_count_isym': sim.children_count_isym,
-        'tracing_stats': sim.tracing_stats,
+        'tracing_stats' : sim.tracing_stats,
+        'num_site_exposures': sim.num_site_exposures,
+        'num_household_exposures': sim.num_household_exposures
     }
     if store_mob:
         result['mob'] = sim.mob
@@ -214,7 +216,9 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
     
     # collect all result (the fact that mob is still available here is due to the for loop)
     summary = ParallelSummary(max_time, random_repeats, num_people, num_sites, site_loc, home_loc, thresholds_roc)
-    
+    num_site_exposures = []
+    num_household_exposures = []
+
     for r, result in enumerate(res):
 
         for code in pp_legal_states:
@@ -240,5 +244,12 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
                     for stat in ['tp', 'fp', 'tn', 'fn']:
                         summary.tracing_stats[thres][policy][action][stat][r] = \
                             result['tracing_stats'][thres][policy][action][stat]
+
+        num_household_exposures.append(result['num_household_exposures'])
+        num_site_exposures.append(result['num_site_exposures'])
+
+    if verbose:
+        print('Mean site exposures: ', np.mean(num_site_exposures))
+        print('Mean household exposures: ', np.mean(num_household_exposures))
 
     return summary

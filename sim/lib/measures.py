@@ -741,13 +741,14 @@ class SocialDistancingSymptomaticAfterSmartTracingHousehold(Measure):
             self.got_contained = None
             self._is_init = False
 
+
 class SocialDistancingForKGroups(Measure):
     """
     Social distancing measure where the population is based on K groups, here their IDs.
     Each day 1 of K groups is allowed to go outside.
     """
 
-    def __init__(self, t_window, K):
+    def __init__(self, t_window, K, p_stay_home=1.0):
         """
 
         Parameters
@@ -760,19 +761,24 @@ class SocialDistancingForKGroups(Measure):
         # Init time window
         super().__init__(t_window)
         self.K = K
-        
-    def init_run(self):
+        assert 0 <= p_stay_home <= 1.0, ValueError('`p_stay_home` should be in [0, 1.0]')
+        self.p_stay_home = p_stay_home
+
+    def init_run(self, n_people, n_visits):
         """Init the measure for this run is trivial
         """
+        self.bernoulli_stay_home = np.random.binomial(
+            1, self.p_stay_home, size=(n_people, n_visits))
         self._is_init = True
         
     @enforce_init_run
-    def is_contained(self, *, j, t):
+    def is_contained(self, *, j, j_visit_id, t):
         """Indicate if individual `j` respects measure 
         """
         day = math.floor(t / 24.0)
-        is_home_now = ((j % self.K) != (day % self.K)) 
-        return is_home_now and self._in_window(t)
+        should_be_home_now = ((j % self.K) != (day % self.K))
+        is_home_now = self.bernoulli_stay_home[j, j_visit_id]
+        return should_be_home_now and is_home_now and self._in_window(t)
 
     @enforce_init_run
     def is_contained_prob(self, *, j, t):
@@ -781,7 +787,7 @@ class SocialDistancingForKGroups(Measure):
         day = math.floor(t / 24.0)
         is_home_now = ((j % self.K) != (day % self.K))
         if is_home_now and self._in_window(t):
-            return 1.0
+            return self.p_stay_home
         return 0.0
 
 """

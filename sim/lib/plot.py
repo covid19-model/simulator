@@ -5,6 +5,8 @@ import collections
 import numpy as np
 import pandas as pd
 import torch
+import torch
+from scipy import stats as sps
 from scipy.interpolate import interp1d
 import seaborn as sns
 import matplotlib
@@ -19,6 +21,23 @@ from scipy.interpolate import griddata
 import matplotlib.colors as colors
 
 from lib.calibrationFunctions import downsample_cases, pdict_to_parr, load_state
+from lib.data import collect_data_from_df
+
+import botorch.utils.transforms as transforms
+
+from lib.calibrationSettings import (
+    calibration_model_param_bounds_single,
+    calibration_start_dates,
+    calibration_lockdown_dates,
+    calibration_mob_paths,
+)
+from lib.calibrationFunctions import (
+    pdict_to_parr,
+    load_state,
+    downsample_cases,
+    CORNER_SETTINGS_SPACE,
+)
+
 from lib.data import collect_data_from_df
 
 import botorch.utils.transforms as transforms
@@ -2202,7 +2221,7 @@ class Plotter(object):
                 else:
                     # peak
                     zval = (1 - series.max() / baseline_series.max()) * 100
-        
+
                 zval_means.append(((xval * 100 if xval is not None else xval), yval * 100, zval.item()))
 
             zval_means_all.append(zval_means)
@@ -2215,13 +2234,13 @@ class Plotter(object):
 
         # generate heatmaps
         for t, title in enumerate(path_labels):
-            
+
             x, y, z = zip(*zval_means_all[t])
 
             if x[0] is None:
                 # move 1D data on a 2D manifold for plotting
                 xbounds = (-0.1, 0.1)
-                ybounds = min(y), max(y)   
+                ybounds = min(y), max(y)
 
                 x = [xbounds[0] for _ in y] + [xbounds[1] for _ in y]
                 y = y + y
@@ -2231,11 +2250,11 @@ class Plotter(object):
                 axs[t].xaxis.set_minor_formatter(plt.NullFormatter())
                 axs[t].xaxis.set_major_locator(plt.NullLocator())
                 axs[t].xaxis.set_minor_locator(plt.NullLocator())
-                
+
             else:
                 x = np.log(x)
                 xbounds = min(x), max(x)
-                ybounds = min(y), max(y)        
+                ybounds = min(y), max(y)
 
                 axs[t].set_xlabel(xlabel)
 
@@ -2243,12 +2262,12 @@ class Plotter(object):
                 @ticker.FuncFormatter
                 def major_formatter(x_, pos):
                     return r"{:3.0f}".format(np.exp(x_))
-        
+
                 # for some reason, FixedLocator makes tick labels falsely bold
-                # axs[t].xaxis.set_major_locator(ticker.FixedLocator(x)) 
+                # axs[t].xaxis.set_major_locator(ticker.FixedLocator(x))
                 axs[t].xaxis.set_major_locator(CustomSitesProportionFixedLocator())
                 axs[t].xaxis.set_major_formatter(major_formatter)
-                                        
+
             # contour interpolation
             xi = np.linspace(xbounds[0], xbounds[1], 100)
             yi = np.linspace(ybounds[0], ybounds[1], 100)

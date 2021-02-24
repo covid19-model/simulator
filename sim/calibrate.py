@@ -52,6 +52,14 @@ if __name__ == '__main__':
     seed = args.seed or 0
     args.filename = args.filename or f'calibration_{seed}'
 
+    if args.smoke_test:
+        args.ninit = 2
+        args.niters = 1
+        args.rollouts = 2
+        args.start = "2020-03-10"
+        # args.end = "2020-03-12"
+
+        
     '''
     Genereate essential functions for Bayesian optimization
     '''
@@ -60,7 +68,6 @@ if __name__ == '__main__':
      generate_initial_observations, 
      initialize_model, 
      optimize_acqf_and_get_observation, 
-     case_diff,
      unnormalize_theta,
      header) = make_bayes_opt_functions(args=args)
 
@@ -68,6 +75,7 @@ if __name__ == '__main__':
     logger = CalibrationLogger(
         filename=args.filename, 
         multi_beta_calibration=args.multi_beta_calibration,
+        estimate_mobility_reduction=args.estimate_mobility_reduction,
         verbose=not args.not_verbose)
     logger.log_initial_lines(header)
 
@@ -84,7 +92,15 @@ if __name__ == '__main__':
         # if any initialization remains to be done, evaluate remaining initial points
         train_theta, train_G, train_G_sem, best_observed_obj, best_observed_idx = generate_initial_observations(
             n=args.ninit, logger=logger, loaded_init_theta=loaded_theta, loaded_init_G=loaded_G, loaded_init_G_sem=loaded_G_sem)
-        n_bo_iters_loaded = max(n_loaded - args.ninit, 0)
+        
+        n_init = args.ninit
+        if args.init_explore_corner_settings:
+            if args.estimate_mobility_reduction:
+                n_init += 2 ** 3
+            else:
+                n_init += 2 ** 2
+
+        n_bo_iters_loaded = max(n_loaded - n_init, 0)
 
     # else, if not specified, generate initial training data
     else:
@@ -116,9 +132,8 @@ if __name__ == '__main__':
         )
         
         # optimize acquisition and get new observation via simulation at selected parameters
-        new_theta, new_G, new_G_sem = optimize_acqf_and_get_observation(
-            acq_func=acqf,
-            args=args)
+        new_theta, new_G, new_G_sem, case_diff_last_day = optimize_acqf_and_get_observation(
+            acq_func=acqf, args=args, iter_idx=tt)
             
         # concatenate observations
         train_theta = torch.cat([train_theta, new_theta.unsqueeze(0)], dim=0) 
@@ -144,7 +159,7 @@ if __name__ == '__main__':
             i=tt,
             time=walltime,
             best=best_observed_obj,
-            case_diff=case_diff(new_G),
+            case_diff=case_diff_last_day,
             objective=objective(new_G).item(),
             theta=unnormalize_theta(new_theta.detach().squeeze())
         )
@@ -168,6 +183,8 @@ if __name__ == '__main__':
     # scale back to simulation parameters (from unit cube parameters in BO)
     normalized_calibrated_params = train_theta[best_observed_idx]
     calibrated_params = unnormalize_theta(normalized_calibrated_params)
-    pprint.pprint(parr_to_pdict(parr=calibrated_params, multi_beta_calibration=args.multi_beta_calibration))
+    pprint.pprint(parr_to_pdict(parr=calibrated_params, 
+        multi_beta_calibration=args.multi_beta_calibration, 
+        estimate_mobility_reduction=args.estimate_mobility_reduction))
 
 

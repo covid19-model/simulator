@@ -396,6 +396,9 @@ class DiseaseModel(object):
         else:
             self.beta_household = 0.0
 
+        self.num_household_exposures = 0
+        self.num_site_exposures = 0
+
         # testing settings
         self.testing_frequency  = testing_params['testing_frequency']
         self.test_targets       = testing_params['test_targets']
@@ -409,6 +412,7 @@ class DiseaseModel(object):
         
         # smart tracing settings
         self.smart_tracing_actions             = testing_params['smart_tracing_actions']
+        self.smart_tracing_households_only     = testing_params['smart_tracing_households_only']
         self.smart_tracing_contact_delta       = testing_params['smart_tracing_contact_delta']
 
         self.smart_tracing_policy_isolate      = testing_params['smart_tracing_policy_isolate']
@@ -508,7 +512,9 @@ class DiseaseModel(object):
         self.measure_list.init_run(SocialDistancingSymptomaticAfterSmartTracingHousehold,
                                    n_people=self.n_people)
 
-        self.measure_list.init_run(SocialDistancingForKGroups)
+        self.measure_list.init_run(SocialDistancingForKGroups,
+                                   n_people=self.n_people,
+                                   n_visits=max(self.mob.visit_counts))
 
         # Store the original beta values
         self.betas_weighted_mean = sum([
@@ -691,6 +697,7 @@ class DiseaseModel(object):
                         (not somebody_isolated):
 
                         self.__process_exposure_event(t=t, i=i, parent=infector, contact=None)
+                        self.num_household_exposures += 1
 
                     # if 2), 3), or 4) were true, i.e. infector not recovered,
                     # a household exposure could happen at a later point, hence sample a new event
@@ -751,6 +758,7 @@ class DiseaseModel(object):
                         (not site_avoided_infection):
 
                         self.__process_exposure_event(t=t, i=i, parent=infector, contact=contact)
+                        self.num_site_exposures += 1
 
                     # if any of 2), 3), 4) were true, i.e. infector not recovered,
                     # an exposure could happen at a later point, hence sample a new event 
@@ -1373,7 +1381,7 @@ class DiseaseModel(object):
                 state_nega_ended_at=self.state_ended_at['nega'],
                 j=i) or
             self.measure_list.is_contained(
-                SocialDistancingForKGroups, t=t,
+                SocialDistancingForKGroups, t=t, j_visit_id=visit_id,
                 j=i) or
             self.measure_list.is_contained(
                 UpperBoundCasesSocialDistancing, t=t,
@@ -1505,9 +1513,10 @@ class DiseaseModel(object):
 
         # if the individual is tested positive, process contact tracing when active and intended
         if self.state['posi'][i] and (self.smart_tracing_actions != []) and trigger_tracing_if_positive:
-            self.__update_smart_tracing(t, i)
             self.__update_smart_tracing_housholds(t, i)
-    
+            if not self.smart_tracing_households_only:
+                self.__update_smart_tracing(t, i)
+
     def __update_smart_tracing(self, t, i):
         '''
         Updates smart tracing policy for individual `i` at time `t`.
