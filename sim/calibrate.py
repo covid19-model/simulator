@@ -3,20 +3,7 @@ import argparse
 if '..' not in sys.path:
     sys.path.append('..')
 
-import pandas as pd
-import numpy as np
-import networkx as nx
-import copy
-import scipy as sp
-import math
-import seaborn
-import pickle
-import warnings
-import matplotlib
-import re
-import multiprocessing
 import torch
-
 from botorch import fit_gpytorch_model
 from botorch.exceptions import BadInitialCandidatesWarning
 import botorch.utils.transforms as transforms
@@ -34,7 +21,6 @@ from lib.dynamics import DiseaseModel
 from bayes_opt import BayesianOptimization
 from lib.parallel import *
 from lib.distributions import CovidDistributions
-from lib.plot import Plotter
 from botorch.sampling.samplers import SobolQMCNormalSampler, IIDNormalSampler
 
 
