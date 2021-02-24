@@ -25,8 +25,8 @@ calibration_simulation = {
 
 # parameter bounds
 
-beta_upper_bound_site = 0.02
-beta_upper_bound_household = 0.02
+beta_upper_bound_site = 0.08
+beta_upper_bound_household = 0.08
 
 calibration_model_param_bounds_single = {
     'beta_site': [0.0, beta_upper_bound_site],
