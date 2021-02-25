@@ -26,6 +26,8 @@ def make_calibration_parser():
         help="update default number of cpus used for parallel simulation rollouts")
     parser.add_argument("--load", 
         help="specify path to a BO state to be loaded as initial observations, e.g. 'logs/calibration_0_state.pk'")
+    parser.add_argument("--continued", action="store_true",
+                        help="checks if calibration state exists and continues from there")
 
     parser.add_argument("--model-multi-output-simulator", action="store_true",
                         help="flag to model every day of simulator output individually using an GP")

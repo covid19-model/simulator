@@ -65,11 +65,25 @@ if __name__ == '__main__':
         verbose=not args.not_verbose)
     logger.log_initial_lines(header)
 
+    can_continue = False
+    if args.continued:
+        try:
+            state = load_state('logs/' + args.filename + '_state.pk')
+            can_continue = True
+        except FileNotFoundError:
+            can_continue = False
+
     # if specified, load initial training data
-    if args.load:
+    if args.load or can_continue:
+        if can_continue:
+            filepath = 'logs/' + args.filename + '_state.pk'
+        else:
+            filepath = args.load
+
+        print(f'Continuing calibration from state {filepath}.')
 
         # load initial observations 
-        state = load_state(args.load)
+        state = load_state(filepath)
         loaded_theta = state['train_theta']
         loaded_G = state['train_G']
         loaded_G_sem = state['train_G_sem']
@@ -87,7 +101,6 @@ if __name__ == '__main__':
                 n_init += 2 ** 2
 
         n_bo_iters_loaded = max(n_loaded - n_init, 0)
-
     # else, if not specified, generate initial training data
     else:
         train_theta, train_G, train_G_sem, best_observed_obj, best_observed_idx = generate_initial_observations(
