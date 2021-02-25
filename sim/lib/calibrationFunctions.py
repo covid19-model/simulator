@@ -951,7 +951,7 @@ def make_bayes_opt_functions(args):
                 ymax=(sim_cases.sum(axis=1).max() * 2).item(),
                 lockdown_label='Interventions',
                 small_figure=True,
-                cluster_compatible=True)
+                cluster_compatible=False)
 
 
         # (random_repeats, n_people)
