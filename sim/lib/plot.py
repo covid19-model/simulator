@@ -1328,9 +1328,9 @@ class Plotter(object):
             else:
                 xshift = 2.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
                 text_off = True
-            lockdown_widget(ax, lockdown_at, start_date,
-                            lockdown_label_y,
-                            lockdown_label, xshift=0.0, text_off=text_off)
+            # lockdown_widget(ax, lockdown_at, start_date,
+            #                 lockdown_label_y,
+            #                 lockdown_label, xshift=0.0, text_off=text_off)
         # Default axes style
         self._set_default_axis_settings(ax=ax)
         # y-ticks
