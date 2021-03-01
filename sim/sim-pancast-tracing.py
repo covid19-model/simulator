@@ -1,6 +1,7 @@
 
 import sys, os
 
+from lib.distributions import CovidDistributions
 from lib.settings.beta_dispersion import get_invariant_beta_multiplier
 
 if '..' not in sys.path:
@@ -41,8 +42,7 @@ if __name__ == '__main__':
     condensed_summary = True
 
     # ================ fixed contact tracing parameters ================
-    smart_tracing_threshold = 0.016
-    assert False, 'Set smart_tracing_treshold correctly'
+    min_contact_time = 0.25     # 15 minute threshold
     # ==================================================================
 
     # ============== variable contact tracing parameters ===============
@@ -50,6 +50,7 @@ if __name__ == '__main__':
     beacon_modes = ['visit_freq', 'random']
     manual_tracings = [dict(p_recall=0.1, p_manual_reachability=0.5, delta_manual_tracing=0.0),
                        dict(p_recall=0.1, p_manual_reachability=0.5, delta_manual_tracing=24.0),
+                       dict(p_recall=0.1, p_manual_reachability=0.5, delta_manual_tracing=12.0),
                        dict(p_recall=0.0, p_manual_reachability=0.0, delta_manual_tracing=0.0)]
     sites_with_beacons = [0.02, 0.05, 0.1, 0.25, 1.0]
     combine_p2p_beacon = [False, True]
@@ -92,9 +93,6 @@ if __name__ == '__main__':
         sites_with_beacons = [0.05]
         p_willing_to_share = 1.0
         ps_recall = 1.0
-        beacon_config = dict(
-            mode='all',
-        )
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -116,8 +114,7 @@ if __name__ == '__main__':
                 for p2p_beacon in combine_p2p_beacon:
                     for k, manual_tracing in enumerate(manual_tracings):
                         beacon_config = dict(mode=beacon_mode, proportion_with_beacon=beacon_proportion,
-                                             p2p_beacon=p2p_beacon,
-                                             )
+                                             p2p_beacon=p2p_beacon,)
 
                         # Run different manual tracing settings only for p2p_beacon=False
                         if p2p_beacon and k > 0:

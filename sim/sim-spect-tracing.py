@@ -51,6 +51,7 @@ if __name__ == '__main__':
     ps_adoption = [1.0, 0.5, 0.25, 0.1, 0.05, 0.0]
     manual_tracings = [dict(p_recall=0.1, p_manual_reachability=0.5, delta_manual_tracing=0.0),
                        dict(p_recall=0.1, p_manual_reachability=0.5, delta_manual_tracing=24.0),
+                       dict(p_recall=0.1, p_manual_reachability=0.5, delta_manual_tracing=12.0),
                        dict(p_recall=0.0, p_manual_reachability=0.0, delta_manual_tracing=0.0)]
     # ==================================================================
 
@@ -83,7 +84,7 @@ if __name__ == '__main__':
         full_scale = False
         ps_adoption = [0.0]
         beta_dispersions = [1.0]
-        manual_tracings = [dict(p_recall=0.1, p_manual_reachability=0.5)]
+        manual_tracings = [dict(p_recall=0.1, p_manual_reachability=0.5, delta_manual_tracing=0.0)]
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -131,14 +132,6 @@ if __name__ == '__main__':
                     t_window=Interval(0.0, TO_HOURS * max_days),
                     p_isolate=1.0,
                     smart_tracing_isolation_duration=TO_HOURS * 14.0),
-                ]
-
-            if args.mobility_reduction:
-                m += [
-                    # mobility reduction since the beginning of the pandemic
-                    SocialDistancingBySiteTypeForAllMeasure(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_stay_home_dict=mobility_reduction[country][area]),
                 ]
 
             # set testing params via update function of standard testing parameters
