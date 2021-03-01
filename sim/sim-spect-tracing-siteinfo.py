@@ -44,7 +44,6 @@ if __name__ == '__main__':
     # ================ fixed contact tracing parameters ================
     smart_tracing_threshold = 0.0
     beacon_config = None
-    use_beta_multipliers = True
     area_population = 90546
     # ==================================================================
 
@@ -81,8 +80,7 @@ if __name__ == '__main__':
         end_date = '2021-04-01'
         random_repeats = 2
         full_scale = False
-        ps_adoption = [0.0]
-        manual_tracings = [dict(p_recall=0.1, p_manual_reachability=0.5)]
+        ps_adoption = [0.25]
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -93,30 +91,28 @@ if __name__ == '__main__':
         random_repeats=random_repeats,
         cpu_count=cpu_count,
         full_scale=full_scale,
-        multi_beta_calibration=use_beta_multipliers,
         condensed_summary=condensed_summary,
         continued_run=continued_run,
         verbose=verbose,
     )
 
-    if use_beta_multipliers:
-        print('Using beta multipliers with invariance normalization.')
-        beta_multipliers = {'education': 3.0,
-                            'social': 6.0,
-                            'bus_stop': 1/5.0,
-                            'office': 4.0,
-                            'supermarket': 2.0}
-        beta_multipliers = compute_mean_invariant_beta_multipliers(beta_multipliers=beta_multipliers,
-                                                                   country=country, area=area,
-                                                                   max_time=28 * TO_HOURS,
-                                                                   full_scale=full_scale,
-                                                                   weighting='integrated_contact_time',
-                                                                   mode='rescale_all')
-        betas = {}
-        for key in beta_multipliers.keys():
-            betas[key] = calibrated_params['beta_site'] * beta_multipliers[key]
-        calibrated_params['betas'] = betas
-        del calibrated_params['beta_site']
+    print('Using beta multipliers with invariance normalization.')
+    beta_multipliers = {'education': 3.0,
+                        'social': 6.0,
+                        'bus_stop': 1/5.0,
+                        'office': 4.0,
+                        'supermarket': 2.0}
+    beta_multipliers = compute_mean_invariant_beta_multipliers(beta_multipliers=beta_multipliers,
+                                                               country=country, area=area,
+                                                               max_time=28 * TO_HOURS,
+                                                               full_scale=full_scale,
+                                                               weighting='integrated_contact_time',
+                                                               mode='rescale_all')
+        # betas = {}
+        # for key in beta_multipliers.keys():
+        #     betas[key] = calibrated_params['beta_site'] * beta_multipliers[key]
+        # calibrated_params['betas'] = betas
+        # del calibrated_params['beta_site']
 
     # contact tracing experiment for various options
     for isolation_cap in isolation_caps:
@@ -127,6 +123,9 @@ if __name__ == '__main__':
                 max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
                 m = [
+                    # Beta multipliers
+                    APrioriBetaMultiplierMeasureByType(beta_multiplier=beta_multipliers),
+
                     # Manual contact tracing
                     ManualTracingForAllMeasure(
                         t_window=Interval(0.0, TO_HOURS * max_days),

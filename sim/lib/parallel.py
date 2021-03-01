@@ -13,6 +13,7 @@ import pickle
 import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 from pathos.multiprocessing import ProcessingPool as Pool
+from collections import defaultdict
 
 from lib.dynamics import DiseaseModel
 from lib.priorityqueue import PriorityQueue
@@ -91,20 +92,20 @@ class ParallelSummary(object):
         self.children_count_ipre = np.zeros((repeats, n_people), dtype='int')
         self.children_count_isym = np.zeros((repeats, n_people), dtype='int')
 
-        self.tracing_stats = { thres : { 
+        self.tracing_stats = {thres: defaultdict(lambda: {
             policy : {
-                'isolate': 
-                    {'tp': np.zeros(repeats, dtype='int'), 
-                    'fp': np.zeros(repeats, dtype='int'), 
-                    'tn': np.zeros(repeats, dtype='int'), 
-                    'fn': np.zeros(repeats, dtype='int')},
-                'test': 
+                'isolate':
                     {'tp': np.zeros(repeats, dtype='int'),
-                    'fp': np.zeros(repeats, dtype='int'), 
-                    'tn': np.zeros(repeats, dtype='int'), 
+                    'fp': np.zeros(repeats, dtype='int'),
+                    'tn': np.zeros(repeats, dtype='int'),
                     'fn': np.zeros(repeats, dtype='int')},
-            } 
-            for policy in ['sites', 'no_sites']} 
+                'test':
+                    {'tp': np.zeros(repeats, dtype='int'),
+                    'fp': np.zeros(repeats, dtype='int'),
+                    'tn': np.zeros(repeats, dtype='int'),
+                    'fn': np.zeros(repeats, dtype='int')},
+            }
+            for policy in ['sites', 'no_sites']})
         for thres in thresholds_roc}
 
 
@@ -128,10 +129,11 @@ def create_ParallelSummary_from_DiseaseModel(sim, store_mob=False):
     summary.children_count_isym[0, :] = sim.children_count_isym
 
     for thres in sim.tracing_stats.keys():
-        for policy in ['sites', 'no_sites']:
-            for action in ['isolate', 'test']:
-                for stat in ['tp', 'fp', 'tn', 'fn']:
-                    summary.tracing_stats[thres][policy][action][stat][0] = sim.tracing_stats[thres][policy][action][stat]
+        for sitetype in sim.tracing_stats[thres].keys():
+            for policy in ['sites', 'no_sites']:
+                for action in ['isolate', 'test']:
+                    for stat in ['tp', 'fp', 'tn', 'fn']:
+                        summary.tracing_stats[thres][sitetype][policy][action][stat][0] = sim.tracing_stats[thres][sitetype][policy][action][stat]
 
     return summary
 
@@ -239,11 +241,14 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
         summary.children_count_isym[r, :] = result['children_count_isym']
 
         for thres in result['tracing_stats'].keys():
-            for policy in ['sites', 'no_sites']:
-                for action in ['isolate', 'test']:
-                    for stat in ['tp', 'fp', 'tn', 'fn']:
-                        summary.tracing_stats[thres][policy][action][stat][r] = \
-                            result['tracing_stats'][thres][policy][action][stat]
+            for sitetype in result['tracing_stats'][thres].keys():
+                for policy in ['sites', 'no_sites']:
+                    for action in ['isolate', 'test']:
+                        for stat in ['tp', 'fp', 'tn', 'fn']:
+                            summary.tracing_stats[thres][sitetype][policy][action][stat][r] = \
+                                result['tracing_stats'][thres][sitetype][policy][action][stat]
+            # Transform defaultdict back to dict
+            summary.tracing_stats[thres] = dict(summary.tracing_stats[thres])
 
         num_household_exposures.append(result['num_household_exposures'])
         num_site_exposures.append(result['num_site_exposures'])

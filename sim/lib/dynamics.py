@@ -852,7 +852,21 @@ class DiseaseModel(object):
                 'isolate' : {'tp' : 0, 'fp' : 0, 'tn' : 0, 'fn' : 0},
                 'test' :    {'tp' : 0, 'fp' : 0, 'tn' : 0, 'fn' : 0},
             },
-        } 
+        }
+
+        stats_with_sites = {
+            sitetype: {
+                'sites': {
+                    'isolate': {'tp': 0, 'fp': 0, 'tn': 0, 'fn': 0},
+                    'test':    {'tp': 0, 'fp': 0, 'tn': 0, 'fn': 0},
+                },
+                'no_sites': {
+                    'isolate': {'tp': 0, 'fp': 0, 'tn': 0, 'fn': 0},
+                    'test':    {'tp': 0, 'fp': 0, 'tn': 0, 'fn': 0},
+                },
+            }
+            for sitetype in self.mob.site_dict.values()
+        }
         
         # c[sites/no_sites][isolate/test][False/True][j]
         # i-j contacts due to which j was traced/not traced
@@ -943,11 +957,15 @@ class DiseaseModel(object):
                             and timing - self.smart_tracing_contact_delta <= self.state_started_at['expo'][j] \
                             and (c_expo is not None):
                             stats[policy][action]['tp'] += 1
+                            sitetype = self.mob.site_dict[self.mob.site_type[c_traced.pop().site]]
+                            stats_with_sites[sitetype][policy][action]['tp'] += 1
 
                         # otherwise: `j` either wasn't exposed or exposed but by another contact 
                         # FP
                         else:
                             stats[policy][action]['fp'] += 1
+                            sitetype = self.mob.site_dict[self.mob.site_type[c_traced.pop().site]]
+                            stats_with_sites[sitetype][policy][action]['fp'] += 1
 
                     # each time `j` is not traced after a contact
                     for timing, c_not_traced in c[policy][action][False][j]:
@@ -963,13 +981,24 @@ class DiseaseModel(object):
                             and timing - self.smart_tracing_contact_delta <= self.state_started_at['expo'][j] \
                             and (c_expo is not None):
                             stats[policy][action]['fn'] += 1
+                            sitetype = self.mob.site_dict[self.mob.site_type[c_not_traced.pop().site]]
+                            stats_with_sites[sitetype][policy][action]['fn'] += 1
 
                         # otherwise: `j` either wasn't exposed or not exposed but by another contact
                         # TN
                         else:
                             stats[policy][action]['tn'] += 1
-
-        return stats
+                            sitetype = self.mob.site_dict[self.mob.site_type[c_not_traced.pop().site]]
+                            stats_with_sites[sitetype][policy][action]['tn'] += 1
+        # print('New:')
+        # print(stats)
+        # print()
+        # print(sum([stats_with_sites[sitetype]['sites']['isolate']['tp'] for sitetype in self.mob.site_dict.values()]))
+        # print(sum([stats_with_sites[sitetype]['sites']['isolate']['fp'] for sitetype in self.mob.site_dict.values()]))
+        # print(sum([stats_with_sites[sitetype]['sites']['isolate']['tn'] for sitetype in self.mob.site_dict.values()]))
+        # print(sum([stats_with_sites[sitetype]['sites']['isolate']['fn'] for sitetype in self.mob.site_dict.values()]))
+        stats_with_sites['stats'] = stats
+        return stats_with_sites
 
         
 
@@ -1856,7 +1885,8 @@ class DiseaseModel(object):
             return False, None
 
         # if all of the above checks passed, then contact is valid
-        return True, digital_tracable
+        digital_reachable = digital_tracable or manual_beacon_tracable
+        return True, digital_reachable
 
     def __compute_empirical_survival_probability(self, *, t, i, j, contacts_i_j, base_rate=1.0, ignore_sites=False):
         """ Compute empirical survival probability of individual j due to node i at time t"""

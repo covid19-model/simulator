@@ -1,5 +1,8 @@
 
 import sys
+
+from lib.mobilitysim import compute_mean_invariant_beta_multipliers
+
 if '..' not in sys.path:
     sys.path.append('..')
 
@@ -41,7 +44,7 @@ if __name__ == '__main__':
     p_manual_reachability = 0.5
     smart_tracing_threshold = 0.016
     p_adoption = 1.0
-    beta_dispersions = [30.0, 20.0, 15.0, 10.0, 5.0, 2.0, 1.0]
+    beta_dispersions = [20.0, 10.0, 2.0, 1.0, 'custom']
     mean_invariant_beta_scaling = True
     thresholds_roc = np.linspace(-0.01, 1.01, num=103, endpoint=True)
     beacon_config = dict(mode='all')
@@ -64,10 +67,11 @@ if __name__ == '__main__':
 
     # for debugging purposes
     if args.smoke_test:
-        end_date = '2021-01-10'
+        end_date = '2021-02-01'
         smart_tracing_stats_window = (0 * TO_HOURS, 1000 * TO_HOURS)
         random_repeats = 1
         full_scale = False
+        beta_dispersions = ['custom']
         beacon_configs = [dict(
             mode='all',
         )]
@@ -89,10 +93,22 @@ if __name__ == '__main__':
 
     # contact tracing experiment for various options
     for beta_dispersion in beta_dispersions:
-
-        beta_multipliers = get_invariant_beta_multiplier(beta_dispersion, country, area,
-                                                         use_invariant_rescaling=mean_invariant_beta_scaling,
-                                                         verbose=True)
+        if beta_dispersion == 'custom':
+            beta_multipliers = {'education': 3.0,
+                                'social': 6.0,
+                                'bus_stop': 1 / 5.0,
+                                'office': 4.0,
+                                'supermarket': 2.0}
+            beta_multipliers = compute_mean_invariant_beta_multipliers(beta_multipliers=beta_multipliers,
+                                                                       country=country, area=area,
+                                                                       max_time=28 * TO_HOURS,
+                                                                       full_scale=full_scale,
+                                                                       weighting='integrated_contact_time',
+                                                                       mode='rescale_all')
+        else:
+            beta_multipliers = get_invariant_beta_multiplier(beta_dispersion, country, area,
+                                                             use_invariant_rescaling=mean_invariant_beta_scaling,
+                                                             verbose=True)
 
         # measures
         max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
@@ -124,14 +140,6 @@ if __name__ == '__main__':
                 t_window=Interval(0.0, TO_HOURS * max_days),
                 p_isolate=1.0,
                 smart_tracing_isolation_duration=TO_HOURS * 14.0),
-            ]
-
-        if args.mobility_reduction:
-            m += [
-                # mobility reduction since the beginning of the pandemic
-                SocialDistancingBySiteTypeForAllMeasure(
-                    t_window=Interval(0.0, TO_HOURS * max_days),
-                    p_stay_home_dict=mobility_reduction[country][area]),
             ]
 
         # set testing params via update function of standard testing parameters

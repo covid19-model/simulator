@@ -1848,7 +1848,7 @@ class Plotter(object):
         return
 
     def plot_roc_curve(self, titles, summaries=None, paths=None, action='isolate', figformat='double',
-                       p_adoption=None, p_recall=None, p_manual_reachability=None, p_beacon=None,
+                       p_adoption=None, p_recall=None, p_manual_reachability=None, p_beacon=None, sitetype=None,
                        filename='roc_example', figsize=None, use_medical_labels=False, verbose=True):
         ''''
         ROC curve
@@ -1874,6 +1874,9 @@ class Plotter(object):
                     print('exposed:', np.sum(summary.state_started_at['expo'] < np.inf, axis=1).mean())
                     tracing_stats = summary.tracing_stats
                 thresholds = list(tracing_stats.keys())
+
+                if sitetype is None:
+                    tracing_stats = tracing_stats['stats']
 
                 policies = dict()
                 p_tracings = []

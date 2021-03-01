@@ -51,7 +51,7 @@ if __name__ == '__main__':
     beacon_modes = ['visit_freq']
     area_population = 90546
     isolation_caps = [0.005, 0.01, 0.02, 0.05, 0.1]
-    manual_tracings = [dict(p_recall=0.0, p_manual_reachability=0.0)]
+    manual_tracings = [dict(p_recall=0.0, p_manual_reachability=0.0, delta_manual_tracing=0.0)]
     sites_with_beacons = [0.02, 0.05, 0.1, 0.25, 1.0]
     # ==================================================================
 
@@ -105,7 +105,6 @@ if __name__ == '__main__':
         random_repeats=random_repeats,
         cpu_count=cpu_count,
         full_scale=full_scale,
-        multi_beta_calibration=True,
         condensed_summary=condensed_summary,
         continued_run=continued_run,
         verbose=verbose,
@@ -123,11 +122,11 @@ if __name__ == '__main__':
                                                                full_scale=full_scale,
                                                                weighting='integrated_contact_time',
                                                                mode='rescale_all')
-    betas = {}
-    for key in beta_multipliers.keys():
-        betas[key] = calibrated_params['beta_site'] * beta_multipliers[key]
-    calibrated_params['betas'] = betas
-    del calibrated_params['beta_site']
+    # betas = {}
+    # for key in beta_multipliers.keys():
+    #     betas[key] = calibrated_params['beta_site'] * beta_multipliers[key]
+    # calibrated_params['betas'] = betas
+    # del calibrated_params['beta_site']
 
 
     for beacon_proportion in sites_with_beacons:
@@ -141,6 +140,9 @@ if __name__ == '__main__':
                         # measures
                         max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
                         m = [
+                            # Beta multipliers
+                            APrioriBetaMultiplierMeasureByType(beta_multiplier=beta_multipliers),
+
                             # Manual contact tracing
                             ManualTracingForAllMeasure(
                                 t_window=Interval(0.0, TO_HOURS * max_days),
