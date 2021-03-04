@@ -1,6 +1,7 @@
 
 import sys
 
+from lib.distributions import CovidDistributions
 from lib.mobilitysim import compute_mean_invariant_beta_multipliers
 
 if '..' not in sys.path:
@@ -42,11 +43,13 @@ if __name__ == '__main__':
     # contact tracing experiment parameters
     p_recall = 0.1
     p_manual_reachability = 0.5
-    smart_tracing_threshold = 0.016
+    min_contact_time = 0.25     # hours
     p_adoption = 1.0
-    beta_dispersions = [20.0, 10.0, 2.0, 1.0, 'custom']
+    # beta_dispersions = [20.0, 10.0, 2.0, 1.0, 'custom']
+    beta_dispersions = [10.0]
     mean_invariant_beta_scaling = True
-    thresholds_roc = np.linspace(-0.01, 1.01, num=103, endpoint=True)
+    # thresholds_roc = np.linspace(-0.01, 1.01, num=103, endpoint=True)
+    thresholds_roc = np.linspace(-0.01, 0.41, num=103, endpoint=True)
     beacon_config = dict(mode='all')
 
     if args.p_adoption is not None:
@@ -65,13 +68,17 @@ if __name__ == '__main__':
                                               multi_beta_calibration=False,
                                               maxiters=None)
 
+    distr = CovidDistributions(country=country)
+    smart_tracing_threshold = (min_contact_time * calibrated_params['beta_site']
+                               * (1 - np.exp(distr.gamma * (- distr.delta))))
+
     # for debugging purposes
     if args.smoke_test:
         end_date = '2021-02-01'
         smart_tracing_stats_window = (0 * TO_HOURS, 1000 * TO_HOURS)
         random_repeats = 1
         full_scale = False
-        beta_dispersions = ['custom']
+        beta_dispersions = [10.0]
         beacon_configs = [dict(
             mode='all',
         )]

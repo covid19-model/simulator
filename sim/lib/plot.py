@@ -1847,7 +1847,7 @@ class Plotter(object):
             plt.close()
         return
 
-    def plot_roc_curve(self, titles, summaries=None, paths=None, action='isolate', figformat='double',
+    def plot_roc_curve(self, summaries=None, paths=None, action='isolate', figformat='double',
                        p_adoption=None, p_recall=None, p_manual_reachability=None, p_beacon=None, sitetype=None,
                        filename='roc_example', figsize=None, use_medical_labels=False, verbose=True):
         ''''
@@ -1868,7 +1868,7 @@ class Plotter(object):
         for plt_index, p_adoption in enumerate(ps_adoption):
             for i, path in enumerate(paths):
                 summary = load_condensed_summary(path)
-                if paths: # If condensed summary
+                if paths:   # If condensed summary
                     tracing_stats = summary['tracing_stats']
                 else:
                     print('exposed:', np.sum(summary.state_started_at['expo'] < np.inf, axis=1).mean())
@@ -1876,7 +1876,15 @@ class Plotter(object):
                 thresholds = list(tracing_stats.keys())
 
                 if sitetype is None:
-                    tracing_stats = tracing_stats['stats']
+                    tracing_stats_new = dict()
+                    for thres in tracing_stats.keys():
+                        tracing_stats_new[thres] = tracing_stats[thres]['stats']
+                    tracing_stats = tracing_stats_new
+                else:
+                    tracing_stats_new = dict()
+                    for thres in tracing_stats.keys():
+                        tracing_stats_new[thres] = tracing_stats[thres][sitetype]
+                    tracing_stats = tracing_stats_new
 
                 policies = dict()
                 p_tracings = []

@@ -49,6 +49,7 @@ if __name__ == '__main__':
     # ============== variable contact tracing parameters ===============
     ps_adoption = [1.0, 0.5, 0.25, 0.1, 0.05]
     beacon_modes = ['visit_freq']
+    beta_dispersion = 10.0
     area_population = 90546
     isolation_caps = [0.005, 0.01, 0.02, 0.05, 0.1]
     manual_tracings = [dict(p_recall=0.0, p_manual_reachability=0.0, delta_manual_tracing=0.0),
@@ -112,23 +113,22 @@ if __name__ == '__main__':
     )
 
     print('Using beta multipliers with invariance normalization.')
-    beta_multipliers = {'education': 3.0,
-                        'social': 6.0,
-                        'bus_stop': 1/5.0,
-                        'office': 4.0,
-                        'supermarket': 2.0}
-    beta_multipliers = compute_mean_invariant_beta_multipliers(beta_multipliers=beta_multipliers,
-                                                               country=country, area=area,
-                                                               max_time=28 * TO_HOURS,
-                                                               full_scale=full_scale,
-                                                               weighting='integrated_contact_time',
-                                                               mode='rescale_all')
-    # betas = {}
-    # for key in beta_multipliers.keys():
-    #     betas[key] = calibrated_params['beta_site'] * beta_multipliers[key]
-    # calibrated_params['betas'] = betas
-    # del calibrated_params['beta_site']
-
+    if beta_dispersion == 'custom':
+        beta_multipliers = {'education': 3.0,
+                            'social': 6.0,
+                            'bus_stop': 1 / 5.0,
+                            'office': 4.0,
+                            'supermarket': 2.0}
+        beta_multipliers = compute_mean_invariant_beta_multipliers(beta_multipliers=beta_multipliers,
+                                                                   country=country, area=area,
+                                                                   max_time=28 * TO_HOURS,
+                                                                   full_scale=full_scale,
+                                                                   weighting='integrated_contact_time',
+                                                                   mode='rescale_all')
+    else:
+        beta_multipliers = get_invariant_beta_multiplier(beta_dispersion, country, area,
+                                                         use_invariant_rescaling=True,
+                                                         verbose=True)
 
     for beacon_proportion in sites_with_beacons:
         for beacon_mode in beacon_modes:
@@ -200,6 +200,7 @@ if __name__ == '__main__':
                             p_recall=manual_tracing['p_recall'],
                             p_manual_reachability=manual_tracing['p_manual_reachability'],
                             delta_manual_tracing=manual_tracing['delta_manual_tracing'],
+                            beta_dispersion=beta_dispersion,
                             isolation_cap=isolation_cap
                         )
 
