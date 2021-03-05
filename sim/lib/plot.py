@@ -390,7 +390,7 @@ class Plotter(object):
         self.size_site = 300
 
     def _set_matplotlib_params(self, format='dobule'):
-        matplotlib.backend_bases.register_backend('pdf', FigureCanvasPgf)
+        # matplotlib.backend_bases.register_backend('pdf', FigureCanvasPgf)
         if format == 'double':
             plt.rcParams.update(SIGCONF_RCPARAMS_DOUBLE)
         elif format == 'triple':
