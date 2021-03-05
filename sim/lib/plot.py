@@ -1921,7 +1921,7 @@ class Plotter(object):
                                                                             p_beacon=p_beac)
                                 p_tracings.append(p_tracing)
                             elif name == 'SPECT':
-                                p_tracing = get_tracing_probability('SPECTs',
+                                p_tracing = get_tracing_probability('SPECTS',
                                                                           p_adoption=p_adoption,
                                                                           p_manual_reachability=p_manual_reachability,
                                                                           p_recall=p_recall,
