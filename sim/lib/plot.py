@@ -877,7 +877,7 @@ class Plotter(object):
             plt.close()
         return
 
-    def compare_quantity(self, sims, titles, quantity='infected', mode='total', ymax=None,
+    def compare_quantity(self, sims, titles, quantity='infected', mode='total', ymax=None, colors=None,
                          start_date='1970-01-01', xtick_interval=3, x_axis_dates=False,
                          figformat='double', filename='compare_epidemics', figsize=None,
                          lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
@@ -920,10 +920,13 @@ class Plotter(object):
             else:
                 ts = data['ts'] if not x_axis_dates else days_to_datetime(data['ts'], start_date=start_date)
 
+            if colors is None:
+                colors = self.color_different_scenarios[i]
+
             # lines
-            ax.plot(ts, line_cases, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
+            ax.plot(ts, line_cases, linestyle='-', label=titles[i], c=colors[i])
             ax.fill_between(ts, np.maximum(line_cases - 2 * error_cases, 0), line_cases + 2 * error_cases,
-                            color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
+                            color=colors[i], alpha=self.filling_alpha, linewidth=0.0)
 
         # axis
         ax.set_xlim(left=np.min(ts))
