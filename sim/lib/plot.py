@@ -2192,7 +2192,7 @@ class Plotter(object):
             plt.close()
         return
     
-    def relative_quantity_heatmap(self, mode, xlabel, ylabel, paths, path_labels, baseline_path, figformat='double',
+    def relative_quantity_heatmap(self, mode, xlabel, ylabel, paths, path_labels, baseline_path, zmax=None, figformat='double',
                      filename='reff_heatmap_0', figsize=None, acc=500, interpolate='linear', # or `cubic`
                      width_ratio=4, cmap='jet'):
         ''''
@@ -2241,7 +2241,10 @@ class Plotter(object):
             zval_means_all.append(zval_means)
 
         # define min and max for both plots
-        zmin, zmax_color, zmax_colorbar = 0, 90, 90
+        if zmax:
+            zmin, zmax_color, zmax_colorbar = 0, zmax, zmax
+        else:
+            zmin, zmax_color, zmax_colorbar = 0, 90, 90
         stepsize = 5
         norm = colors.Normalize(vmin=zmin, vmax=zmax_color)
         levels = np.arange(zmin, zmax_colorbar + stepsize, stepsize)
