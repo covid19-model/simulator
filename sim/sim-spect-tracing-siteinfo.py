@@ -51,10 +51,13 @@ if __name__ == '__main__':
     beta_dispersion = 10.0
     ps_adoption = [1.0, 0.5, 0.25, 0.1, 0.05, 0.0]
     isolation_caps = [0.005, 0.01, 0.02, 0.05, 0.1]
+    beta_normalization = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 10.0]
     manual_tracings = [dict(p_recall=0.0, p_manual_reachability=0.0, delta_manual_tracing=0.0),
                        dict(p_recall=0.1, p_manual_reachability=0.5, delta_manual_tracing=0.0),]
     # ==================================================================
 
+    if args.beta_normalization is not None:
+        beta_normalization = [args.beta_normalization]
 
     if args.p_adoption is not None:
         ps_adoption = [args.p_adoption]
@@ -117,84 +120,89 @@ if __name__ == '__main__':
                                                          verbose=True)
 
     # contact tracing experiment for various options
-    for isolation_cap in isolation_caps:
-        for p_adoption in ps_adoption:
-            for k, manual_tracing in enumerate(manual_tracings):
+    for normalization in beta_normalization:
+        for isolation_cap in isolation_caps:
+            for p_adoption in ps_adoption:
+                for k, manual_tracing in enumerate(manual_tracings):
 
-                # measures
-                max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
+                    beta_multipliers_scaled = {}
+                    for key in beta_multipliers.keys():
+                        beta_multipliers_scaled[key] = beta_multipliers[key]/normalization
+                    # measures
+                    max_days = (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days
 
-                m = [
-                    # Beta multipliers
-                    APrioriBetaMultiplierMeasureByType(beta_multiplier=beta_multipliers),
+                    m = [
+                        # Beta multipliers
+                        APrioriBetaMultiplierMeasureByType(beta_multiplier=beta_multipliers_scaled),
 
-                    # Manual contact tracing
-                    ManualTracingForAllMeasure(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_participate=1.0,
-                        p_recall=manual_tracing['p_recall']),
-                    ManualTracingReachabilityForAllMeasure(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_reachable=manual_tracing['p_manual_reachability']),
+                        # Manual contact tracing
+                        ManualTracingForAllMeasure(
+                            t_window=Interval(0.0, TO_HOURS * max_days),
+                            p_participate=1.0,
+                            p_recall=manual_tracing['p_recall']),
+                        ManualTracingReachabilityForAllMeasure(
+                            t_window=Interval(0.0, TO_HOURS * max_days),
+                            p_reachable=manual_tracing['p_manual_reachability']),
 
-                    # standard tracing measures
-                    ComplianceForAllMeasure(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_compliance=p_adoption),
-                    SocialDistancingForSmartTracing(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_stay_home=1.0,
-                        smart_tracing_isolation_duration=TO_HOURS * 14.0),
-                    SocialDistancingForSmartTracingHousehold(
-                        t_window=Interval(0.0, TO_HOURS * max_days),
-                        p_isolate=1.0,
-                        smart_tracing_isolation_duration=TO_HOURS * 14.0),
-                    ]
+                        # standard tracing measures
+                        ComplianceForAllMeasure(
+                            t_window=Interval(0.0, TO_HOURS * max_days),
+                            p_compliance=p_adoption),
+                        SocialDistancingForSmartTracing(
+                            t_window=Interval(0.0, TO_HOURS * max_days),
+                            p_stay_home=1.0,
+                            smart_tracing_isolation_duration=TO_HOURS * 14.0),
+                        SocialDistancingForSmartTracingHousehold(
+                            t_window=Interval(0.0, TO_HOURS * max_days),
+                            p_isolate=1.0,
+                            smart_tracing_isolation_duration=TO_HOURS * 14.0),
+                        ]
 
-                # set testing params via update function of standard testing parameters
-                def test_update(d):
-                    d['smart_tracing_actions'] = ['isolate', 'test']
-                    d['test_reporting_lag'] = 48.0
-                    d['tests_per_batch'] = int(isolation_cap / 14 * area_population)
-                    d['test_queue_policy'] = 'exposure-risk'
+                    # set testing params via update function of standard testing parameters
+                    def test_update(d):
+                        d['smart_tracing_actions'] = ['isolate', 'test']
+                        d['test_reporting_lag'] = 48.0
+                        d['tests_per_batch'] = int(isolation_cap / 14 * area_population)
+                        d['test_queue_policy'] = 'exposure-risk'
 
-                    # isolation
-                    d['smart_tracing_policy_isolate'] = 'advanced-global-budget'
-                    d['smart_tracing_isolation_threshold'] = smart_tracing_threshold
-                    d['smart_tracing_isolated_contacts'] = int(isolation_cap / 14 * area_population)
-                    d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
+                        # isolation
+                        d['smart_tracing_policy_isolate'] = 'advanced-global-budget'
+                        d['smart_tracing_isolation_threshold'] = smart_tracing_threshold
+                        d['smart_tracing_isolated_contacts'] = int(isolation_cap / 14 * area_population)
+                        d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
 
-                    # testing
-                    d['smart_tracing_policy_test'] = 'advanced'
-                    d['smart_tracing_testing_threshold'] = smart_tracing_threshold
-                    d['smart_tracing_tested_contacts'] = 100000
-                    d['trigger_tracing_after_posi_trace_test'] = False
+                        # testing
+                        d['smart_tracing_policy_test'] = 'advanced'
+                        d['smart_tracing_testing_threshold'] = smart_tracing_threshold
+                        d['smart_tracing_tested_contacts'] = 100000
+                        d['trigger_tracing_after_posi_trace_test'] = False
 
-                    # Tracing compliance
-                    d['p_willing_to_share'] = 1.0
-                    return d
+                        # Tracing compliance
+                        d['p_willing_to_share'] = 1.0
+                        return d
 
-                simulation_info = options_to_str(
-                    p_adoption=p_adoption,
-                    p_recall=manual_tracing['p_recall'],
-                    p_manual_reachability=manual_tracing['p_manual_reachability'],
-                    delta_manual_tracing=manual_tracing['delta_manual_tracing'],
-                    beta_dispersion=beta_dispersion,
-                    isolation_cap=isolation_cap
-                )
+                    simulation_info = options_to_str(
+                        p_adoption=p_adoption,
+                        p_recall=manual_tracing['p_recall'],
+                        p_manual_reachability=manual_tracing['p_manual_reachability'],
+                        delta_manual_tracing=manual_tracing['delta_manual_tracing'],
+                        beta_dispersion=beta_dispersion,
+                        isolation_cap=isolation_cap,
+                        normalization=normalization,
+                    )
 
-                experiment.add(
-                    simulation_info=simulation_info,
-                    country=country,
-                    area=area,
-                    measure_list=m,
-                    beacon_config=None,
-                    test_update=test_update,
-                    seed_summary_path=seed_summary_path,
-                    set_initial_seeds_to=set_initial_seeds_to,
-                    set_calibrated_params_to=calibrated_params,
-                    full_scale=full_scale,
-                    expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
+                    experiment.add(
+                        simulation_info=simulation_info,
+                        country=country,
+                        area=area,
+                        measure_list=m,
+                        beacon_config=None,
+                        test_update=test_update,
+                        seed_summary_path=seed_summary_path,
+                        set_initial_seeds_to=set_initial_seeds_to,
+                        set_calibrated_params_to=calibrated_params,
+                        full_scale=full_scale,
+                        expected_daily_base_expo_per100k=expected_daily_base_expo_per100k)
 
         print(f'{experiment_info} configuration done.')
 

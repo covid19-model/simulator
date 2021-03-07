@@ -529,6 +529,9 @@ class DiseaseModel(object):
             for k in range(self.num_site_types):
                 self.betas[self.site_dict[k]] *= apriori_beta.beta_factor(typ=self.site_dict[k])
 
+        print('PanCast betas: ', self.betas)
+        print('SPECTS betas: ', self.betas_weighted_mean)
+
         # init state variables with seeds
         self.__init_run()
         self.was_initial_seed = np.zeros(self.n_people, dtype='bool')

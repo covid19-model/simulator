@@ -117,6 +117,8 @@ def process_command_line(return_parser=False):
                         help="set smart tracing threshold")
     parser.add_argument("--isolation_cap", type=float,
                         help="set maximum of newly isolated people per day")
+    parser.add_argument("--beta_normalization", type=float,
+                        help="")
 
     parser.add_argument("--calibration_state", type=str,
                         help="specify path of calibration state")
