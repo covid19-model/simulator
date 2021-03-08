@@ -69,6 +69,7 @@ calibration_testing_params = {
     'smart_tracing_policy_test': None,  # one of None, `basic`, `advanced`, `advanced-threshold`
     'smart_tracing_tested_contacts': 0,
     'smart_tracing_testing_threshold': 1.0,
+    'smart_tracing_testing_global_budget_per_day': 0.0,
     'trigger_tracing_after_posi_trace_test' : True,
 
     # beacons and manual tracing

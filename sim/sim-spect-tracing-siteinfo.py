@@ -42,7 +42,6 @@ if __name__ == '__main__':
     condensed_summary = True
 
     # ================ fixed contact tracing parameters ================
-    smart_tracing_threshold = 0.0
     beacon_config = None
     area_population = 90546
     # ==================================================================
@@ -86,6 +85,8 @@ if __name__ == '__main__':
         random_repeats = 2
         full_scale = False
         ps_adoption = [0.25]
+        beta_normalization = [1.0]
+        isolation_caps = [0.005]
 
     # create experiment object
     experiment_info = f'{name}-{country}-{area}'
@@ -159,26 +160,23 @@ if __name__ == '__main__':
                         ]
 
                     # set testing params via update function of standard testing parameters
+                    # All individuals with symptoms or household members of positive individuals get tested
+                    # indepent of the testing budget, budget is only applied to traced people outside the households
                     def test_update(d):
                         d['smart_tracing_actions'] = ['isolate', 'test']
                         d['test_reporting_lag'] = 48.0
-                        d['tests_per_batch'] = int(isolation_cap / 14 * area_population)
+                        d['tests_per_batch'] = 100000
                         d['test_queue_policy'] = 'exposure-risk'
 
                         # isolation
                         d['smart_tracing_policy_isolate'] = 'advanced-global-budget'
-                        d['smart_tracing_isolation_threshold'] = smart_tracing_threshold
                         d['smart_tracing_isolated_contacts'] = int(isolation_cap / 14 * area_population)
                         d['smart_tracing_isolation_duration'] = 14 * TO_HOURS,
 
                         # testing
-                        d['smart_tracing_policy_test'] = 'advanced'
-                        d['smart_tracing_testing_threshold'] = smart_tracing_threshold
-                        d['smart_tracing_tested_contacts'] = 100000
+                        d['smart_tracing_policy_test'] = 'advanced-global-budget'
+                        d['smart_tracing_testing_global_budget_per_day'] = int(isolation_cap / 14 * area_population)
                         d['trigger_tracing_after_posi_trace_test'] = False
-
-                        # Tracing compliance
-                        d['p_willing_to_share'] = 1.0
                         return d
 
                     simulation_info = options_to_str(

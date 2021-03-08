@@ -91,6 +91,7 @@ class DiseaseModel(object):
         self.queue = PriorityQueue()
         self.testing_queue = PriorityQueue()
         self.isolation_queue = PriorityQueue()
+        self.budget_testing_queue = PriorityQueue()
 
         '''
         State and queue codes (transition event into this state)
@@ -423,6 +424,7 @@ class DiseaseModel(object):
         self.smart_tracing_policy_test         = testing_params['smart_tracing_policy_test']
         self.smart_tracing_tested_contacts     = testing_params['smart_tracing_tested_contacts']
         self.smart_tracing_testing_threshold   = testing_params['smart_tracing_testing_threshold']
+        self.smart_tracing_testing_global_budget_per_day = testing_params['smart_tracing_testing_global_budget_per_day']
         self.trigger_tracing_after_posi_trace_test = testing_params['trigger_tracing_after_posi_trace_test']
 
         self.smart_tracing_stats_window = testing_params.get(
@@ -589,6 +591,8 @@ class DiseaseModel(object):
                 self.__update_testing_queue(t)
                 if self.smart_tracing_policy_isolate == 'advanced-global-budget':
                     self.__process_isolation_queue(t)
+                if self.smart_tracing_policy_test == 'advanced-global-budget':
+                    self.__update_budget_testing_queue(t)
                 continue
 
             # check termination
@@ -1422,11 +1426,15 @@ class DiseaseModel(object):
         return is_home
 
 
-    def __apply_for_testing(self, *, t, i, priority, trigger_tracing_if_positive):
+    def __apply_for_testing(self, *, t, i, priority, trigger_tracing_if_positive, budget_tracing=False):
         """
         Checks whether person i of should be tested and if so adds test to the testing queue
         """
         if t < self.testing_t_window[0] or t > self.testing_t_window[1]:
+            return
+
+        if budget_tracing:
+            self.budget_testing_queue.push((i, t, trigger_tracing_if_positive), priority=priority)
             return
 
         # fifo: first in, first out
@@ -1498,8 +1506,46 @@ class DiseaseModel(object):
                      TestResult(is_positive_test=is_positive_test,
                                 trigger_tracing_if_positive=trigger_tracing_if_positive)),
                     priority=t + self.test_reporting_lag)
+
+    def __update_budget_testing_queue(self, t):
+        """
+        Processes testing queue by popping the first `self.tests_per_batch` tests
+        and adds `test` event (i.e. result) to event queue for person i with time lag `self.test_reporting_lag`
+        """
+
+        ctr = 0
+        while (ctr < self.smart_tracing_testing_global_budget_per_day) and (len(self.budget_testing_queue) > 0):
+
+            # get next individual to be tested
+            i, time, trigger_tracing_if_positive = self.budget_testing_queue.pop()
+            # If person should have been isolated more than 14 days ago, skip them
+            if time < t - 14 * TO_HOURS:
+                continue
+
+            ctr += 1
+
+            # determine test result preemptively, to account for the individual's state at the time of testing
+            if self.state['expo'][i] or self.state['ipre'][i] or self.state['isym'][i] or self.state['iasy'][i]:
+                is_fn = np.random.binomial(1, self.test_fnr)
+                if is_fn:
+                    is_positive_test = False
+                else:
+                    is_positive_test = True
+            else:
+                is_fp = np.random.binomial(1, self.test_fpr)
+                if is_fp:
+                    is_positive_test = True
+                else:
+                    is_positive_test = False
+
+            # push test result with delay to the event queue
+            if t + self.test_reporting_lag < self.max_time:
+                self.queue.push(
+                    (t + self.test_reporting_lag, 'test', i, None, None,
+                     TestResult(is_positive_test=is_positive_test,
+                                trigger_tracing_if_positive=trigger_tracing_if_positive)),
+                    priority=t + self.test_reporting_lag)
                 
-            
 
     def __process_testing_event(self, t, i, metadata):
         """
@@ -1652,10 +1698,16 @@ class DiseaseModel(object):
                     emp_survival_prob=emp_survival_prob, 
                     budget=self.smart_tracing_tested_contacts)
 
+            elif self.smart_tracing_policy_test == 'advanced-global-budget':
+                contacts_testing, _ = self.__tracing_policy_advanced(
+                    t=t, contacts_with_j=valid_contacts_with_j,
+                    emp_survival_prob=emp_survival_prob,
+                    budget=1000000)
+
             elif self.smart_tracing_policy_test == 'advanced-threshold':
                 contacts_testing, _ = self.__tracing_policy_advanced_threshold(
                     t=t, contacts_with_j=valid_contacts_with_j,
-                    threshold=self.smart_tracing_testing_threshold,
+                    threshold=-0.1,
                     emp_survival_prob=emp_survival_prob)
             else:
                 raise ValueError('Invalid tracing test policy.')
@@ -1690,6 +1742,9 @@ class DiseaseModel(object):
                     or self.smart_tracing_policy_test == 'advanced-threshold':
                     self.__apply_for_testing(t=t+delta, i=j, priority=emp_survival_prob[j],
                         trigger_tracing_if_positive=self.trigger_tracing_after_posi_trace_test)
+                elif self.smart_tracing_policy_test == 'advanced-global-budget':
+                    self.__apply_for_testing(t=t+delta, i=j, priority=emp_survival_prob[j],
+                        trigger_tracing_if_positive=self.trigger_tracing_after_posi_trace_test, budget_tracing=True)
                 else:
                     raise ValueError('Invalid smart tracing policy.')
 
@@ -1702,13 +1757,13 @@ class DiseaseModel(object):
 
             # contact tracing action
             if 'isolate' in self.smart_tracing_actions:
-                if not self.smart_tracing_policy_isolate == 'advanced-global-budged':
-                    self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=j)
-                    self.measure_list.start_containment(SocialDistancingForSmartTracingHousehold, t=t, j=j)
-                    self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracing, t=t, j=j)
-                    self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracingHousehold, t=t, j=j)
-                else:
-                    self.isolation_queue.push((i, t), priority=0.0)
+                # if not self.smart_tracing_policy_isolate == 'advanced-global-budged':
+                self.measure_list.start_containment(SocialDistancingForSmartTracing, t=t, j=j)
+                self.measure_list.start_containment(SocialDistancingForSmartTracingHousehold, t=t, j=j)
+                self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracing, t=t, j=j)
+                self.measure_list.start_containment(SocialDistancingSymptomaticAfterSmartTracingHousehold, t=t, j=j)
+                # else:
+                #     self.isolation_queue.push((i, t), priority=0.0)
 
             if 'test' in self.smart_tracing_actions:
                 # don't test positive people twice
