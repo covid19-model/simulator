@@ -1990,7 +1990,7 @@ class Plotter(object):
                                           'prec': precision_of_means}
 
                         if name == 'SPECT':
-                            name += 's'
+                            name += 'S'
 
                         # lines
                         if p_adoption is not None:
