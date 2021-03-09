@@ -2462,7 +2462,7 @@ class Plotter(object):
         return
 
     def compare_peak_reduction(self, path_list, baseline_path=None, ps_adoption=None, titles=None,
-                               mode='cumu_infected', show_reduction=True, log_xscale=True, ylim=None,
+                               mode='cumu_infected', show_reduction=True, log_xscale=True, log_yscale=False, ylim=None,
                                area_population=None, colors=None,
                                figformat='double', filename='cumulative_reduction', figsize=None,
                                show_legend=True, legend_is_left=False, subplot_adjust=None):
@@ -2533,6 +2533,8 @@ class Plotter(object):
 
         if log_xscale:
             ax.set_xscale('log')
+        if log_yscale:
+            ax.set_yscale('log')
 
         ax.set_xlim(left=np.min(ps_adoption), right=104)
         ax.set_ylim(ymax=ylim[1], ymin=ylim[0])
