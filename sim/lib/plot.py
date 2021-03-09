@@ -2535,7 +2535,7 @@ class Plotter(object):
             ax.set_xscale('log')
         if log_yscale:
             ax.set_yscale('log')
-            ax.set_xticks(ps_adoption)
+            ax.set_yticks(ps_adoption)
 
         ax.set_xlim(left=np.min(ps_adoption), right=104)
         ax.set_ylim(ymax=ylim[1], ymin=ylim[0])
