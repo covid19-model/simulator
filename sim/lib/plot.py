@@ -16,6 +16,8 @@ import matplotlib.dates as mdates
 from matplotlib.dates import date2num
 from matplotlib.backends.backend_pgf import FigureCanvasPgf
 from matplotlib.colors import ListedColormap
+from matplotlib.transforms import ScaledTranslation
+from matplotlib.ticker import FormatStrFormatter
 
 from scipy.interpolate import griddata
 import matplotlib.colors as colors
@@ -1693,7 +1695,8 @@ class Plotter(object):
 
         plt.subplots_adjust(**subplots_adjust)
         # Save plot
-        fpath = f"plots/daily-nbinom-rts-{filename}.pdf"
+        # fpath = f"plots/daily-nbinom-rts-{filename}.pdf"
+        fpath = f'plots/{filename}.pdf'
         plt.savefig(fpath, format='pdf')
         print("Save:", fpath)
         if NO_PLOT:
@@ -2078,10 +2081,12 @@ class Plotter(object):
 
             if use_medical_labels:
                 axs[plt_index].set_xlabel('1-Specificity')
-                axs[plt_index].set_ylabel('Sensitivity')
+                # axs[plt_index].set_ylabel('Sensitivity')
+                axs[0].set_ylabel('Sensitivity')
             else:
                 axs[plt_index].set_xlabel('FPR')
-                axs[plt_index].set_ylabel('TPR')
+                # axs[plt_index].set_ylabel('TPR')
+                axs[0].set_ylabel('TPR')
 
             # axs[1].set_xlabel('Recall')
             # axs[1].set_ylabel('Precision')
@@ -2089,13 +2094,18 @@ class Plotter(object):
             # Set default axes style
             # self._set_default_axis_settings(ax=ax)
             axs[plt_index].set_aspect('equal', 'box')
-
+            axs[plt_index].yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
             if p_adoption:
                 axs[plt_index].set_title(f'{int(p_adoption*100)}\% adoption')
 
-            leg = axs[plt_index].legend(loc='lower right')
+            #leg = axs[plt_index].legend(loc='lower right')
         # leg = axs[1].legend(loc='top right')
 
+        if p_adoption is not None:
+            # axs[0].legend(loc='lower left', bbox_to_anchor=(-1.5, 0.18),
+            #           borderaxespad=0, frameon=True)
+            axs[-1].legend(loc='lower left', bbox_to_anchor=(1.1, 0.18),
+                          borderaxespad=0, frameon=True)
         # subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         # plt.subplots_adjust(**subplot_adjust)
 
@@ -2535,12 +2545,139 @@ class Plotter(object):
             ax.set_xscale('log')
         if log_yscale:
             ax.set_yscale('log')
-            ax.set_yticks(ps_adoption)
+            ax.set_yticks([ylim[0]]+list(ps_adoption))
+            ax.get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
 
         ax.set_xlim(left=np.min(ps_adoption), right=104)
         ax.set_ylim(ymax=ylim[1], ymin=ylim[0])
         ax.set_xticks(ps_adoption)
         ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+
+        ax.set_ylabel(ylabel)
+        ax.set_xlabel('\% adoption')
+
+        if show_legend:
+            # legend
+            if legend_is_left:
+                leg = ax.legend(loc='upper left',
+                                bbox_to_anchor=(0.001, 0.999),
+                                bbox_transform=ax.transAxes,
+                                )
+            else:
+                leg = ax.legend(loc='upper right',
+                                bbox_to_anchor=(0.999, 0.999),
+                                bbox_transform=ax.transAxes,
+                                )
+
+        subplot_adjust = subplot_adjust or {'bottom': 0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
+        plt.subplots_adjust(**subplot_adjust)
+
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+                    dpi=DPI, bbox_inches='tight')
+
+        if NO_PLOT:
+            plt.close()
+        return
+
+    def compare_peak_reduction(self, path_list, baseline_path=None, ps_adoption=None, titles=None,
+                               mode='cumu_infected', show_reduction=True, log_xscale=True, log_yscale=False, ylim=None,
+                               area_population=None, colors=None, show_baseline=False,
+                               figformat='double', filename='cumulative_reduction', figsize=None,
+                               show_legend=True, legend_is_left=False, subplot_adjust=None, box_plot=False):
+
+        show_reduction = show_reduction and (baseline_path is not None)
+
+        if ylim is None:
+            ylim = (0, 100)
+
+        if mode == 'cumu_infected':
+            key = 'cumu_infected_'
+            ylabel = r'\% reduction of infections' if show_reduction else 'Cumulative infected'
+        elif mode == 'hosp':
+            key = 'hosp_'
+            ylabel = r'\% reduction of peak hosp.' if show_reduction else 'Peak hospitalizations'
+        elif mode == 'dead':
+            key = 'cumu_dead_'
+            ylabel = r'\% reduction of fatalities' if show_reduction else 'Fatalities'
+        elif mode == 'r_eff':
+            ylabel = r'\% reduction of $R_{\textrm{eff}}$' if show_reduction else r'$R_{\textrm{eff}}$'
+            assert area_population is not None, 'Requires argument area_population for R_eff plots'
+
+        # Set double figure format
+        self._set_matplotlib_params(format=figformat)
+        # Draw figure
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+
+        ps_adoption = np.asarray(ps_adoption) * 100
+
+        # colors = self.color_different_scenarios
+        if colors is None:
+            colors = ['#377eb8', '#bd0026', '#f03b20', '#fd8d3c', '#fecc5c', '#ffffb2']
+            #colors = [ '#bd0026', '#f03b20', '#fd8d3c', '#fecc5c', '#377eb8',]
+        zorders = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+
+        baseline_data = load_condensed_summary(baseline_path)
+        if mode == 'r_eff':
+            baseline_mu, baseline_std = get_rt(baseline_data, p_infected=0.2, area_population=area_population,
+                                               average_up_to_p_infected=True)
+            bars = ax.errorbar(['0'], [baseline_mu], yerr=[baseline_std], label=titles[-1],
+                               c='#31a354', marker="o", linestyle="none")
+
+        for i, paths in enumerate(path_list):
+            rel_mean = []
+            rel_std = []
+
+            if mode == 'r_eff':
+                for path in paths:
+                    data = load_condensed_summary(path)
+                    rt, rt_std = get_rt(data, p_infected=0.2, area_population=area_population,
+                                        average_up_to_p_infected=True)
+                    rel_mean.append(rt)
+                    rel_std.append(rt_std)
+            else:
+                baseline_mu = np.max(baseline_data[key + 'mu'])
+
+                for path in paths:
+                    data = load_condensed_summary(path)
+                    maxidx = np.argmax(data[key + 'mu'])
+                    rel_mean.append(data[key + 'mu'][maxidx])
+                    rel_std.append(data[key + 'sig'][maxidx])
+
+            if show_reduction:
+                rel_mean = (1 - np.asarray(rel_mean) / baseline_mu) * 100
+                rel_std = np.asarray(rel_std) / baseline_mu * 100
+
+            if not box_plot:
+                bars = ax.errorbar(ps_adoption, rel_mean, yerr=rel_std, label=titles[i],
+                               c=colors[i], linestyle='-', elinewidth=0.8, capsize=3.0, zorder=zorders[i])
+            else:
+                ps_adoption_string = [str(int(element)) for element  in ps_adoption]
+                offset = (len(path_list))/2 * 0.11
+                trans = ax.transData + ScaledTranslation(-offset + (i+1/2)/len(path_list) * 2 * offset, 0, fig.dpi_scale_trans)
+                bars = ax.errorbar(ps_adoption_string, rel_mean, yerr=rel_std, label=titles[i],
+                                   c=colors[i], marker="o", linestyle="none", transform=trans)
+
+        if log_yscale:
+            ax.set_yscale('log')
+            ax.set_yticks([ylim[0]]+list(ps_adoption))
+            ax.get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+
+        if mode == 'r_eff':
+            ax.set_yticks([1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0])
+
+        ax.set_ylim(ymax=ylim[1], ymin=ylim[0])
+
+        if not box_plot:
+            if log_xscale:
+                ax.set_xscale('log')
+            ax.set_xlim(left=np.min(ps_adoption), right=104)
+            ax.set_ylim(ymax=ylim[1], ymin=ylim[0])
+            ax.set_xticks(ps_adoption)
+            ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+        else:
+            ax.margins(x=0.15)
 
         ax.set_ylabel(ylabel)
         ax.set_xlabel('\% adoption')
