@@ -33,7 +33,7 @@ if __name__ == '__main__':
     name = 'spect-tracing-siteinfo'
     start_date = '2021-01-01'
     end_date = '2021-07-01'
-    random_repeats = 100
+    random_repeats = 300
     full_scale = True
     verbose = True
     seed_summary_path = None
