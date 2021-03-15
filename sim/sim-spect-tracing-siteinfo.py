@@ -30,10 +30,15 @@ if __name__ == '__main__':
     cpu_count = args.cpu_count
     continued_run = args.continued
 
-    name = 'spect-tracing-siteinfo'
+    if args.append_name:
+        appendix = f'-{args.append_name}'
+    else:
+        appendix = ''
+
+    name = 'spect-tracing-siteinfo' + appendix
     start_date = '2021-01-01'
     end_date = '2021-07-01'
-    random_repeats = 300
+    random_repeats = 100
     full_scale = True
     verbose = True
     seed_summary_path = None
@@ -73,10 +78,10 @@ if __name__ == '__main__':
         calibrated_params = get_calibrated_params_from_path(args.calibration_state)
         print('Loaded non-standard calibration state.')
 
-    # seed
-    c = 0
-    np.random.seed(c)
-    rd.seed(c)
+    # # seed
+    # c = 0
+    # np.random.seed(c)
+    # rd.seed(c)
 
     # for debugging purposes
     if args.smoke_test:

@@ -30,10 +30,15 @@ if __name__ == '__main__':
     cpu_count = args.cpu_count
     continued_run = args.continued
 
-    name = 'pancast-tracing-siteinfo'
+    if args.append_name:
+        appendix = f'-{args.append_name}'
+    else:
+        appendix = ''
+
+    name = 'pancast-tracing-siteinfo' + appendix
     start_date = '2021-01-01'
     end_date = '2021-07-01'
-    random_repeats = 300
+    random_repeats = 100
     full_scale = True
     verbose = True
     seed_summary_path = None
@@ -75,10 +80,10 @@ if __name__ == '__main__':
         isolation_caps = [args.isolation_cap]
 
 
-    # seed
-    c = 0
-    np.random.seed(c)
-    rd.seed(c)
+    # # seed
+    # c = 0
+    # np.random.seed(c)
+    # rd.seed(c)
 
     if not args.calibration_state:
         calibrated_params = get_calibrated_params(country=country, area=area)
