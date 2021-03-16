@@ -2474,7 +2474,7 @@ class Plotter(object):
 
     def compare_peak_reduction(self, path_list, baseline_path=None, ps_adoption=None, titles=None,
                                mode='cumu_infected', show_reduction=True, log_xscale=True, log_yscale=False, ylim=None,
-                               area_population=None, colors=None, show_baseline=False,
+                               area_population=None, colors=None, show_baseline=False, combine_summaries=False,
                                figformat='double', filename='cumulative_reduction', figsize=None,
                                show_legend=True, legend_is_left=False, subplot_adjust=None, box_plot=False):
 
@@ -2533,14 +2533,28 @@ class Plotter(object):
                 baseline_mu = np.max(baseline_data[key + 'mu'])
 
                 for path in paths:
-                    data = load_condensed_summary(path)
-                    maxidx = np.argmax(data[key + 'mu'])
-                    rel_mean.append(data[key + 'mu'][maxidx])
-                    rel_std.append(data[key + 'sig'][maxidx])
+                    if isinstance(path, list):
+                        assert combine_summaries, 'Combine summaries must be true if multiple samples of the same experiment are being used.'
+                        mus = []
+                        stds = []
+                        for pat in paths:
+                            data = load_condensed_summary(pat)
+                            maxidx = np.argmax(data[key + 'mu'])
+                            mus.append(data[key + 'mu'][maxidx])
+                            stds.append(data[key + 'sig'][maxidx])
+                        mu = np.mean(mus)
+                        std = np.sqrt(np.mean(np.square(np.asarray(stds))))
+                        rel_mean.append(mu)
+                        rel_std.append(std)
+                    else:
+                        data = load_condensed_summary(path)
+                        maxidx = np.argmax(data[key + 'mu'])
+                        rel_mean.append(data[key + 'mu'][maxidx])
+                        rel_std.append(data[key + 'sig'][maxidx])
 
             if show_reduction:
                 rel_mean = (1 - np.asarray(rel_mean) / baseline_mu) * 100
-                rel_std = np.asarray(rel_std) / baseline_mu * 100 / np.sqrt(100)
+                rel_std = np.asarray(rel_std) / baseline_mu * 100
 
             if not box_plot:
                 bars = ax.errorbar(ps_adoption, rel_mean, yerr=rel_std, label=titles[i],
