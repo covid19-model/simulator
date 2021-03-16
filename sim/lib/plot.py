@@ -2474,7 +2474,7 @@ class Plotter(object):
 
     def compare_peak_reduction(self, path_list, baseline_path=None, ps_adoption=None, titles=None,
                                mode='cumu_infected', show_reduction=True, log_xscale=True, log_yscale=False, ylim=None,
-                               area_population=None, colors=None, show_baseline=False, combine_summaries=False,
+                               area_population=None, colors=None, show_baseline=True, combine_summaries=False,
                                figformat='double', filename='cumulative_reduction', figsize=None,
                                show_legend=True, legend_is_left=False, subplot_adjust=None, box_plot=False):
 
@@ -2511,12 +2511,15 @@ class Plotter(object):
             #colors = [ '#bd0026', '#f03b20', '#fd8d3c', '#fecc5c', '#377eb8',]
         zorders = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
 
-        baseline_data = load_condensed_summary(baseline_path)
         if mode == 'r_eff':
+            baseline_data = load_condensed_summary(baseline_path)
             baseline_mu, baseline_std = get_rt(baseline_data, p_infected=0.1, area_population=area_population,
                                                average_up_to_p_infected=True)
-            bars = ax.errorbar(['0'], [baseline_mu], yerr=[baseline_std], label=titles[-1],
-                               c='#31a354', marker="o", linestyle="none")
+            if show_baseline:
+                bars = ax.errorbar(['0'], [baseline_mu], yerr=[baseline_std], label=titles[-1],
+                                   c='#31a354', marker="o", linestyle="none")
+        else:
+            baseline_mu, baseline_sig = get_peak_mu_and_std(path=baseline_path, key=key, combine_summaries=combine_summaries)
 
         for i, paths in enumerate(path_list):
             rel_mean = []
@@ -2530,27 +2533,10 @@ class Plotter(object):
                     rel_mean.append(rt)
                     rel_std.append(rt_std)
             else:
-                baseline_mu = np.max(baseline_data[key + 'mu'])
-
                 for path in paths:
-                    if isinstance(path, list):
-                        assert combine_summaries, 'Combine summaries must be true if multiple samples of the same experiment are being used.'
-                        mus = []
-                        stds = []
-                        for pat in paths:
-                            data = load_condensed_summary(pat)
-                            maxidx = np.argmax(data[key + 'mu'])
-                            mus.append(data[key + 'mu'][maxidx])
-                            stds.append(data[key + 'sig'][maxidx])
-                        mu = np.mean(mus)
-                        std = np.sqrt(np.mean(np.square(np.asarray(stds))))
-                        rel_mean.append(mu)
-                        rel_std.append(std)
-                    else:
-                        data = load_condensed_summary(path)
-                        maxidx = np.argmax(data[key + 'mu'])
-                        rel_mean.append(data[key + 'mu'][maxidx])
-                        rel_std.append(data[key + 'sig'][maxidx])
+                    mu, sig = get_peak_mu_and_std(path=path, key=key, combine_summaries=combine_summaries)
+                    rel_mean.append(mu)
+                    rel_std.append(sig)
 
             if show_reduction:
                 rel_mean = (1 - np.asarray(rel_mean) / baseline_mu) * 100
@@ -2719,5 +2705,31 @@ class Plotter(object):
         plt.savefig(f'plots/bo-result-{country}-{area}.png', format='png', facecolor=None, dpi=200)
 
         plt.show()
+
+
+def combine_multiple_summaries(paths, key):
+    assert isinstance(paths, list)
+    mus = []
+    stds = []
+    for path in paths:
+        data = load_condensed_summary(path)
+        maxidx = np.argmax(data[key + 'mu'])
+        mus.append(data[key + 'mu'][maxidx])
+        stds.append(data[key + 'sig'][maxidx])
+    mu = np.mean(mus)
+    std = np.sqrt(np.mean(np.square(np.asarray(stds))))
+    return mu, std
+
+
+def get_peak_mu_and_std(path, key, combine_summaries=False):
+    if isinstance(path, list):
+        assert combine_summaries
+        mu, sig = combine_multiple_summaries(paths=path, key=key)
+    else:
+        data = load_condensed_summary(path)
+        maxidx = np.argmax(data[key + 'mu'])
+        mu = data[key + 'mu'][maxidx]
+        sig = data[key + 'sig'][maxidx]
+    return mu, sig
 
 
