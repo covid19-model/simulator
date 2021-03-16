@@ -1,4 +1,3 @@
-import copy
 import os
 import itertools
 import collections
@@ -2097,8 +2096,8 @@ class Plotter(object):
             axs[plt_index].yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
             if p_adoption:
                 axs[plt_index].set_title(f'{int(p_adoption*100)}\% adoption')
-
-            #leg = axs[plt_index].legend(loc='lower right')
+            # else:
+            #     leg = axs[plt_index].legend(loc='lower right')
         # leg = axs[1].legend(loc='top right')
 
         if p_adoption is not None:
@@ -2106,6 +2105,8 @@ class Plotter(object):
             #           borderaxespad=0, frameon=True)
             axs[-1].legend(loc='lower left', bbox_to_anchor=(1.1, 0.18),
                           borderaxespad=0, frameon=True)
+        else:
+            leg = axs[0].legend(loc='lower right')
         # subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         # plt.subplots_adjust(**subplot_adjust)
 
@@ -2473,114 +2474,6 @@ class Plotter(object):
 
     def compare_peak_reduction(self, path_list, baseline_path=None, ps_adoption=None, titles=None,
                                mode='cumu_infected', show_reduction=True, log_xscale=True, log_yscale=False, ylim=None,
-                               area_population=None, colors=None,
-                               figformat='double', filename='cumulative_reduction', figsize=None,
-                               show_legend=True, legend_is_left=False, subplot_adjust=None):
-
-        show_reduction = show_reduction and (baseline_path is not None)
-
-        if ylim is None:
-            ylim = (0, 100)
-
-        if mode == 'cumu_infected':
-            key = 'cumu_infected_'
-            ylabel = r'\% reduction of infections' if show_reduction else 'Cumulative infected'
-        elif mode == 'hosp':
-            key = 'hosp_'
-            ylabel = r'\% reduction of peak hosp.' if show_reduction else 'Peak hospitalizations'
-        elif mode == 'dead':
-            key = 'cumu_dead_'
-            ylabel = r'\% reduction of fatalities' if show_reduction else 'Fatalities'
-        elif mode == 'r_eff':
-            ylabel = r'\% reduction of $R_{\textrm{eff}}$' if show_reduction else r'$R_{\textrm{eff}}$'
-            assert area_population is not None, 'Requires argument area_population for R_eff plots'
-
-        # Set double figure format
-        self._set_matplotlib_params(format=figformat)
-        # Draw figure
-        fig, ax = plt.subplots(1, 1, figsize=figsize)
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-
-        ps_adoption = np.asarray(ps_adoption) * 100
-
-        # colors = self.color_different_scenarios
-        if colors is None:
-            colors = ['#377eb8', '#bd0026', '#f03b20', '#fd8d3c', '#fecc5c', '#ffffb2']
-            #colors = [ '#bd0026', '#f03b20', '#fd8d3c', '#fecc5c', '#377eb8',]
-        zorders = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
-
-        baseline_data = load_condensed_summary(baseline_path)
-
-        for i, paths in enumerate(path_list):
-            rel_mean = []
-            rel_std = []
-
-            if mode == 'r_eff':
-                baseline_mu, baseline_std = get_rt(baseline_data, p_infected=0.2, area_population=area_population,
-                                        average_up_to_p_infected=True)
-                for path in paths:
-                    data = load_condensed_summary(path)
-                    rt, rt_std = get_rt(data, p_infected=0.2, area_population=area_population,
-                                        average_up_to_p_infected=True)
-                    rel_mean.append(rt)
-                    rel_std.append(rt_std)
-            else:
-                baseline_mu = np.max(baseline_data[key + 'mu'])
-
-                for path in paths:
-                    data = load_condensed_summary(path)
-                    maxidx = np.argmax(data[key + 'mu'])
-                    rel_mean.append(data[key + 'mu'][maxidx])
-                    rel_std.append(data[key + 'sig'][maxidx])
-
-            if show_reduction:
-                rel_mean = (1 - np.asarray(rel_mean) / baseline_mu) * 100
-                rel_std = np.asarray(rel_std) / baseline_mu * 100
-
-            bars = ax.errorbar(ps_adoption, rel_mean, yerr=rel_std, label=titles[i],
-                               c=colors[i], linestyle='-', elinewidth=0.8, capsize=3.0, zorder=zorders[i])
-
-        if log_xscale:
-            ax.set_xscale('log')
-        if log_yscale:
-            ax.set_yscale('log')
-            ax.set_yticks([ylim[0]]+list(ps_adoption))
-            ax.get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
-
-        ax.set_xlim(left=np.min(ps_adoption), right=104)
-        ax.set_ylim(ymax=ylim[1], ymin=ylim[0])
-        ax.set_xticks(ps_adoption)
-        ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
-
-        ax.set_ylabel(ylabel)
-        ax.set_xlabel('\% adoption')
-
-        if show_legend:
-            # legend
-            if legend_is_left:
-                leg = ax.legend(loc='upper left',
-                                bbox_to_anchor=(0.001, 0.999),
-                                bbox_transform=ax.transAxes,
-                                )
-            else:
-                leg = ax.legend(loc='upper right',
-                                bbox_to_anchor=(0.999, 0.999),
-                                bbox_transform=ax.transAxes,
-                                )
-
-        subplot_adjust = subplot_adjust or {'bottom': 0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
-        plt.subplots_adjust(**subplot_adjust)
-
-        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
-                    dpi=DPI, bbox_inches='tight')
-
-        if NO_PLOT:
-            plt.close()
-        return
-
-    def compare_peak_reduction(self, path_list, baseline_path=None, ps_adoption=None, titles=None,
-                               mode='cumu_infected', show_reduction=True, log_xscale=True, log_yscale=False, ylim=None,
                                area_population=None, colors=None, show_baseline=False,
                                figformat='double', filename='cumulative_reduction', figsize=None,
                                show_legend=True, legend_is_left=False, subplot_adjust=None, box_plot=False):
@@ -2620,7 +2513,7 @@ class Plotter(object):
 
         baseline_data = load_condensed_summary(baseline_path)
         if mode == 'r_eff':
-            baseline_mu, baseline_std = get_rt(baseline_data, p_infected=0.2, area_population=area_population,
+            baseline_mu, baseline_std = get_rt(baseline_data, p_infected=0.1, area_population=area_population,
                                                average_up_to_p_infected=True)
             bars = ax.errorbar(['0'], [baseline_mu], yerr=[baseline_std], label=titles[-1],
                                c='#31a354', marker="o", linestyle="none")
@@ -2632,7 +2525,7 @@ class Plotter(object):
             if mode == 'r_eff':
                 for path in paths:
                     data = load_condensed_summary(path)
-                    rt, rt_std = get_rt(data, p_infected=0.2, area_population=area_population,
+                    rt, rt_std = get_rt(data, p_infected=0.1, area_population=area_population,
                                         average_up_to_p_infected=True)
                     rel_mean.append(rt)
                     rel_std.append(rt_std)
@@ -2647,7 +2540,7 @@ class Plotter(object):
 
             if show_reduction:
                 rel_mean = (1 - np.asarray(rel_mean) / baseline_mu) * 100
-                rel_std = np.asarray(rel_std) / baseline_mu * 100
+                rel_std = np.asarray(rel_std) / baseline_mu * 100 / np.sqrt(100)
 
             if not box_plot:
                 bars = ax.errorbar(ps_adoption, rel_mean, yerr=rel_std, label=titles[i],
@@ -2692,6 +2585,11 @@ class Plotter(object):
             else:
                 leg = ax.legend(loc='upper right',
                                 bbox_to_anchor=(0.999, 0.999),
+                                bbox_transform=ax.transAxes,
+                                )
+            if legend_is_left == 'outside':
+                leg = ax.legend(loc='lower left',
+                                bbox_to_anchor=(0.001,0.001),
                                 bbox_transform=ax.transAxes,
                                 )
 

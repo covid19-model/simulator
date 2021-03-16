@@ -439,11 +439,12 @@ def get_rt(data, p_infected, area_population, average_up_to_p_infected=False):
     time = data['ts'][closest_element]
     index = np.argmin(np.abs(np.asarray(data['nbinom_rts'].t1) / 24.0 - time))
     rts = data['nbinom_rts'].groupby('t1').agg({'Rt': ['mean', 'std']})
-
     if average_up_to_p_infected:
-        start_index = 0
-        rt = np.mean(list(rts.Rt['mean'])[start_index:index])
-        rt_std = np.mean(list(rts.Rt['std'])[start_index:index])
+        start_index = 25
+        rt_list = list(rts.Rt['mean'])[start_index:index]
+        rt = np.mean(rt_list)
+        rt_stds = np.asarray(list(rts.Rt['std'])[start_index:index])
+        rt_std = np.sqrt(np.mean(np.square(rt_stds)) + np.mean(np.square(rt_list)) - np.square(np.mean(rt_list)))
     else:
         rt = list(rts.Rt['mean'])[index]
         rt_std = list(rts.Rt['std'])[index]
