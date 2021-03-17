@@ -19,6 +19,7 @@ from matplotlib.transforms import ScaledTranslation
 from matplotlib.ticker import FormatStrFormatter
 
 from scipy.interpolate import griddata
+import scipy.stats
 import matplotlib.colors as colors
 
 from lib.calibrationFunctions import downsample_cases, pdict_to_parr, load_state
@@ -878,7 +879,7 @@ class Plotter(object):
             plt.close()
         return
 
-    def compare_quantity(self, sims, titles, quantity='infected', mode='total', ymax=None, colors=None,
+    def compare_quantity(self, sims, labels, titles=None, quantity='infected', mode='total', ymax=None, colors=None,
                          start_date='1970-01-01', xtick_interval=3, x_axis_dates=False,
                          figformat='double', filename='compare_epidemics', figsize=None,
                          lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
@@ -889,7 +890,13 @@ class Plotter(object):
         averaged over random restarts, using error bars for std-dev
         '''
 
-        assert isinstance(sims[0], str), '`sims` must be list of filepaths'
+        #assert isinstance(sims[0], str), '`sims` must be list of filepaths'
+        if isinstance(sims[0], str):
+            sims = [sims]
+            titles = [titles]
+            multiplot = False
+        else:
+            multiplot = True
         assert mode in ['total', 'daily', 'cumulative', 'weekly incidence']
         assert quantity in ['infected', 'hosp', 'dead']
 
@@ -908,71 +915,80 @@ class Plotter(object):
         # Set double figure format
         self._set_matplotlib_params(format=figformat)
         # Draw figure
-        fig, ax = plt.subplots(1, 1, figsize=figsize)
+        fig, axs = plt.subplots(len(sims), 1, figsize=figsize)
+        if not multiplot:
+            axs = [axs]
+        for j, (paths, ax) in enumerate(zip(sims, axs)):
+            for i, sim in enumerate(paths):
+                data = load_condensed_summary_compat(sim)
+                line_cases, error_cases = get_plot_data(data, quantity=quantity, mode=mode)
 
-        for i, sim in enumerate(sims):
-            data = load_condensed_summary_compat(sim)
-            line_cases, error_cases = get_plot_data(data, quantity=quantity, mode=mode)
+                if mode in ['daily', 'weekly incidence']:
+                    ts = np.arange(0, len(line_cases))
+                    if mode == 'daily':
+                        error_cases = np.zeros(len(line_cases))
+                else:
+                    ts = data['ts'] if not x_axis_dates else days_to_datetime(data['ts'], start_date=start_date)
 
-            if mode in ['daily', 'weekly incidence']:
-                ts = np.arange(0, len(line_cases))
-                if mode == 'daily':
-                    error_cases = np.zeros(len(line_cases))
+                if colors is None:
+                    colors = self.color_different_scenarios[i]
+
+                # lines
+                ax.plot(ts, line_cases, linestyle='-', label=labels[i], c=colors[i])
+                ax.fill_between(ts, np.maximum(line_cases - 2 * error_cases, 0), line_cases + 2 * error_cases,
+                                color=colors[i], alpha=self.filling_alpha, linewidth=0.0)
+
+            # axis
+            ax.set_xlim(left=np.min(ts))
+            if ymax is None:
+                ymax = 1.5 * np.max(line_cases)
+            ax.set_ylim((0, ymax))
+            if titles:
+                ax.set_title(titles[j])
+
+            if x_axis_dates:
+                # set xticks every week
+                ax.xaxis.set_minor_locator(mdates.WeekdayLocator(byweekday=1, interval=1))
+                ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=1, interval=xtick_interval))
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+                fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
             else:
-                ts = data['ts'] if not x_axis_dates else days_to_datetime(data['ts'], start_date=start_date)
+                ax.set_xlabel(r'$t$ [days]')
 
-            if colors is None:
-                colors = self.color_different_scenarios[i]
+            ylabel = labeldict[mode][quantity]
+            ax.set_ylabel(ylabel)
 
-            # lines
-            ax.plot(ts, line_cases, linestyle='-', label=titles[i], c=colors[i])
-            ax.fill_between(ts, np.maximum(line_cases - 2 * error_cases, 0), line_cases + 2 * error_cases,
-                            color=colors[i], alpha=self.filling_alpha, linewidth=0.0)
+            if lockdown_at is not None:
+                lockdown_widget(ax, lockdown_at, start_date,
+                                lockdown_label_y,
+                                lockdown_label,
+                                xshift=lockdown_xshift)
 
-        # axis
-        ax.set_xlim(left=np.min(ts))
-        if ymax is None:
-            ymax = 1.5 * np.max(line_cases)
-        ax.set_ylim((0, ymax))
+            # Set default axes style
+            self._set_default_axis_settings(ax=ax)
 
-        if x_axis_dates:
-            # set xticks every week
-            ax.xaxis.set_minor_locator(mdates.WeekdayLocator(byweekday=1, interval=1))
-            ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=1, interval=xtick_interval))
-            ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
-            fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
-        else:
-            ax.set_xlabel(r'$t$ [days]')
-
-        ylabel = labeldict[mode][quantity]
-        ax.set_ylabel(ylabel)
-
-        if lockdown_at is not None:
-            lockdown_widget(ax, lockdown_at, start_date,
-                            lockdown_label_y,
-                            lockdown_label,
-                            xshift=lockdown_xshift)
-
-        # Set default axes style
-        self._set_default_axis_settings(ax=ax)
-
-        if show_legend:
-            # legend
-            if legend_is_left:
-                leg = ax.legend(loc='upper left',
-                          bbox_to_anchor=(0.001, 0.999),
-                          bbox_transform=ax.transAxes,
-                        #   prop={'size': 5.6}
-                          )
-            else:
-                leg = ax.legend(loc='upper right',
-                          bbox_to_anchor=(0.999, 0.999),
-                          bbox_transform=ax.transAxes,
-                        #   prop={'size': 5.6}
-                          )
+            if show_legend:
+                # legend
+                if legend_is_left:
+                    leg = ax.legend(loc='upper left',
+                              bbox_to_anchor=(0.001, 0.999),
+                              bbox_transform=ax.transAxes,
+                            #   prop={'size': 5.6}
+                              )
+                else:
+                    leg = ax.legend(loc='upper right',
+                              bbox_to_anchor=(0.999, 0.999),
+                              bbox_transform=ax.transAxes,
+                            #   prop={'size': 5.6}
+                              )
+                # if titles:
+                #     axs[0].legend(loc='lower left', bbox_to_anchor=(1.1, 0.18),
+                #                 borderaxespad=0, frameon=True)
 
         subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         plt.subplots_adjust(**subplot_adjust)
+        if multiplot:
+            plt.tight_layout()
 
         plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
                     dpi=DPI, bbox_inches='tight')
@@ -1695,6 +1711,83 @@ class Plotter(object):
         plt.subplots_adjust(**subplots_adjust)
         # Save plot
         # fpath = f"plots/daily-nbinom-rts-{filename}.pdf"
+        fpath = f'plots/{filename}.pdf'
+        plt.savefig(fpath, format='pdf')
+        print("Save:", fpath)
+        if NO_PLOT:
+            plt.close()
+
+    def plot_daily_nbinom_rts_panel(self, paths, titles, filename='daily_nbinom_rts',
+                              figsize=None, figformat='double', ymax=None, label=None, small_figure=False,
+                              cmap_range=(0.5, 1.5),
+                              subplots_adjust={'bottom': 0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96},
+                              lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
+                              x_axis_dates=False, xtick_interval=2, xlim=None, show_legend=True, legend_is_left=False):
+        # Set this plot with double figures parameters
+        self._set_matplotlib_params(format=figformat)
+        fig, axs = plt.subplots(2, 2, figsize=figsize)
+
+        for i, (path, ax) in enumerate(zip(paths, axs.flat)):
+            assert isinstance(path, str), '`path` must be a string.'
+            data = load_condensed_summary(path)
+            metadata = data['metadata']
+            df = data['nbinom_rts']
+
+            # Format dates
+            if x_axis_dates:
+                # Cast time of end of interval to datetime
+                df['date_end'] = days_to_datetime(
+                    df['t1'] / 24, start_date=metadata.start_date)
+                # Aggregate results by date
+                df_agg = df.groupby('date_end').agg({'Rt': ['mean', 'std'],
+                                                     'kt': ['mean', 'std']})
+            else:
+                df['time'] = df['t1'] / 24
+                df_agg = df.groupby('time').agg({'Rt': ['mean', 'std'],
+                                                 'kt': ['mean', 'std']})
+            # Build dot colormap: black to white to red
+            ABOVE = [1, 0, 0]
+            MIDDLE = [1, 1, 1]
+            BELOW = [0, 0, 0]
+            cmap_raw = ListedColormap(np.r_[
+                                          np.linspace(BELOW, MIDDLE, 25),
+                                          np.linspace(MIDDLE, ABOVE, 25)
+                                      ])
+
+            def cmap_clipped(y):
+                vmin, vmax = cmap_range
+                return cmap_raw((np.clip(y, vmin, vmax) - vmin) / (vmax - vmin))
+
+            # Plot figure
+            y_m = df_agg.Rt['mean']
+            y_std = df_agg.Rt['std']
+            # Plot estimated mean values (fill +/- std) with colored dots
+            ax.fill_between(df_agg.index, y_m - y_std, y_m + y_std,
+                             color='lightgray', linewidth=0.0, alpha=0.5)
+            ax.plot(df_agg.index, y_m, c='grey')
+            ax.scatter(df_agg.index, y_m, s=4.0, lw=0.0, c=cmap_clipped(y_m),
+                        edgecolors='k', zorder=100, label=label)
+            # Horizotal line at R_t = 1.0
+            ax.axhline(1.0, c='lightgray', zorder=-100)
+            # extra
+            ax.xaxis.set_major_locator(ticker.MultipleLocator(60))
+            ax.set_xlabel(r'$t$ [days]')
+            # set yticks to units
+            ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+            # Set labels
+            ax.set_ylabel(r'$R_t$')
+            ax.set_title(titles[i])
+            # Set limits
+            ax.set_ylim(bottom=0.0, top=ymax)
+            if xlim:
+                ax.set_xlim(*xlim)
+            # Set default axes style
+            self._set_default_axis_settings(ax=ax)
+
+        # plt.subplots_adjust(**subplots_adjust)
+        # Save plot
+        # fpath = f"plots/daily-nbinom-rts-{filename}.pdf"
+        plt.tight_layout()
         fpath = f'plots/{filename}.pdf'
         plt.savefig(fpath, format='pdf')
         print("Save:", fpath)
@@ -2472,9 +2565,10 @@ class Plotter(object):
             plt.close()
         return
 
-    def compare_peak_reduction(self, path_list, baseline_path=None, ps_adoption=None, titles=None,
+    def compare_peak_reduction(self, path_list, baseline_path=None, ps_adoption=None, labels=None, title=None,
                                mode='cumu_infected', show_reduction=True, log_xscale=True, log_yscale=False, ylim=None,
                                area_population=None, colors=None, show_baseline=True, combine_summaries=False,
+                               show_significance=None, sig_options=None,
                                figformat='double', filename='cumulative_reduction', figsize=None,
                                show_legend=True, legend_is_left=False, subplot_adjust=None, box_plot=False):
 
@@ -2516,11 +2610,13 @@ class Plotter(object):
             baseline_mu, baseline_std = get_rt(baseline_data, p_infected=0.1, area_population=area_population,
                                                average_up_to_p_infected=True)
             if show_baseline:
-                bars = ax.errorbar(['0'], [baseline_mu], yerr=[baseline_std], label=titles[-1],
+                bars = ax.errorbar(['0'], [baseline_mu], yerr=[baseline_std], label=labels[-1],
                                    c='#31a354', marker="o", linestyle="none")
         else:
             baseline_mu, baseline_sig = get_peak_mu_and_std(path=baseline_path, key=key, combine_summaries=combine_summaries)
 
+        means = []
+        stds = []
         for i, paths in enumerate(path_list):
             rel_mean = []
             rel_std = []
@@ -2542,14 +2638,17 @@ class Plotter(object):
                 rel_mean = (1 - np.asarray(rel_mean) / baseline_mu) * 100
                 rel_std = np.asarray(rel_std) / baseline_mu * 100
 
+            means.append(rel_mean)
+            stds.append(rel_std)
+
             if not box_plot:
-                bars = ax.errorbar(ps_adoption, rel_mean, yerr=rel_std, label=titles[i],
+                bars = ax.errorbar(ps_adoption, rel_mean, yerr=rel_std, label=labels[i],
                                c=colors[i], linestyle='-', elinewidth=0.8, capsize=3.0, zorder=zorders[i])
             else:
-                ps_adoption_string = [str(int(element)) for element  in ps_adoption]
+                ps_adoption_string = [str(int(element)) for element in ps_adoption]
                 offset = (len(path_list))/2 * 0.11
                 trans = ax.transData + ScaledTranslation(-offset + (i+1/2)/len(path_list) * 2 * offset, 0, fig.dpi_scale_trans)
-                bars = ax.errorbar(ps_adoption_string, rel_mean, yerr=rel_std, label=titles[i],
+                bars = ax.errorbar(ps_adoption_string, rel_mean, yerr=rel_std, label=labels[i],
                                    c=colors[i], marker="o", linestyle="none", transform=trans)
 
         if log_yscale:
@@ -2575,29 +2674,91 @@ class Plotter(object):
         ax.set_ylabel(ylabel)
         ax.set_xlabel('\% adoption')
 
-        if show_legend:
-            # legend
-            if legend_is_left:
-                leg = ax.legend(loc='upper left',
-                                bbox_to_anchor=(0.001, 0.999),
-                                bbox_transform=ax.transAxes,
-                                )
+        if title:
+            ax.set_title(title)
+
+        if show_significance is not None:
+            sig_options_updated = {'lhs_xshift': 0.013,
+                        'rhs_xshift': 0.13,
+                        'height': 1.0,
+                        'text_offset': 0.0,
+                        'same_height': True}
+            if isinstance(sig_options, dict):
+                for key, value in sig_options.items():
+                    sig_options_updated[key] = value
+            sig_options = sig_options_updated
+
+            if sig_options['same_height']:
+                ymax = np.max(np.asarray(means) + np.asarray(stds), axis=0)
+                if log_yscale:
+                    ys = np.exp(np.log(ymax) + np.log((ylim[1] - ylim[0]) * 0.008))
+                else:
+                    ys = ymax + (ylim[1] - ylim[0]) * 0.008
+                print(np.shape(ys))
+                ys = np.repeat(np.expand_dims(ys, axis=0), len(path_list), axis=0)
+                print(np.shape(ys))
             else:
-                leg = ax.legend(loc='upper right',
-                                bbox_to_anchor=(0.999, 0.999),
-                                bbox_transform=ax.transAxes,
-                                )
-            if legend_is_left == 'outside':
-                leg = ax.legend(loc='lower left',
-                                bbox_to_anchor=(0.001,0.001),
-                                bbox_transform=ax.transAxes,
-                                )
+                ys = np.asarray(means) + np.asarray(stds)
+
+            for j in range(len(ps_adoption_string)):
+                #y = ys[j]
+
+                for i in range(len(path_list) - 1):
+                    if show_significance == 'no_bars':
+                        mean1 = means[0][j]
+                        std1 = stds[0][j]
+                    else:
+                        mean1 = means[i][j]
+                        std1 = stds[i][j]
+                    mean2 = means[i+1][j]
+                    std2 = stds[i+1][j]
+
+                    rollouts = 400 if combine_summaries else 100
+                    is_significant, p_value = independent_ttest(mean1, std1, mean2, std2, rollouts=rollouts, alpha=0.05)
+                    print('p-value: ', p_value)
+                    y = ys[i+1][j]
+                    x1 = j + sig_options['lhs_xshift']
+                    x2 = j + sig_options['rhs_xshift']
+                    h = sig_options['height']
+                    if log_yscale:
+                        h = np.exp(np.log(y) + np.log(h))
+                    if show_significance == 'no_bars':
+                        i += 1
+                    offset = (len(path_list)) / 2 * 0.11
+                    trans = ax.transData + ScaledTranslation(-offset + sig_options['text_offset'] + (i + 1 / 2) / len(path_list) * 2 * offset, 0,
+                                                             fig.dpi_scale_trans)
+
+                    if show_significance == 'no_bars':
+                        if is_significant:
+                            plt.text(j, y + h, "*", ha='center', va='bottom', color='black', transform=trans)
+                    elif show_significance == 'bars':
+                        plt.plot([x1, x1, x2, x2], [y, y + h, y + h, y], lw=1.0, color='black', transform=trans)
+                        if is_significant:
+                            plt.text((x1 + x2) * .5, y + h, "*", ha='center', va='bottom', color='black', transform=trans)
+
+        if show_legend:
+                # legend
+                if legend_is_left:
+                    leg = ax.legend(loc='upper left',
+                                    bbox_to_anchor=(0.001, 0.999),
+                                    bbox_transform=ax.transAxes,
+                                    )
+                else:
+                    leg = ax.legend(loc='upper right',
+                                    bbox_to_anchor=(0.999, 0.999),
+                                    bbox_transform=ax.transAxes,
+                                    )
+                if legend_is_left == 'outside':
+                    leg = ax.legend(loc='lower left',
+                                    bbox_to_anchor=(0.001,0.001),
+                                    bbox_transform=ax.transAxes,
+                                    )
 
         subplot_adjust = subplot_adjust or {'bottom': 0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         plt.subplots_adjust(**subplot_adjust)
 
         plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
-                    dpi=DPI, bbox_inches='tight')
+                dpi=DPI, bbox_inches='tight')
 
         if NO_PLOT:
             plt.close()
@@ -2731,5 +2892,12 @@ def get_peak_mu_and_std(path, key, combine_summaries=False):
         mu = data[key + 'mu'][maxidx]
         sig = data[key + 'sig'][maxidx]
     return mu, sig
+
+
+def independent_ttest(mean1, std1, mean2, std2, rollouts, alpha):
+    t_stat = (mean2 - mean1) / np.sqrt(std1**2/np.sqrt(rollouts) + std2**2/np.sqrt(rollouts))
+    df = 2 * rollouts - 2
+    p = (1.0 - scipy.stats.t.cdf(abs(t_stat), df)) * 2.0
+    return p < alpha, p
 
 
