@@ -23,20 +23,6 @@ In addition, our simulations also suggest that it is sufficient to deploy beacon
 strategic locations for our system to achieve high utility.
 
 
-<p align="center">
-<img width="30%" src="./img/beacon-environment-GER-TU-beta_dispersion=10.0.jpg">
-</p>
-
-<p align="center">
-<img width="40%" src="./img/reduction-cumu_infected-GER-TU-beacon_mode=visit_freq.jpg">
-<img width="40%" src="./img/reduction-hosp-GER-TU-beacon_mode=visit_freq.jpg">
-
-<img width="40%" src="./img/relative-cumu_infected-heatmap-pancast.jpg">
-<img width="40%" src="./img/relative-hosp-heatmap-pancast.jpg">
-</p>
-
-
-
 ## Implementation of PanCast into the epidemiological simulator
 Our simulations include manual contact tracing as well as digital contact tracing using either PanCast or 
 smartphone-based pairwise encounter-based contact tracing systems (SPECTs).  
@@ -84,12 +70,14 @@ The experimental results can be reproduced by running the following commands fro
 ```python
 python3 sim-beacon-environment.py --country GER --area TU
 python3 sim-pancast-tracing.py --country GER --area TU
+python3 sim-pancast-tracing-siteinfo.py --country GER --area TU
 python3 sim-spect-tracing.py --country GER --area TU
+python3 sim-spect-tracing-siteinfo.py --country GER --area TU
 ```
-Every script runs several experiments with different settings. Note that depending on the settings simulations can take 
-up to 10 hours and require up to 1TB of RAM.
+Every script runs several experiments with different settings sequentially. 
+Note that depending on the settings a single experiment can take up to 4 hours and require up to 1TB of RAM.
 The scripts generate result summary files in the directory `sim/condensed_summaries`. 
-The plots can be generated from these files using the iPython notebook `sim-plot-beacon.ipynb`.
+The plots can be generated from these files using the notebook `sim-plot-beacon-total.ipynb`.
 
 
 
