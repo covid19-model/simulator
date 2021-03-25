@@ -1,27 +1,40 @@
 import os
 import itertools
 import collections
-import pprint
 import numpy as np
 import pandas as pd
 import torch
+import torch
 from scipy import stats as sps
 from scipy.interpolate import interp1d
-from datetime import datetime
 import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import ticker
 import matplotlib.dates as mdates
-from matplotlib.dates import date2num, num2date
+from matplotlib.dates import date2num
 from matplotlib.backends.backend_pgf import FigureCanvasPgf
 from matplotlib.colors import ListedColormap
+from matplotlib.transforms import ScaledTranslation
+from matplotlib.ticker import FormatStrFormatter
 
 from scipy.interpolate import griddata
+import scipy.stats
 import matplotlib.colors as colors
 
+from lib.calibrationFunctions import downsample_cases, pdict_to_parr, load_state
+from lib.data import collect_data_from_df
+
+import botorch.utils.transforms as transforms
+
+from lib.calibrationSettings import (
+    calibration_model_param_bounds_single,
+    calibration_start_dates,
+    calibration_lockdown_dates,
+    calibration_mob_paths,
+)
 from lib.calibrationFunctions import (
-    pdict_to_parr, 
+    pdict_to_parr,
     load_state,
     downsample_cases,
     CORNER_SETTINGS_SPACE,
@@ -39,7 +52,6 @@ from lib.calibrationSettings import (
 )
 
 from lib.rt import compute_daily_rts, R_T_RANGE
-import lib.rt_nbinom
 from lib.summary import *
 
 TO_HOURS = 24.0
@@ -352,7 +364,7 @@ class Plotter(object):
             '#e41a1c',
             '#377eb8',
             '#4daf4a',
-            '#984ea3',
+            #'#984ea3',
             '#ff7f00',
             '#ffff33',
             '#a65628',
@@ -380,7 +392,7 @@ class Plotter(object):
         self.size_site = 300
 
     def _set_matplotlib_params(self, format='dobule'):
-        matplotlib.backend_bases.register_backend('pdf', FigureCanvasPgf)
+        # matplotlib.backend_bases.register_backend('pdf', FigureCanvasPgf)
         if format == 'double':
             plt.rcParams.update(SIGCONF_RCPARAMS_DOUBLE)
         elif format == 'triple':
@@ -867,7 +879,7 @@ class Plotter(object):
             plt.close()
         return
 
-    def compare_quantity(self, sims, titles, quantity='infected', mode='total', ymax=None,
+    def compare_quantity(self, sims, labels, titles=None, quantity='infected', mode='total', ymax=None, colors=None,
                          start_date='1970-01-01', xtick_interval=3, x_axis_dates=False,
                          figformat='double', filename='compare_epidemics', figsize=None,
                          lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
@@ -878,7 +890,13 @@ class Plotter(object):
         averaged over random restarts, using error bars for std-dev
         '''
 
-        assert isinstance(sims[0], str), '`sims` must be list of filepaths'
+        #assert isinstance(sims[0], str), '`sims` must be list of filepaths'
+        if isinstance(sims[0], str):
+            sims = [sims]
+            titles = [titles]
+            multiplot = False
+        else:
+            multiplot = True
         assert mode in ['total', 'daily', 'cumulative', 'weekly incidence']
         assert quantity in ['infected', 'hosp', 'dead']
 
@@ -897,68 +915,80 @@ class Plotter(object):
         # Set double figure format
         self._set_matplotlib_params(format=figformat)
         # Draw figure
-        fig, ax = plt.subplots(1, 1, figsize=figsize)
+        fig, axs = plt.subplots(len(sims), 1, figsize=figsize)
+        if not multiplot:
+            axs = [axs]
+        for j, (paths, ax) in enumerate(zip(sims, axs)):
+            for i, sim in enumerate(paths):
+                data = load_condensed_summary_compat(sim)
+                line_cases, error_cases = get_plot_data(data, quantity=quantity, mode=mode)
 
-        for i, sim in enumerate(sims):
-            data = load_condensed_summary_compat(sim)
-            line_cases, error_cases = get_plot_data(data, quantity=quantity, mode=mode)
+                if mode in ['daily', 'weekly incidence']:
+                    ts = np.arange(0, len(line_cases))
+                    if mode == 'daily':
+                        error_cases = np.zeros(len(line_cases))
+                else:
+                    ts = data['ts'] if not x_axis_dates else days_to_datetime(data['ts'], start_date=start_date)
 
-            if mode in ['daily', 'weekly incidence']:
-                ts = np.arange(0, len(line_cases))
-                if mode == 'daily':
-                    error_cases = np.zeros(len(line_cases))
+                if colors is None:
+                    colors = self.color_different_scenarios[i]
+
+                # lines
+                ax.plot(ts, line_cases, linestyle='-', label=labels[i], c=colors[i])
+                ax.fill_between(ts, np.maximum(line_cases - 2 * error_cases, 0), line_cases + 2 * error_cases,
+                                color=colors[i], alpha=self.filling_alpha, linewidth=0.0)
+
+            # axis
+            ax.set_xlim(left=np.min(ts))
+            if ymax is None:
+                ymax = 1.5 * np.max(line_cases)
+            ax.set_ylim((0, ymax))
+            if titles:
+                ax.set_title(titles[j])
+
+            if x_axis_dates:
+                # set xticks every week
+                ax.xaxis.set_minor_locator(mdates.WeekdayLocator(byweekday=1, interval=1))
+                ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=1, interval=xtick_interval))
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+                fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
             else:
-                ts = data['ts'] if not x_axis_dates else days_to_datetime(data['ts'], start_date=start_date)
+                ax.set_xlabel(r'$t$ [days]')
 
-            # lines
-            ax.plot(ts, line_cases, linestyle='-', label=titles[i], c=self.color_different_scenarios[i])
-            ax.fill_between(ts, np.maximum(line_cases - 2 * error_cases, 0), line_cases + 2 * error_cases,
-                            color=self.color_different_scenarios[i], alpha=self.filling_alpha, linewidth=0.0)
+            ylabel = labeldict[mode][quantity]
+            ax.set_ylabel(ylabel)
 
-        # axis
-        ax.set_xlim(left=np.min(ts))
-        if ymax is None:
-            ymax = 1.5 * np.max(line_cases)
-        ax.set_ylim((0, ymax))
+            if lockdown_at is not None:
+                lockdown_widget(ax, lockdown_at, start_date,
+                                lockdown_label_y,
+                                lockdown_label,
+                                xshift=lockdown_xshift)
 
-        if x_axis_dates:
-            # set xticks every week
-            ax.xaxis.set_minor_locator(mdates.WeekdayLocator(byweekday=1, interval=1))
-            ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=1, interval=xtick_interval))
-            ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
-            fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
-        else:
-            ax.set_xlabel(r'$t$ [days]')
+            # Set default axes style
+            self._set_default_axis_settings(ax=ax)
 
-        ylabel = labeldict[mode][quantity]
-        ax.set_ylabel(ylabel)
-
-        if lockdown_at is not None:
-            lockdown_widget(ax, lockdown_at, start_date,
-                            lockdown_label_y,
-                            lockdown_label,
-                            xshift=lockdown_xshift)
-
-        # Set default axes style
-        self._set_default_axis_settings(ax=ax)
-
-        if show_legend:
-            # legend
-            if legend_is_left:
-                leg = ax.legend(loc='upper left',
-                          bbox_to_anchor=(0.001, 0.999),
-                          bbox_transform=ax.transAxes,
-                        #   prop={'size': 5.6}
-                          )
-            else:
-                leg = ax.legend(loc='upper right',
-                          bbox_to_anchor=(0.999, 0.999),
-                          bbox_transform=ax.transAxes,
-                        #   prop={'size': 5.6}
-                          )
+            if show_legend:
+                # legend
+                if legend_is_left:
+                    leg = ax.legend(loc='upper left',
+                              bbox_to_anchor=(0.001, 0.999),
+                              bbox_transform=ax.transAxes,
+                            #   prop={'size': 5.6}
+                              )
+                else:
+                    leg = ax.legend(loc='upper right',
+                              bbox_to_anchor=(0.999, 0.999),
+                              bbox_transform=ax.transAxes,
+                            #   prop={'size': 5.6}
+                              )
+                # if titles:
+                #     axs[0].legend(loc='lower left', bbox_to_anchor=(1.1, 0.18),
+                #                 borderaxespad=0, frameon=True)
 
         subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         plt.subplots_adjust(**subplot_adjust)
+        if multiplot:
+            plt.tight_layout()
 
         plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
                     dpi=DPI, bbox_inches='tight')
@@ -1291,7 +1321,7 @@ class Plotter(object):
             # Convert x-axis into posix timestamps and use pandas to plot as dates
             plain_ts = ts
             ts = days_to_datetime(ts, start_date=start_date)
-            
+
             # lines
             ax.fill_between(ts, posi_mu - 2 * posi_sig, posi_mu + 2 * posi_sig,
                             color=self.color_different_scenarios[i],
@@ -1318,9 +1348,9 @@ class Plotter(object):
             else:
                 xshift = 2.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
                 text_off = True
-            lockdown_widget(ax, lockdown_at, start_date,
-                            lockdown_label_y,
-                            lockdown_label, xshift=xshift, text_off=text_off)
+            # lockdown_widget(ax, lockdown_at, start_date,
+            #                 lockdown_label_y,
+            #                 lockdown_label, xshift=0.0, text_off=text_off)
         # Default axes style
         self._set_default_axis_settings(ax=ax)
         # y-ticks
@@ -1585,10 +1615,10 @@ class Plotter(object):
             plt.close()
 
     def plot_daily_nbinom_rts(self, path, filename='daily_nbinom_rts',
-                              figsize=None, figformat='double', ymax=None,
+                              figsize=None, figformat='double', ymax=None, label=None, small_figure=False,
                               cmap_range=(0.5, 1.5), subplots_adjust={'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96},
                               lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
-                              x_axis_dates=False, xtick_interval=2, xlim=None):
+                              x_axis_dates=False, xtick_interval=2, xlim=None, show_legend=True, legend_is_left=False):
         # Set this plot with double figures parameters
         self._set_matplotlib_params(format=figformat)
 
@@ -1631,7 +1661,7 @@ class Plotter(object):
                         color='lightgray', linewidth=0.0, alpha=0.5)
         plt.plot(df_agg.index, y_m, c='grey')
         plt.scatter(df_agg.index, y_m, s=4.0, lw=0.0, c=cmap_clipped(y_m),
-                    edgecolors='k', zorder=100)
+                    edgecolors='k', zorder=100, label=label)
         # Horizotal line at R_t = 1.0
         plt.axhline(1.0, c='lightgray', zorder=-100)
         # extra
@@ -1664,9 +1694,101 @@ class Plotter(object):
             ax.set_xlim(*xlim)
         # Set default axes style
         self._set_default_axis_settings(ax=ax)
+
+        if show_legend:
+            # legend
+            if legend_is_left:
+                leg = ax.legend(loc='upper left',
+                                bbox_to_anchor=(0.001, 0.999),
+                                bbox_transform=ax.transAxes,
+                                )
+            else:
+                leg = ax.legend(loc='upper right',
+                                bbox_to_anchor=(0.999, 0.999),
+                                bbox_transform=ax.transAxes,
+                                )
+
         plt.subplots_adjust(**subplots_adjust)
         # Save plot
-        fpath = f"plots/daily-nbinom-rts-{filename}.pdf"
+        # fpath = f"plots/daily-nbinom-rts-{filename}.pdf"
+        fpath = f'plots/{filename}.pdf'
+        plt.savefig(fpath, format='pdf')
+        print("Save:", fpath)
+        if NO_PLOT:
+            plt.close()
+
+    def plot_daily_nbinom_rts_panel(self, paths, titles, filename='daily_nbinom_rts',
+                              figsize=None, figformat='double', ymax=None, label=None, small_figure=False,
+                              cmap_range=(0.5, 1.5),
+                              subplots_adjust={'bottom': 0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96},
+                              lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
+                              x_axis_dates=False, xtick_interval=2, xlim=None, show_legend=True, legend_is_left=False):
+        # Set this plot with double figures parameters
+        self._set_matplotlib_params(format=figformat)
+        fig, axs = plt.subplots(2, 2, figsize=figsize)
+
+        for i, (path, ax) in enumerate(zip(paths, axs.flat)):
+            assert isinstance(path, str), '`path` must be a string.'
+            data = load_condensed_summary(path)
+            metadata = data['metadata']
+            df = data['nbinom_rts']
+
+            # Format dates
+            if x_axis_dates:
+                # Cast time of end of interval to datetime
+                df['date_end'] = days_to_datetime(
+                    df['t1'] / 24, start_date=metadata.start_date)
+                # Aggregate results by date
+                df_agg = df.groupby('date_end').agg({'Rt': ['mean', 'std'],
+                                                     'kt': ['mean', 'std']})
+            else:
+                df['time'] = df['t1'] / 24
+                df_agg = df.groupby('time').agg({'Rt': ['mean', 'std'],
+                                                 'kt': ['mean', 'std']})
+            # Build dot colormap: black to white to red
+            ABOVE = [1, 0, 0]
+            MIDDLE = [1, 1, 1]
+            BELOW = [0, 0, 0]
+            cmap_raw = ListedColormap(np.r_[
+                                          np.linspace(BELOW, MIDDLE, 25),
+                                          np.linspace(MIDDLE, ABOVE, 25)
+                                      ])
+
+            def cmap_clipped(y):
+                vmin, vmax = cmap_range
+                return cmap_raw((np.clip(y, vmin, vmax) - vmin) / (vmax - vmin))
+
+            # Plot figure
+            y_m = df_agg.Rt['mean']
+            y_std = df_agg.Rt['std']
+            # Plot estimated mean values (fill +/- std) with colored dots
+            ax.fill_between(df_agg.index, y_m - y_std, y_m + y_std,
+                             color='lightgray', linewidth=0.0, alpha=0.5)
+            ax.plot(df_agg.index, y_m, c='grey')
+            ax.scatter(df_agg.index, y_m, s=4.0, lw=0.0, c=cmap_clipped(y_m),
+                        edgecolors='k', zorder=100, label=label)
+            # Horizotal line at R_t = 1.0
+            ax.axhline(1.0, c='lightgray', zorder=-100)
+            # extra
+            ax.xaxis.set_major_locator(ticker.MultipleLocator(60))
+            ax.set_xlabel(r'$t$ [days]')
+            # set yticks to units
+            ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+            # Set labels
+            ax.set_ylabel(r'$R_t$')
+            ax.set_title(titles[i])
+            # Set limits
+            ax.set_ylim(bottom=0.0, top=ymax)
+            if xlim:
+                ax.set_xlim(*xlim)
+            # Set default axes style
+            self._set_default_axis_settings(ax=ax)
+
+        # plt.subplots_adjust(**subplots_adjust)
+        # Save plot
+        # fpath = f"plots/daily-nbinom-rts-{filename}.pdf"
+        plt.tight_layout()
+        fpath = f'plots/{filename}.pdf'
         plt.savefig(fpath, format='pdf')
         print("Save:", fpath)
         if NO_PLOT:
@@ -1739,198 +1861,352 @@ class Plotter(object):
         if NO_PLOT:
             plt.close()
 
-    def plot_roc_curve(self, titles, summaries=None, paths=None, action='isolate', figformat='double',
-                       filename='roc_example', figsize=None, use_medical_labels=False):
-        ''''
-        ROC curve
-        '''
-        assert (summaries or paths) is not None and (summaries and paths) is None, "Specify either summaries or paths"
+    def plot_rt_over_population_infected(self, path_list, baseline_path=None, titles=None,
+                               area_population=None, p_population=None, show_reduction=True, log_xscale=True, ylim=(0, 100),
+                               figformat='double', filename='reff', figsize=None,
+                               show_legend=True, legend_is_left=False, subplot_adjust=None):
+
+
+        # Set double figure format
         self._set_matplotlib_params(format=figformat)
+        # Draw figure
         fig, ax = plt.subplots(1, 1, figsize=figsize)
-        axs = [ax]
-        # fig, axs = plt.subplots(1, 2, figsize=figsize)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
 
-        # xs
-        xs = np.linspace(0, 1, num=500)
+        if p_population is None:
+            p_population = [5, 10, 20, 30, 40, 50, 60, 70]
 
-        if paths:
-            try:
-                summaries = [load_condensed_summary(path) for path in paths]
-            except FileNotFoundError:
-                for path in paths:
-                    _ = create_condensed_summary_from_path(path)
-                summaries = [load_condensed_summary(path) for path in paths]
+        baseline_data = load_condensed_summary(baseline_path)
+        baseline_rt = []
+        baseline_rt_std = []
+        for p in p_population:
+            rt, rt_std = get_rt(baseline_data, p_infected=p/100, area_population=area_population)
+            baseline_rt.append(rt)
+            baseline_rt_std.append(rt_std)
 
-        for i, summary in enumerate(summaries):
 
-            if paths: # If condensed summary
-                tracing_stats = summary['tracing_stats']
+        # colors = self.color_different_scenarios
+        colors = ['#377eb8', '#bd0026', '#f03b20', '#fd8d3c', '#fecc5c', '#ffffb2']
+        #colors = [ '#bd0026', '#f03b20', '#fd8d3c', '#fecc5c', '#377eb8',]
+        zorders = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+
+        for i, path in enumerate(path_list):
+            data = load_condensed_summary(path)
+            data_rt = []
+            data_rt_std = []
+            for p in p_population:
+                rt, rt_std = get_rt(data, p_infected=p/100, area_population=area_population)
+                data_rt.append(rt)
+                data_rt_std.append(rt_std)
+
+            if show_reduction:
+                data_rt = (1 - np.asarray(data_rt) / baseline_rt) * 100
+                data_rt_std = np.asarray(data_rt_std) / baseline_rt * 100
+                ylabel = r'\% reduction of $R_{\textrm{eff}}$'
             else:
-                print('exposed:', np.sum(summary.state_started_at['expo'] < np.inf, axis=1).mean())
-                tracing_stats = summary.tracing_stats
-            thresholds = list(tracing_stats.keys())
+                ylabel = r'$R_{\textrm{eff}}$'
 
-            policies = dict()
+            bars = ax.errorbar(p_population, data_rt, yerr=data_rt_std, label=titles[i],
+                               c=colors[i], linestyle='-', elinewidth=0.8, capsize=3.0, zorder=zorders[i])
 
-            for j, (name, policy) in enumerate([('PanCast', 'sites'), ('SPECT', 'no_sites')]):
+        if log_xscale:
+            ax.set_xscale('log')
 
-                
-                fpr_mean, fpr_std = [], []
-                tpr_mean, tpr_std = [], []
+        # ax.set_xlim(left=np.min(p_population), right=104)
+        if ylim:
+            ax.set_ylim(ymax=ylim[1], ymin=ylim[0])
+        ax.set_xticks(p_population)
+        ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
 
-                precision_mean, precision_std = [], []
-                recall_mean, recall_std = [], []
-                
-                fpr_of_means = []
-                tpr_of_means = []     
-                precision_of_means = []
-                recall_of_means = []
+        ax.set_ylabel(ylabel)
+        ax.set_xlabel('\% of population not susceptible')
 
-                fpr_single_runs = [[] for _ in range(len(tracing_stats[thresholds[0]][policy]['isolate']['tn']))]     
-                tpr_single_runs = [[] for _ in range(len(tracing_stats[thresholds[0]][policy]['isolate']['tn']))]   
+        if show_legend:
+            # legend
+            if legend_is_left:
+                leg = ax.legend(loc='upper left',
+                                bbox_to_anchor=(0.001, 0.999),
+                                bbox_transform=ax.transAxes,
+                                )
+            else:
+                leg = ax.legend(loc='upper right',
+                                bbox_to_anchor=(0.999, 0.999),
+                                bbox_transform=ax.transAxes,
+                                )
 
-
-                for t, thres in enumerate(thresholds):
-
-                    stats = tracing_stats[thres][policy][action]
-
-
-                    # FPR = FP/(FP + TN) [isolate + not infected / not infected]
-                    # [if FP = 0 and TN = 0, set to 0]
-                    fprs = stats['fp'] / (stats['fp'] + stats['tn'])
-                    fprs = np.nan_to_num(fprs, nan=0.0)
-                    fpr_mean.append(np.mean(fprs).item())
-                    fpr_std.append(np.std(fprs).item())
-                    fpr_of_means.append(stats['fp'].mean() / (stats['fp'].mean() + stats['tn'].mean()))
-
-                    for r in range(len(fpr_single_runs)):
-                        fpr_single_runs[r].append(fprs[r])
-
-                    # TPR = TP/(TP + FN) [isolate + infected / infected]
-                    # = RECALL
-                    # [if TP = 0 and FN = 0, set to 0]
-                    tprs = stats['tp'] / (stats['tp'] + stats['fn'])
-                    tprs = np.nan_to_num(tprs, nan=0.0)
-                    tpr_mean.append(np.mean(tprs).item())
-                    tpr_std.append(np.std(tprs).item())
-                    tpr_of_means.append(stats['tp'].mean() / (stats['tp'].mean() + stats['fn'].mean()))
-
-                    for r in range(len(tpr_single_runs)):
-                        tpr_single_runs[r].append(tprs[r])
-
-                    # precision = TP/(TP + FP)
-                    precs = stats['tp'] / (stats['tp'] + stats['fp'])
-                    precs = np.nan_to_num(precs, nan=0.0)
-                    precision_mean.append(np.mean(precs).item())
-                    precision_std.append(np.std(precs).item())
-                    precision_of_means.append(stats['tp'].mean() / (stats['tp'].mean() + stats['fp'].mean()))
-
-                    # if i == 0:
-                    print("{:1.3f}   TP {:5.2f} FP {:5.2f}  TN {:5.2f}  FN {:5.2f}".format(
-                        thres, stats['tp'].mean(), stats['fp'].mean(), stats['tn'].mean(), stats['fn'].mean()
-                    ))
-                    if t == len(thresholds) - 1:
-                        print(" P {:5.2f}  N {:5.2f}".format(
-                            (stats['fn'] + stats['tp']).mean(), (stats['fp'] + stats['tn']).mean()
-                        ))
-
-                policies[name] = {'fpr': fpr_of_means,
-                                  'tpr': tpr_of_means, 
-                                  'prec': precision_of_means}
-
-                if name == 'SPECT':
-                    name += 's'
-
-                # lines
-                axs[0].plot(fpr_of_means, tpr_of_means, linestyle='-', label=name, c=self.color_different_scenarios[j])
-                # axs[1].plot(tpr_of_means, precision_of_means, linestyle='-', label=name, c=self.color_different_scenarios[j])
-
-                # axs[0].plot(fpr_mean, tpr_mean, linestyle='-', label=name, c=self.color_different_scenarios[j])
-                # axs[1].plot(tpr_mean, precision_mean, linestyle='-', label=name, c=self.color_different_scenarios[j])
-
-            # for each FPR bucket, collect TPR and prec values
-            policy_bin_values = dict()
-            n_bins = 6
-            bins = np.linspace(0.0, 1.0, n_bins)
-            for n in range(bins.shape[0] - 1):
-                print(f'index {n + 1} : {bins[n]} - {bins[n + 1]}')
-
-            for policy in ['SPECT', 'PanCast']:
-                fprs = np.array(policies[policy]['fpr'])
-                tprs = np.array(policies[policy]['tpr'])
-                precs = np.array(policies[policy]['prec'])
-
-                inds = np.digitize(fprs, bins)
-
-                bin_values_fpr = collections.defaultdict(list)
-                bin_values_tpr = collections.defaultdict(list)
-                bin_values_prec = collections.defaultdict(list)
-
-                for i in range(fprs.shape[0]):
-                    bin_values_fpr[inds[i]].append(fprs[i])
-                    bin_values_tpr[inds[i]].append(tprs[i])
-                    bin_values_prec[inds[i]].append(precs[i])
-
-                # form mean of each bucket
-                policy_bin_values[policy] = {
-                    'fpr' : {k:np.array(lst).mean().item() for k, lst in bin_values_fpr.items()},
-                    'tpr' : {k:np.array(lst).mean().item() for k, lst in bin_values_tpr.items()},
-                    'prec': {k: np.array(lst).mean().item() for k, lst in bin_values_prec.items()},
-                }
-
-            # print improvement pancast over spect
-            # pprint.pprint(policy_bin_values)
-            for metric in ['tpr', 'prec']:
-
-                relative_percentage = []
-                
-                for ind in policy_bin_values['SPECT']['fpr'].keys():
-
-                    # only check bins where both have values
-                    if (ind not in policy_bin_values['PanCast'][metric].keys()) or\
-                       (ind not in policy_bin_values['SPECT'][metric].keys()):
-                       continue
-
-                    # ignore edge bins
-                    if ind <= 1 or ind >= n_bins - 1:
-                        continue 
-
-                    relative_percentage.append(
-                        (ind, policy_bin_values['PanCast'][metric][ind] / policy_bin_values['SPECT'][metric][ind])
-                    )
-
-                argmaxval, maxval = max(relative_percentage, key=lambda x: x[1])
-                print('Maximum relative % PanCast/SPECT (excluding boundary)', metric, maxval * 100, 'bin: ', argmaxval)
-
-        for ax in axs:
-            ax.set_xlim((0.0, 1.0))
-            ax.set_ylim((0.0, 1.0))
-
-        # diagonal
-        axs[0].plot(xs, xs, linestyle='dotted', c='black')
-
-        if use_medical_labels:
-            axs[0].set_xlabel('1-Specificity')
-            axs[0].set_ylabel('Sensitivity')
-        else:
-            axs[0].set_xlabel('FPR')
-            axs[0].set_ylabel('TPR')
-
-        # axs[1].set_xlabel('Recall')
-        # axs[1].set_ylabel('Precision')
-
-        # Set default axes style
-        # self._set_default_axis_settings(ax=ax)
-        
-        leg = axs[0].legend(loc='lower right')
-        # leg = axs[1].legend(loc='top right')
-
-        # subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
-        # plt.subplots_adjust(**subplot_adjust)
+        subplot_adjust = subplot_adjust or {'bottom': 0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
+        plt.subplots_adjust(**subplot_adjust)
 
         plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
                     dpi=DPI, bbox_inches='tight')
+
+        if NO_PLOT:
+            plt.close()
+        return
+
+    def plot_roc_curve(self, summaries=None, paths=None, action='isolate', figformat='double',
+                       p_adoption=None, p_recall=None, p_manual_reachability=None, p_beacon=None, sitetype=None,
+                       filename='roc_example', figsize=None, use_medical_labels=False, verbose=True):
+        ''''
+        ROC curve
+        '''
+        assert (p_adoption and p_recall and p_manual_reachability and p_beacon) is None or \
+               (p_adoption and p_recall and p_manual_reachability and p_beacon) is not None
+        assert (summaries or paths) is not None and (summaries and paths) is None, "Specify either summaries or paths"
+        self._set_matplotlib_params(format=figformat)
+        if isinstance(p_adoption, list):
+            fig, axs = plt.subplots(1, len(p_adoption), figsize=figsize)
+            ps_adoption = p_adoption
+        else:
+            fig, ax = plt.subplots(1, 1, figsize=figsize)
+            axs = [ax]
+            ps_adoption = [p_adoption] if p_adoption else [None]
+
+        for plt_index, p_adoption in enumerate(ps_adoption):
+            for i, path in enumerate(paths):
+                summary = load_condensed_summary(path)
+                if paths:   # If condensed summary
+                    tracing_stats = summary['tracing_stats']
+                else:
+                    print('exposed:', np.sum(summary.state_started_at['expo'] < np.inf, axis=1).mean())
+                    tracing_stats = summary.tracing_stats
+                thresholds = list(tracing_stats.keys())
+
+                if sitetype is None:
+                    tracing_stats_new = dict()
+                    for thres in tracing_stats.keys():
+                        tracing_stats_new[thres] = tracing_stats[thres]['stats']
+                    tracing_stats = tracing_stats_new
+                else:
+                    tracing_stats_new = dict()
+                    for thres in tracing_stats.keys():
+                        tracing_stats_new[thres] = tracing_stats[thres][sitetype]
+                    tracing_stats = tracing_stats_new
+
+                policies = dict()
+                p_tracings = []
+                colorind = 0
+
+                for j, (name, policy) in enumerate([('SPECT', 'no_sites'), ('PanCast', 'sites')]):
+                    if name == 'SPECT' or p_beacon is None:
+                        ps_beacon = [None]
+                    else:
+                        p_beacon = np.sort(p_beacon)[::-1]
+                        ps_beacon = p_beacon
+                    for p_beac in ps_beacon:
+
+                        fpr_mean, fpr_std = [], []
+                        tpr_mean, tpr_std = [], []
+
+                        precision_mean, precision_std = [], []
+                        recall_mean, recall_std = [], []
+
+                        fpr_of_means = []
+                        tpr_of_means = []
+                        precision_of_means = []
+                        recall_of_means = []
+
+                        fpr_single_runs = [[] for _ in range(len(tracing_stats[thresholds[0]][policy]['isolate']['tn']))]
+                        tpr_single_runs = [[] for _ in range(len(tracing_stats[thresholds[0]][policy]['isolate']['tn']))]
+
+                        if p_adoption is not None:
+                            if name == 'PanCast':
+                                p_tracing = get_tracing_probability('PanCast',
+                                                                            p_adoption=p_adoption,
+                                                                            p_manual_reachability=p_manual_reachability,
+                                                                            p_recall=p_recall,
+                                                                            p_beacon=p_beac)
+                                p_tracings.append(p_tracing)
+                            elif name == 'SPECT':
+                                p_tracing = get_tracing_probability('SPECTS',
+                                                                          p_adoption=p_adoption,
+                                                                          p_manual_reachability=p_manual_reachability,
+                                                                          p_recall=p_recall,
+                                                                          p_beacon=None)
+                                p_tracings.append(p_tracing)
+                            else:
+                                raise NotImplementedError()
+
+                        for t, thres in enumerate(thresholds):
+
+                            stats = copy.copy(tracing_stats[thres][policy][action])
+
+                            if p_adoption is not None:
+                                orig_fp = np.asarray(stats['fp'])
+                                orig_tp = np.asarray(stats['tp'])
+                                stats['fp'] = np.asarray(stats['fp']) * p_tracing
+                                stats['tp'] = np.asarray(stats['tp']) * p_tracing
+                                stats['tn'] = np.asarray(stats['tn']) + orig_fp * (1-p_tracing)
+                                stats['fn'] = np.asarray(stats['fn']) + orig_tp * (1-p_tracing)
+
+                            # FPR = FP/(FP + TN) [isolate + not infected / not infected]
+                            # [if FP = 0 and TN = 0, set to 0]
+                            fprs = stats['fp'] / (stats['fp'] + stats['tn'])
+                            fprs = np.nan_to_num(fprs, nan=0.0)
+                            fpr_mean.append(np.mean(fprs).item())
+                            fpr_std.append(np.std(fprs).item())
+                            fpr_of_means.append(stats['fp'].mean() / (stats['fp'].mean() + stats['tn'].mean()))
+
+                            for r in range(len(fpr_single_runs)):
+                                fpr_single_runs[r].append(fprs[r])
+
+                            # TPR = TP/(TP + FN) [isolate + infected / infected]
+                            # = RECALL
+                            # [if TP = 0 and FN = 0, set to 0]
+                            tprs = stats['tp'] / (stats['tp'] + stats['fn'])
+                            tprs = np.nan_to_num(tprs, nan=0.0)
+                            tpr_mean.append(np.mean(tprs).item())
+                            tpr_std.append(np.std(tprs).item())
+                            tpr_of_means.append(stats['tp'].mean() / (stats['tp'].mean() + stats['fn'].mean()))
+
+                            for r in range(len(tpr_single_runs)):
+                                tpr_single_runs[r].append(tprs[r])
+
+                            # precision = TP/(TP + FP)
+                            precs = stats['tp'] / (stats['tp'] + stats['fp'])
+                            precs = np.nan_to_num(precs, nan=0.0)
+                            precision_mean.append(np.mean(precs).item())
+                            precision_std.append(np.std(precs).item())
+                            precision_of_means.append(stats['tp'].mean() / (stats['tp'].mean() + stats['fp'].mean()))
+
+                            # if i == 0:
+                            if verbose:
+                                print("{:1.3f}   TP {:5.2f} FP {:5.2f}  TN {:5.2f}  FN {:5.2f}".format(
+                                    thres, stats['tp'].mean(), stats['fp'].mean(), stats['tn'].mean(), stats['fn'].mean()
+                                ))
+                                if t == len(thresholds) - 1:
+                                    print(" P {:5.2f}  N {:5.2f}".format(
+                                        (stats['fn'] + stats['tp']).mean(), (stats['fp'] + stats['tn']).mean()
+                                    ))
+
+                        policies[name] = {'fpr': fpr_of_means,
+                                          'tpr': tpr_of_means,
+                                          'prec': precision_of_means}
+
+                        if name == 'SPECT':
+                            name += 'S'
+
+                        # lines
+                        if p_adoption is not None:
+                            colors = ['#377eb8', '#bd0026', '#f03b20', '#fd8d3c', '#fecc5c', '#ffffb2']
+                            if name == 'PanCast':
+                                longname = name + f', {int(p_beac*100)}\%'
+                            else:
+                                longname = name
+
+                            axs[plt_index].plot(fpr_of_means, tpr_of_means, linestyle='-', label=longname, c=colors[colorind])
+                            colorind += 1
+                        else:
+                            colors = ['#377eb8', '#e41a1c',]
+                            axs[0].plot(fpr_of_means, tpr_of_means, linestyle='-', label=name, c=colors[j])
+
+                        # axs[1].plot(tpr_of_means, precision_of_means, linestyle='-', label=name, c=self.color_different_scenarios[j])
+                        # axs[0].plot(fpr_mean, tpr_mean, linestyle='-', label=name, c=self.color_different_scenarios[j])
+                        # axs[1].plot(tpr_mean, precision_mean, linestyle='-', label=name, c=self.color_different_scenarios[j])
+
+                # for each FPR bucket, collect TPR and prec values
+                policy_bin_values = dict()
+                n_bins = 6
+                bins = np.linspace(0.0, 1.0, n_bins)
+                for n in range(bins.shape[0] - 1):
+                    print(f'index {n + 1} : {bins[n]} - {bins[n + 1]}')
+
+                for policy in ['SPECT', 'PanCast']:
+                    fprs = np.array(policies[policy]['fpr'])
+                    tprs = np.array(policies[policy]['tpr'])
+                    precs = np.array(policies[policy]['prec'])
+
+                    inds = np.digitize(fprs, bins)
+
+                    bin_values_fpr = collections.defaultdict(list)
+                    bin_values_tpr = collections.defaultdict(list)
+                    bin_values_prec = collections.defaultdict(list)
+
+                    for i in range(fprs.shape[0]):
+                        bin_values_fpr[inds[i]].append(fprs[i])
+                        bin_values_tpr[inds[i]].append(tprs[i])
+                        bin_values_prec[inds[i]].append(precs[i])
+
+                    # form mean of each bucket
+                    policy_bin_values[policy] = {
+                        'fpr' : {k:np.array(lst).mean().item() for k, lst in bin_values_fpr.items()},
+                        'tpr' : {k:np.array(lst).mean().item() for k, lst in bin_values_tpr.items()},
+                        'prec': {k: np.array(lst).mean().item() for k, lst in bin_values_prec.items()},
+                    }
+
+                # print improvement pancast over spect
+                # pprint.pprint(policy_bin_values)
+                for metric in ['tpr', 'prec']:
+
+                    relative_percentage = []
+
+                    for ind in policy_bin_values['SPECT']['fpr'].keys():
+
+                        # only check bins where both have values
+                        if (ind not in policy_bin_values['PanCast'][metric].keys()) or\
+                           (ind not in policy_bin_values['SPECT'][metric].keys()):
+                           continue
+
+                        # ignore edge bins
+                        if ind <= 1 or ind >= n_bins - 1:
+                            continue
+
+                        relative_percentage.append(
+                            (ind, policy_bin_values['PanCast'][metric][ind] / policy_bin_values['SPECT'][metric][ind])
+                        )
+
+                    try:
+                        argmaxval, maxval = max(relative_percentage, key=lambda x: x[1])
+                        print('Maximum relative % PanCast/SPECT (excluding boundary)', metric, maxval * 100, 'bin: ', argmaxval)
+                    except ValueError:
+                        print('Could not compute Maximum relative % PanCast/SPECT (excluding boundary)')
+
+            maximum = 1.0 if p_adoption is None else max(p_tracings)
+            # for ax in axs:
+            axs[plt_index].set_xlim((0.0, maximum))
+            axs[plt_index].set_ylim((0.0, maximum))
+
+            # diagonal
+            xs = np.linspace(0, maximum, num=500)
+            axs[plt_index].plot(xs, xs, linestyle='dotted', c='black')
+
+            if use_medical_labels:
+                axs[plt_index].set_xlabel('1-Specificity')
+                # axs[plt_index].set_ylabel('Sensitivity')
+                axs[0].set_ylabel('Sensitivity')
+            else:
+                axs[plt_index].set_xlabel('FPR')
+                # axs[plt_index].set_ylabel('TPR')
+                axs[0].set_ylabel('TPR')
+
+            # axs[1].set_xlabel('Recall')
+            # axs[1].set_ylabel('Precision')
+
+            # Set default axes style
+            # self._set_default_axis_settings(ax=ax)
+            axs[plt_index].set_aspect('equal', 'box')
+            axs[plt_index].yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+            if p_adoption:
+                axs[plt_index].set_title(f'{int(p_adoption*100)}\% adoption')
+            # else:
+            #     leg = axs[plt_index].legend(loc='lower right')
+        # leg = axs[1].legend(loc='top right')
+
+        if p_adoption is not None:
+            # axs[0].legend(loc='lower left', bbox_to_anchor=(-1.5, 0.18),
+            #           borderaxespad=0, frameon=True)
+            axs[-1].legend(loc='lower left', bbox_to_anchor=(1.1, 0.18),
+                          borderaxespad=0, frameon=True)
+        else:
+            leg = axs[0].legend(loc='lower right')
+        # subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
+        # plt.subplots_adjust(**subplot_adjust)
+
         plt.tight_layout()
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+                    dpi=DPI, bbox_inches='tight')
+        # plt.tight_layout()
         if NO_PLOT:
             plt.close()
         return
@@ -1956,12 +2232,7 @@ class Plotter(object):
             reff_means = []
             for xval, yval, path in p:
 
-                try:
-                    data = load_condensed_summary(path, acc)
-                except FileNotFoundError:
-                    acc = create_condensed_summary_from_path(sim, acc=acc)
-                    data = load_condensed_summary(sim, acc)
-
+                data = load_condensed_summary(path, acc)
                 rtdata = data['nbinom_rts']
                 n_rollouts = data['metadata'].random_repeats
                 max_time = data['max_time']
@@ -2025,7 +2296,7 @@ class Plotter(object):
             plt.close()
         return
     
-    def relative_quantity_heatmap(self, mode, xlabel, ylabel, paths, path_labels, baseline_path, figformat='double',
+    def relative_quantity_heatmap(self, mode, xlabel, ylabel, paths, path_labels, baseline_path, zmax=None, figformat='double',
                      filename='reff_heatmap_0', figsize=None, acc=500, interpolate='linear', # or `cubic`
                      width_ratio=4, cmap='jet'):
         ''''
@@ -2058,12 +2329,7 @@ class Plotter(object):
 
             zval_means = []
             for xval, yval, path in p:
-
-                try:
-                    data = load_condensed_summary(path, acc)
-                except FileNotFoundError:
-                    acc = create_condensed_summary_from_path(sim, acc=acc)
-                    data = load_condensed_summary(sim, acc)
+                data = load_condensed_summary(path, acc)
 
                 # extract z value given (x, y)
                 series = data[key + 'mu']
@@ -2073,26 +2339,29 @@ class Plotter(object):
                 else:
                     # peak
                     zval = (1 - series.max() / baseline_series.max()) * 100
-        
+
                 zval_means.append(((xval * 100 if xval is not None else xval), yval * 100, zval.item()))
 
             zval_means_all.append(zval_means)
 
         # define min and max for both plots
-        zmin, zmax_color, zmax_colorbar = 0, 90, 90
+        if zmax:
+            zmin, zmax_color, zmax_colorbar = 0, zmax, zmax
+        else:
+            zmin, zmax_color, zmax_colorbar = 0, 90, 90
         stepsize = 5
         norm = colors.Normalize(vmin=zmin, vmax=zmax_color)
         levels = np.arange(zmin, zmax_colorbar + stepsize, stepsize)
 
         # generate heatmaps
         for t, title in enumerate(path_labels):
-            
+
             x, y, z = zip(*zval_means_all[t])
 
             if x[0] is None:
                 # move 1D data on a 2D manifold for plotting
                 xbounds = (-0.1, 0.1)
-                ybounds = min(y), max(y)   
+                ybounds = min(y), max(y)
 
                 x = [xbounds[0] for _ in y] + [xbounds[1] for _ in y]
                 y = y + y
@@ -2102,11 +2371,11 @@ class Plotter(object):
                 axs[t].xaxis.set_minor_formatter(plt.NullFormatter())
                 axs[t].xaxis.set_major_locator(plt.NullLocator())
                 axs[t].xaxis.set_minor_locator(plt.NullLocator())
-                
+
             else:
                 x = np.log(x)
                 xbounds = min(x), max(x)
-                ybounds = min(y), max(y)        
+                ybounds = min(y), max(y)
 
                 axs[t].set_xlabel(xlabel)
 
@@ -2114,12 +2383,12 @@ class Plotter(object):
                 @ticker.FuncFormatter
                 def major_formatter(x_, pos):
                     return r"{:3.0f}".format(np.exp(x_))
-        
+
                 # for some reason, FixedLocator makes tick labels falsely bold
-                # axs[t].xaxis.set_major_locator(ticker.FixedLocator(x)) 
+                # axs[t].xaxis.set_major_locator(ticker.FixedLocator(x))
                 axs[t].xaxis.set_major_locator(CustomSitesProportionFixedLocator())
                 axs[t].xaxis.set_major_formatter(major_formatter)
-                                        
+
             # contour interpolation
             xi = np.linspace(xbounds[0], xbounds[1], 100)
             yi = np.linspace(ybounds[0], ybounds[1], 100)
@@ -2133,6 +2402,9 @@ class Plotter(object):
             axs[t].set_xlim(xbounds)
             axs[t].set_ylim(ybounds)
             axs[t].set_title(title)
+
+            axs[t].set_yticks(list(axs[t].get_yticks())[1:] + [ybounds[0]])
+            axs[t].set_yticks([10, 25, 40, 55, 70, 85, 100])
 
             if t == 0:
                 axs[t].set_ylabel(ylabel)
@@ -2161,20 +2433,162 @@ class Plotter(object):
             plt.close()
         return
 
-    def compare_peak_reduction(self, path_list, baseline_path, ps_adoption, titles,
-                               mode='cumu_infected', log_xscale=True,
+    def manual_tracing_heatmap(self, mode, xlabel, ylabel, paths, path_labels, baseline_path, figformat='double',
+                                  filename='manual_tracing_heatmap_0', figsize=None, acc=500, interpolate='linear',  # or `cubic`
+                                  width_ratio=4, cmap='jet'):
+        ''''
+        Plots heatmap of average R_t
+            paths:              list with tuples (x, y, path)
+            relative_window:    relative range of max_time used for R_t average
+        '''
+        if mode == 'cumu_infected':
+            key = 'cumu_infected_'
+            colorbar_label = r'\% reduction of infections'
+        elif mode == 'hosp':
+            key = 'hosp_'
+            colorbar_label = r'\% reduction of peak hosp.'
+        elif mode == 'dead':
+            key = 'cumu_dead_'
+            colorbar_label = r'\% reduction of deaths'
+
+        # set double figure format
+        self._set_matplotlib_params(format=figformat)
+
+        # draw figure
+        fig, axs = plt.subplots(1, 2, figsize=figsize, gridspec_kw={'width_ratios': [1, width_ratio]})
+
+
+        # extract data
+        zval_means_all = []
+        for p in paths:
+
+            zval_means = []
+            for xval, yval, path in p:
+                data = load_condensed_summary(path, acc)
+
+                # extract z value given (x, y)
+                series = data[key + 'mu']
+                if 'cumu' in key:
+                    # last
+                    zval = (1 - series[-1] / baseline_series[-1]) * 100
+                else:
+                    # peak
+                    zval = (1 - series.max() / baseline_series.max()) * 100
+
+                zval_means.append(((xval * 100 if xval is not None else xval), yval * 100, zval.item()))
+
+            zval_means_all.append(zval_means)
+
+        # define min and max for both plots
+        zmin, zmax_color, zmax_colorbar = 0, 90, 90
+        stepsize = 5
+        norm = colors.Normalize(vmin=zmin, vmax=zmax_color)
+        levels = np.arange(zmin, zmax_colorbar + stepsize, stepsize)
+
+        # generate heatmaps
+        for t, title in enumerate(path_labels):
+
+            x, y, z = zip(*zval_means_all[t])
+
+            if x[0] is None:
+                # move 1D data on a 2D manifold for plotting
+                xbounds = (-0.1, 0.1)
+                ybounds = min(y), max(y)
+
+                x = [xbounds[0] for _ in y] + [xbounds[1] for _ in y]
+                y = y + y
+                z = z + z
+
+                axs[t].xaxis.set_major_formatter(plt.NullFormatter())
+                axs[t].xaxis.set_minor_formatter(plt.NullFormatter())
+                axs[t].xaxis.set_major_locator(plt.NullLocator())
+                axs[t].xaxis.set_minor_locator(plt.NullLocator())
+
+            else:
+                x = np.log(x)
+                xbounds = min(x), max(x)
+                ybounds = min(y), max(y)
+
+                axs[t].set_xlabel(xlabel)
+
+                # x ticks
+                @ticker.FuncFormatter
+                def major_formatter(x_, pos):
+                    return r"{:3.0f}".format(np.exp(x_))
+
+                # for some reason, FixedLocator makes tick labels falsely bold
+                # axs[t].xaxis.set_major_locator(ticker.FixedLocator(x))
+                axs[t].xaxis.set_major_locator(CustomSitesProportionFixedLocator())
+                axs[t].xaxis.set_major_formatter(major_formatter)
+
+            # contour interpolation
+            xi = np.linspace(xbounds[0], xbounds[1], 100)
+            yi = np.linspace(ybounds[0], ybounds[1], 100)
+            zi = griddata((x, y), z, (xi[None, :], yi[:, None]), method=interpolate)
+
+            # contour plot
+            axs[t].contour(xi, yi, zi, linewidths=0.5, colors='k', norm=norm, levels=levels)
+            contourplot = axs[t].contourf(xi, yi, zi, cmap=cmap, norm=norm, levels=levels)
+
+            # axis
+            axs[t].set_xlim(xbounds)
+            axs[t].set_ylim(ybounds)
+            axs[t].set_title(title)
+
+            axs[t].set_yticks(list(axs[t].get_yticks())[1:] + [ybounds[0]])
+            axs[t].set_yticks([10, 25, 40, 55, 70, 85, 100])
+
+            if t == 0:
+                axs[t].set_ylabel(ylabel)
+            else:
+                pass
+
+        # layout and color bar
+        fig.tight_layout()
+        fig.subplots_adjust(right=0.8)
+
+        # [left, bottom, width, height]
+        cbar_ax = fig.add_axes([0.87, 0.17, 0.05, 0.7])
+        cbar = matplotlib.colorbar.ColorbarBase(
+            cbar_ax, cmap=plt.cm.RdYlGn,
+            norm=norm,
+            boundaries=levels,
+            ticks=levels[::2],
+            orientation='vertical')
+        cbar.set_label(colorbar_label, labelpad=5.0)
+
+        # save
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+                    dpi=DPI, bbox_inches='tight')
+
+        if NO_PLOT:
+            plt.close()
+        return
+
+    def compare_peak_reduction(self, path_list, baseline_path=None, ps_adoption=None, labels=None, title=None,
+                               mode='cumu_infected', show_reduction=True, log_xscale=True, log_yscale=False, ylim=None,
+                               area_population=None, colors=None, show_baseline=True, combine_summaries=False,
+                               show_significance=None, sig_options=None,
                                figformat='double', filename='cumulative_reduction', figsize=None,
-                               show_legend=True, legend_is_left=False, subplot_adjust=None):
+                               show_legend=True, legend_is_left=False, subplot_adjust=None, box_plot=False):
+
+        show_reduction = show_reduction and (baseline_path is not None)
+
+        if ylim is None:
+            ylim = (0, 100)
 
         if mode == 'cumu_infected':
             key = 'cumu_infected_'
-            ylabel = '\% reduction of infections'
+            ylabel = r'\% reduction of infections' if show_reduction else 'Cumulative infected'
         elif mode == 'hosp':
             key = 'hosp_'
-            ylabel = '\% reduction of peak hosp.'
+            ylabel = r'\% reduction of peak hosp.' if show_reduction else 'Peak hospitalizations'
         elif mode == 'dead':
             key = 'cumu_dead_'
-            ylabel = '% reduction of fatalities'
+            ylabel = r'\% reduction of fatalities' if show_reduction else 'Fatalities'
+        elif mode == 'r_eff':
+            ylabel = r'\% reduction of $R_{\textrm{eff}}$' if show_reduction else r'$R_{\textrm{eff}}$'
+            assert area_population is not None, 'Requires argument area_population for R_eff plots'
 
         # Set double figure format
         self._set_matplotlib_params(format=figformat)
@@ -2183,70 +2597,175 @@ class Plotter(object):
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
 
-        baseline_data = load_condensed_summary(baseline_path)
-        baseline_norm = np.max(baseline_data[key + 'mu'])
-
         ps_adoption = np.asarray(ps_adoption) * 100
 
         # colors = self.color_different_scenarios
-        colors = ['#377eb8', '#bd0026', '#f03b20', '#fd8d3c', '#fecc5c', '#ffffb2']
+        if colors is None:
+            colors = ['#377eb8', '#bd0026', '#f03b20', '#fd8d3c', '#fecc5c', '#ffffb2']
+            #colors = [ '#bd0026', '#f03b20', '#fd8d3c', '#fecc5c', '#377eb8',]
         zorders = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
 
+        if mode == 'r_eff':
+            baseline_data = load_condensed_summary(baseline_path)
+            baseline_mu, baseline_std = get_rt(baseline_data, p_infected=0.1, area_population=area_population,
+                                               average_up_to_p_infected=True)
+            if show_baseline:
+                bars = ax.errorbar(['0'], [baseline_mu], yerr=[baseline_std], label=labels[-1],
+                                   c='#31a354', marker="o", linestyle="none")
+        else:
+            baseline_mu, baseline_sig = get_peak_mu_and_std(path=baseline_path, key=key, combine_summaries=combine_summaries)
+
+        means = []
+        stds = []
         for i, paths in enumerate(path_list):
-            cumu_rel_mean = []
-            cumu_rel_std = []
-            for path in paths:
-                data = load_condensed_summary(path)
-                maxidx = np.argmax(data[key + 'mu'])
-                cumu_rel_mean.append(data[key + 'mu'][maxidx] / baseline_norm)
-                cumu_rel_std.append(data[key + 'sig'][maxidx] / baseline_norm)
+            rel_mean = []
+            rel_std = []
 
-            cumu_rel_mean = (1 - np.asarray(cumu_rel_mean)) * 100
-            cumu_rel_std = np.asarray(cumu_rel_std) * 100
+            if mode == 'r_eff':
+                for path in paths:
+                    data = load_condensed_summary(path)
+                    rt, rt_std = get_rt(data, p_infected=0.1, area_population=area_population,
+                                        average_up_to_p_infected=True)
+                    rel_mean.append(rt)
+                    rel_std.append(rt_std)
+            else:
+                for path in paths:
+                    mu, sig = get_peak_mu_and_std(path=path, key=key, combine_summaries=combine_summaries)
+                    rel_mean.append(mu)
+                    rel_std.append(sig)
 
-            bars = ax.errorbar(ps_adoption, cumu_rel_mean, yerr=cumu_rel_std, label=titles[i],
+            if show_reduction:
+                rel_mean = (1 - np.asarray(rel_mean) / baseline_mu) * 100
+                rel_std = np.asarray(rel_std) / baseline_mu * 100
+
+            means.append(rel_mean)
+            stds.append(rel_std)
+
+            if not box_plot:
+                bars = ax.errorbar(ps_adoption, rel_mean, yerr=rel_std, label=labels[i],
                                c=colors[i], linestyle='-', elinewidth=0.8, capsize=3.0, zorder=zorders[i])
+            else:
+                ps_adoption_string = [str(int(element)) for element in ps_adoption]
+                offset = (len(path_list))/2 * 0.11
+                trans = ax.transData + ScaledTranslation(-offset + (i+1/2)/len(path_list) * 2 * offset, 0, fig.dpi_scale_trans)
+                bars = ax.errorbar(ps_adoption_string, rel_mean, yerr=rel_std, label=labels[i],
+                                   c=colors[i], marker="o", linestyle="none", transform=trans)
 
-            # # Turn off clipping of error bars at 100% adoption
-            # for e in bars[1]:
-            #     e.set_clip_on(False)
+        if log_yscale:
+            ax.set_yscale('log')
+            ax.set_yticks([ylim[0]]+list(ps_adoption))
+            ax.get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
 
-        if log_xscale:
-            ax.set_xscale('log')
+        if mode == 'r_eff':
+            ax.set_yticks([1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0])
 
-        ax.set_xlim(left=np.min(ps_adoption), right=104)
-        ax.set_ylim(ymax=100, ymin=0.0)
-        ax.set_xticks(ps_adoption)
-        ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+        ax.set_ylim(ymax=ylim[1], ymin=ylim[0])
+
+        if not box_plot:
+            if log_xscale:
+                ax.set_xscale('log')
+            ax.set_xlim(left=np.min(ps_adoption), right=104)
+            ax.set_ylim(ymax=ylim[1], ymin=ylim[0])
+            ax.set_xticks(ps_adoption)
+            ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+        else:
+            ax.margins(x=0.15)
 
         ax.set_ylabel(ylabel)
         ax.set_xlabel('\% adoption')
 
-        if show_legend:
-            # legend
-            if legend_is_left:
-                leg = ax.legend(loc='upper left',
-                                bbox_to_anchor=(0.001, 0.999),
-                                bbox_transform=ax.transAxes,
-                                )
+        if title:
+            ax.set_title(title)
+
+        if show_significance is not None:
+            sig_options_updated = {'lhs_xshift': 0.013,
+                        'rhs_xshift': 0.13,
+                        'height': 1.0,
+                        'text_offset': 0.0,
+                        'same_height': True}
+            if isinstance(sig_options, dict):
+                for key, value in sig_options.items():
+                    sig_options_updated[key] = value
+            sig_options = sig_options_updated
+
+            if sig_options['same_height']:
+                ymax = np.max(np.asarray(means) + np.asarray(stds), axis=0)
+                if log_yscale:
+                    ys = np.exp(np.log(ymax) + np.log((ylim[1] - ylim[0]) * 0.008))
+                else:
+                    ys = ymax + (ylim[1] - ylim[0]) * 0.008
+                print(np.shape(ys))
+                ys = np.repeat(np.expand_dims(ys, axis=0), len(path_list), axis=0)
+                print(np.shape(ys))
             else:
-                leg = ax.legend(loc='upper right',
-                                bbox_to_anchor=(0.999, 0.999),
-                                bbox_transform=ax.transAxes,
-                                )
+                ys = np.asarray(means) + np.asarray(stds)
+
+            for j in range(len(ps_adoption_string)):
+                #y = ys[j]
+
+                for i in range(len(path_list) - 1):
+                    if show_significance == 'no_bars':
+                        mean1 = means[0][j]
+                        std1 = stds[0][j]
+                    else:
+                        mean1 = means[i][j]
+                        std1 = stds[i][j]
+                    mean2 = means[i+1][j]
+                    std2 = stds[i+1][j]
+
+                    rollouts = 400 if combine_summaries else 100
+                    is_significant, p_value = independent_ttest(mean1, std1, mean2, std2, rollouts=rollouts, alpha=0.05)
+                    print('p-value: ', p_value)
+                    y = ys[i+1][j]
+                    x1 = j + sig_options['lhs_xshift']
+                    x2 = j + sig_options['rhs_xshift']
+                    h = sig_options['height']
+                    if log_yscale:
+                        h = np.exp(np.log(y) + np.log(h))
+                    if show_significance == 'no_bars':
+                        i += 1
+                    offset = (len(path_list)) / 2 * 0.11
+                    trans = ax.transData + ScaledTranslation(-offset + sig_options['text_offset'] + (i + 1 / 2) / len(path_list) * 2 * offset, 0,
+                                                             fig.dpi_scale_trans)
+
+                    if show_significance == 'no_bars':
+                        if is_significant:
+                            plt.text(j, y + h, "*", ha='center', va='bottom', color='black', transform=trans)
+                    elif show_significance == 'bars':
+                        plt.plot([x1, x1, x2, x2], [y, y + h, y + h, y], lw=1.0, color='black', transform=trans)
+                        if is_significant:
+                            plt.text((x1 + x2) * .5, y + h, "*", ha='center', va='bottom', color='black', transform=trans)
+
+        if show_legend:
+                # legend
+                if legend_is_left:
+                    leg = ax.legend(loc='upper left',
+                                    bbox_to_anchor=(0.001, 0.999),
+                                    bbox_transform=ax.transAxes,
+                                    )
+                else:
+                    leg = ax.legend(loc='upper right',
+                                    bbox_to_anchor=(0.999, 0.999),
+                                    bbox_transform=ax.transAxes,
+                                    )
+                if legend_is_left == 'outside':
+                    leg = ax.legend(loc='lower left',
+                                    bbox_to_anchor=(0.001,0.001),
+                                    bbox_transform=ax.transAxes,
+                                    )
 
         subplot_adjust = subplot_adjust or {'bottom': 0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         plt.subplots_adjust(**subplot_adjust)
 
         plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
-                    dpi=DPI, bbox_inches='tight')
+                dpi=DPI, bbox_inches='tight')
 
         if NO_PLOT:
             plt.close()
         return
 
     def beta_parameter_heatmap(self, country, area, calibration_state, G_is_objective=True, estimate_mobility_reduction=False,
-                               figsize=(3, 3), cmap='viridis_r', levels=None, scatter=False, ceil=None, xmin=None, 
+                               figsize=(3, 3), cmap='viridis_r', levels=None, scatter=False, ceil=None, xmin=None,
                                xmax=None, ymin=None, ymax=None):
 
         param_bounds = calibration_model_param_bounds_single
@@ -2344,8 +2863,41 @@ class Plotter(object):
         ax.set_title('log MSE {}-{}'.format(country, area), y=0.98)
 
         plt.tight_layout()
-        plt.savefig(f'plots/bo-result-{country}-{area}.png', format='png', facecolor=None, dpi=200) 
+        plt.savefig(f'plots/bo-result-{country}-{area}.png', format='png', facecolor=None, dpi=200)
 
         plt.show()
+
+
+def combine_multiple_summaries(paths, key):
+    assert isinstance(paths, list)
+    mus = []
+    stds = []
+    for path in paths:
+        data = load_condensed_summary(path)
+        maxidx = np.argmax(data[key + 'mu'])
+        mus.append(data[key + 'mu'][maxidx])
+        stds.append(data[key + 'sig'][maxidx])
+    mu = np.mean(mus)
+    std = np.sqrt(np.mean(np.square(np.asarray(stds))))
+    return mu, std
+
+
+def get_peak_mu_and_std(path, key, combine_summaries=False):
+    if isinstance(path, list):
+        assert combine_summaries
+        mu, sig = combine_multiple_summaries(paths=path, key=key)
+    else:
+        data = load_condensed_summary(path)
+        maxidx = np.argmax(data[key + 'mu'])
+        mu = data[key + 'mu'][maxidx]
+        sig = data[key + 'sig'][maxidx]
+    return mu, sig
+
+
+def independent_ttest(mean1, std1, mean2, std2, rollouts, alpha):
+    t_stat = (mean2 - mean1) / np.sqrt(std1**2/np.sqrt(rollouts) + std2**2/np.sqrt(rollouts))
+    df = 2 * rollouts - 2
+    p = (1.0 - scipy.stats.t.cdf(abs(t_stat), df)) * 2.0
+    return p < alpha, p
 
 

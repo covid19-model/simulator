@@ -143,6 +143,8 @@ def condense_summary(summary, metadata=None, acc=500):
         print('Could not save secondary infection statistics due to the time window being to small.')
         nbinom_dist, nbinom_rts = None, None
 
+    r_eff_mu, r_eff_sig, r_eff_samples = compute_effectiv_reproduction_number(summary)
+
     data = {'metadata': metadata,
             'acc': acc,
             'max_time': summary.max_time,
@@ -168,9 +170,36 @@ def condense_summary(summary, metadata=None, acc=500):
             'tracing_stats': tracing_stats,
             'nbinom_dist': nbinom_dist,
             'nbinom_rts': nbinom_rts,
+            'r_eff_samples': r_eff_samples,
+            'r_eff_mu': r_eff_mu,
+            'r_eff_sig': r_eff_sig,
             }
 
     return data
+
+
+def compute_effectiv_reproduction_number(summary):
+    if summary.max_time > 10 * 7 * TO_HOURS:
+        tmax = summary.max_time - 14 * TO_HOURS
+    else:
+        tmax = summary.max_time
+
+    r_eff_samples = []
+    for r in range(summary.random_repeats):
+        infectious_individuals_r = state_started_before(summary, r, 'isym', tmax)
+        infectious_individuals_r += state_started_before(summary, r, 'iasy', tmax)
+        infectious_individuals_r += state_started_before(summary, r, 'ipre', tmax)
+        infectious_individuals = infectious_individuals_r > 0
+
+        children = (summary.children_count_iasy[r] +
+                    summary.children_count_ipre[r] +
+                    summary.children_count_isym[r])
+        valid_children = children[infectious_individuals]
+        r_eff_samples.append(np.mean(valid_children))
+
+    r_eff_mu = np.mean(r_eff_samples)
+    r_eff_sig = np.std(r_eff_samples)
+    return r_eff_mu, r_eff_sig, r_eff_samples
 
 
 def is_state_at(summary, r, state, t):
@@ -402,3 +431,37 @@ def get_plot_data(data, quantity, mode):
     else:
         NotImplementedError()
     return line_cases, error_cases
+
+
+def get_rt(data, p_infected, area_population, average_up_to_p_infected=False):
+    proportion_infected = data['cumu_infected_mu'] / area_population
+    closest_element = np.argmin(np.abs(np.asarray(proportion_infected) - p_infected))
+    time = data['ts'][closest_element]
+    index = np.argmin(np.abs(np.asarray(data['nbinom_rts'].t1) / 24.0 - time))
+    rts = data['nbinom_rts'].groupby('t1').agg({'Rt': ['mean', 'std']})
+    if average_up_to_p_infected:
+        start_index = 25
+        rt_list = list(rts.Rt['mean'])[start_index:index]
+        rt = np.mean(rt_list)
+        rt_stds = np.asarray(list(rts.Rt['std'])[start_index:index])
+        rt_std = np.sqrt(np.mean(np.square(rt_stds)) + np.mean(np.square(rt_list)) - np.square(np.mean(rt_list)))
+    else:
+        rt = list(rts.Rt['mean'])[index]
+        rt_std = list(rts.Rt['std'])[index]
+    return rt, rt_std
+
+
+def get_tracing_probability(mode, p_adoption, p_manual_reachability, p_recall, p_beacon=0.0):
+    if mode == 'SPECTS':
+        p_digital = p_adoption ** 2
+        p_manual = p_recall * p_manual_reachability * (1 - p_digital)
+        p_tracing = p_digital + p_manual
+    elif mode == 'PanCast':
+        p_digital = (p_adoption ** 2) * p_beacon
+        p_manual = p_recall * p_manual_reachability * (1 - p_digital)
+        p_digital_manual = p_beacon * p_adoption * p_manual_reachability * (1 - p_digital - p_manual)
+        p_manual_digital = p_beacon * p_adoption * p_recall * (1 - p_digital - p_manual - p_digital_manual)
+        p_tracing = p_digital + p_manual + p_digital_manual + p_manual_digital
+    else:
+        NotImplementedError('`mode` can only be in ["SPECTs", "PanCast"]')
+    return p_tracing

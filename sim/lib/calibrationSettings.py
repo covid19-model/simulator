@@ -25,8 +25,8 @@ calibration_simulation = {
 
 # parameter bounds
 
-beta_upper_bound_site = 0.1
-beta_upper_bound_household = 0.25
+beta_upper_bound_site = 0.08
+beta_upper_bound_household = 0.08
 
 calibration_model_param_bounds_single = {
     'beta_site': [0.0, beta_upper_bound_site],
@@ -69,10 +69,12 @@ calibration_testing_params = {
     'smart_tracing_policy_test': None,  # one of None, `basic`, `advanced`, `advanced-threshold`
     'smart_tracing_tested_contacts': 0,
     'smart_tracing_testing_threshold': 1.0,
+    'smart_tracing_testing_global_budget_per_day': 0.0,
     'trigger_tracing_after_posi_trace_test' : True,
 
-    # beacons
+    # beacons and manual tracing
     'p_willing_to_share': 1.0,
+    'delta_manual_tracing': 1.0
 }
 
 # BO acquisition function optimization (Knowledge gradient)

@@ -10,8 +10,8 @@ from collections import namedtuple, defaultdict
 import botorch.utils.transforms as transforms
 import argparse
 from lib.calibrationFunctions import (
-    pdict_to_parr, parr_to_pdict, save_state, load_state, 
-    get_calibrated_params, gen_initial_seeds, get_test_capacity, downsample_cases)
+    pdict_to_parr, parr_to_pdict, save_state, load_state,
+    get_calibrated_params, gen_initial_seeds, get_test_capacity, downsample_cases, extract_seeds_from_summary)
 from lib.mobilitysim import MobilitySimulator
 from lib.parallel import launch_parallel_simulations
 from lib.distributions import CovidDistributions
@@ -100,6 +100,8 @@ def process_command_line(return_parser=False):
                         help="update default number of cpus used for parallel simulation rollouts")
     parser.add_argument("--smoke_test", action="store_true",
                         help="flag to quickly finish runs to see if something breaks")
+    parser.add_argument("--append_name", type=str,
+                        help="appends name to experiment")
 
     parser.add_argument("--p_adoption", type=float,
                         help="only run experiment with a single adoption level")
@@ -115,6 +117,10 @@ def process_command_line(return_parser=False):
                         help="set number of background exposures per week")
     parser.add_argument("--tracing_threshold", type=float,
                         help="set smart tracing threshold")
+    parser.add_argument("--isolation_cap", type=float,
+                        help="set maximum of newly isolated people per day")
+    parser.add_argument("--beta_normalization", type=float,
+                        help="")
 
     parser.add_argument("--calibration_state", type=str,
                         help="specify path of calibration state")
