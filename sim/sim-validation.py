@@ -105,5 +105,5 @@ if __name__ == '__main__':
 
         print(f'{experiment_info} configuration done.')
 
-        # execute all simulations
-        experiment.run_all()
+    # execute all simulations
+    experiment.run_all()
