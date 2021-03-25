@@ -52,8 +52,8 @@ if __name__ == '__main__':
         smart_tracing_thresholds = [args.tracing_threshold]
     else:
         distr = CovidDistributions(country=country)
-        smart_tracing_threshold = (min_contact_time * calibrated_params['beta_site']
-                                   * (1 - np.exp(distr.gamma * (- distr.delta))))
+        smart_tracing_thresholds = [(min_contact_time * calibrated_params['beta_site']
+                                    * (1 - np.exp(distr.gamma * (- distr.delta))))]
 
     if args.test_lag is not None:
         test_lags = [args.test_lag]

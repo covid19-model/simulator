@@ -91,7 +91,7 @@ def compute_nbinom_distributions(result, x_range, interval_range):
     return df
 
 
-def estimate_daily_nbinom_rts(result, slider_size, window_size, end_cutoff):
+def estimate_daily_nbinom_rts(result, x_range, slider_size, window_size, end_cutoff):
     # Extract summary from result
     sim = result.summary
     # Build the range of time interval to estimate for
@@ -110,6 +110,7 @@ def estimate_daily_nbinom_rts(result, slider_size, window_size, end_cutoff):
                      'Rt': fitter.r_, 'kt': fitter.k_,
                      'num_sec_cases': data})
     print()
+
     # Format the results
     df = pd.DataFrame(res_data)
     # Ignore simulations with not enough data for fitting
@@ -117,4 +118,11 @@ def estimate_daily_nbinom_rts(result, slider_size, window_size, end_cutoff):
     df['sum_data'] = df['num_sec_cases'].apply(sum)
     df.loc[(df['len_data'] < 10) + (df['sum_data'] < 10),'kt'] = np.nan
     df.loc[(df['len_data'] == 0),'Rt'] = 0.0  # if no cases observed
+
+    # Compute NB parameters
+    df['param_n'] = df['kt']
+    df['param_p'] = df['kt'] / (df['kt'] + df['Rt'])
+    # Computer NB PMF
+    df['nbinom_pmf'] = df.apply(lambda row: sps.nbinom.pmf(x_range, n=row['param_n'], p=row['param_p']), axis=1)
+    
     return df
