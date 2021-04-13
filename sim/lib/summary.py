@@ -6,7 +6,7 @@ from lib.measures import UpperBoundCasesBetaMultiplier, SocialDistancingForAllMe
     SocialDistancingByAgeMeasure, SocialDistancingForPositiveMeasure, SocialDistancingForSmartTracingHousehold, \
     SocialDistancingSymptomaticAfterSmartTracing, SocialDistancingSymptomaticAfterSmartTracingHousehold
 import pickle
-from lib.rt_nbinom import estimate_daily_nbinom_rts, compute_nbinom_distributions
+from lib.rt_nbinom import estimate_daily_nbinom_dists
 
 
 TO_HOURS = 24.0
@@ -136,13 +136,12 @@ def condense_summary(summary, metadata=None, acc=500):
     window_size = 10.0 * 24
     interval_range = [(t0, t0 + window_size) for t0 in t0_range]
     try:
-        nbinom_dist = compute_nbinom_distributions(result, x_range, interval_range)
-        nbinom_rts = estimate_daily_nbinom_rts(result, x_range=x_range, 
+        nbinom_dist = estimate_daily_nbinom_dists(result, x_range=x_range,
             slider_size=24.0, window_size=24. * 7, end_cutoff=24. * 10)
             
     except KeyError:
         print('Could not save secondary infection statistics due to the time window being to small.')
-        nbinom_dist, nbinom_rts = None, None
+        nbinom_dist = None
 
     r_eff_mu, r_eff_sig, r_eff_samples = compute_effectiv_reproduction_number(summary)
 
@@ -170,7 +169,6 @@ def condense_summary(summary, metadata=None, acc=500):
             'posi_sig_age': posi_sig_age,
             'tracing_stats': tracing_stats,
             'nbinom_dist': nbinom_dist,
-            'nbinom_rts': nbinom_rts,
             'r_eff_samples': r_eff_samples,
             'r_eff_mu': r_eff_mu,
             'r_eff_sig': r_eff_sig,
@@ -438,8 +436,8 @@ def get_rt(data, p_infected, area_population, average_up_to_p_infected=False):
     proportion_infected = data['cumu_infected_mu'] / area_population
     closest_element = np.argmin(np.abs(np.asarray(proportion_infected) - p_infected))
     time = data['ts'][closest_element]
-    index = np.argmin(np.abs(np.asarray(data['nbinom_rts'].t1) / 24.0 - time))
-    rts = data['nbinom_rts'].groupby('t1').agg({'Rt': ['mean', 'std']})
+    index = np.argmin(np.abs(np.asarray(data['nbinom_dist'].t1) / 24.0 - time))
+    rts = data['nbinom_dist'].groupby('t1').agg({'Rt': ['mean', 'std']})
     if average_up_to_p_infected:
         start_index = 25
         rt_list = list(rts.Rt['mean'])[start_index:index]

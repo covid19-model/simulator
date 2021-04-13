@@ -1311,6 +1311,11 @@ class Plotter(object):
             if isinstance(path, str):
                 # path of `Result` in `experiment.py`
                 data = load_condensed_summary(path)
+
+                print('metadata.model_params:')
+                print(f'.beta_household {data["metadata"].model_params["beta_household"]}')
+                print(f'.beta_site      {data["metadata"].model_params["betas"]}\n')
+
                 ts = data['ts']
                 posi_mu = data['posi_mu']
                 posi_sig = data['posi_sig']
@@ -1625,7 +1630,7 @@ class Plotter(object):
         assert isinstance(path, str), '`path` must be a string.'
         data = load_condensed_summary(path)
         metadata = data['metadata']
-        df = data['nbinom_rts']
+        df = data['nbinom_dist']
             
         # Format dates
         if x_axis_dates:
@@ -1731,7 +1736,7 @@ class Plotter(object):
             assert isinstance(path, str), '`path` must be a string.'
             data = load_condensed_summary(path)
             metadata = data['metadata']
-            df = data['nbinom_rts']
+            df = data['nbinom_dist']
 
             # Format dates
             if x_axis_dates:
@@ -1795,7 +1800,7 @@ class Plotter(object):
             plt.close()
 
     def plot_nbinom_distributions(self, *, path, figsize=FIG_SIZE_TRIPLE_TALL, figformat='triple',
-                                  label_range=[], ymax=None, filename='nbinom_dist'):
+                                  label_range=[], ymax=None, filename='nbinom_dist', t0=50 * 24.0):
         """
         Plot the distribution of number of secondary cases along with their Negative-Binomial fits
         for the experiment summary in `result` for several ranges of times.
@@ -1806,12 +1811,9 @@ class Plotter(object):
         assert isinstance(path, str), '`path` must be a string.'
         data = load_condensed_summary(path)
         metadata = data['metadata']
-        df = data['nbinom_dist']
 
+        df = data['nbinom_dist']
         x_range = np.arange(0, 20)
-        t0 = 50 * 24.0
-        # window_size = 10.0 * 24
-        # interval_range = [(t0, t0 + window_size) for t0 in t0_range]
 
         # Aggregate results by time
         df_agg = df.groupby('t0').agg({'nbinom_pmf': list,
@@ -1819,8 +1821,6 @@ class Plotter(object):
                                     'kt': ['mean', 'std']})
         # Set triple figure params
         self._set_matplotlib_params(format=figformat)
-        # Draw figures
-        #for i, (t0, label) in enumerate(zip(t0_range, label_range)):
 
         fig, ax = plt.subplots(1, 1, figsize=figsize)
         # Extract data for the plot
@@ -2233,7 +2233,7 @@ class Plotter(object):
             for xval, yval, path in p:
 
                 data = load_condensed_summary(path, acc)
-                rtdata = data['nbinom_rts']
+                rtdata = data['nbinom_dist']
                 n_rollouts = data['metadata'].random_repeats
                 max_time = data['max_time']
 

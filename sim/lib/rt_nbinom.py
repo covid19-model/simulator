@@ -65,33 +65,7 @@ def get_sec_cases_in_window(sim, r, t0, t1):
     return num_children
 
 
-def compute_nbinom_distributions(result, x_range, interval_range):
-    # Fit all intervals for all random repeats
-    rand_rep_range = range(result.metadata.random_repeats)
-    res_data = []
-    for r, (t0, t1) in itertools.product(rand_rep_range, interval_range):
-            data = get_sec_cases_in_window(result.summary, r, t0, t1)
-            fitter = NegativeBinomialFitter()
-            fitter.fit(data)
-            res_data.append({'r': r, 't0': t0, 't1': t1,
-                            'Rt': fitter.r_, 'kt': fitter.k_,
-                            'num_sec_cases': data})
-    # Format in dataframe
-    df = pd.DataFrame(res_data)
-    # Ignore simulations with not enough data for fitting
-    df['len_data'] = df['num_sec_cases'].apply(len)
-    df['sum_data'] = df['num_sec_cases'].apply(sum)
-    df.loc[(df['len_data'] < 5) + (df['sum_data'] < 5),'kt'] = np.nan
-    df.loc[(df['len_data'] == 0),'Rt'] = 0.0  # if no cases observed
-    # Compute NB parameters
-    df['param_n'] = df['kt']
-    df['param_p'] = df['kt'] / (df['kt'] + df['Rt'])
-    # Computer NB PMF
-    df['nbinom_pmf'] = df.apply(lambda row: sps.nbinom.pmf(x_range, n=row['param_n'], p=row['param_p']), axis=1)
-    return df
-
-
-def estimate_daily_nbinom_rts(result, x_range, slider_size, window_size, end_cutoff):
+def estimate_daily_nbinom_dists(result, x_range, slider_size, window_size, end_cutoff):
     # Extract summary from result
     sim = result.summary
     # Build the range of time interval to estimate for
