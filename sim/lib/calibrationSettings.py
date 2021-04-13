@@ -181,8 +181,8 @@ calibration_lockdown_beta_multipliers = {
     'office': 0.5, 
     'supermarket': 0.5}
 
-calibration_lockdown_site_closures = ['social']
-calibration_lockdown_mobility_reduced = ['supermarket', 'bus_stop', 'office', 'education']
+calibration_lockdown_site_closures = ['education', 'social']
+calibration_lockdown_mobility_reduced = ['supermarket', 'bus_stop', 'office']
 
 # contact tracing adoption 
 contact_tracing_adoption = {
