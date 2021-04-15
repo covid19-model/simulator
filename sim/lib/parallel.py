@@ -92,6 +92,8 @@ class ParallelSummary(object):
         self.children_count_ipre = np.zeros((repeats, n_people), dtype='int')
         self.children_count_isym = np.zeros((repeats, n_people), dtype='int')
 
+        self.visit_expo_counts = []
+
         self.tracing_stats = {thres: defaultdict(lambda: {
             policy : {
                 'isolate':
@@ -127,6 +129,8 @@ def create_ParallelSummary_from_DiseaseModel(sim, store_mob=False):
     summary.children_count_iasy[0, :] = sim.children_count_iasy
     summary.children_count_ipre[0, :] = sim.children_count_ipre
     summary.children_count_isym[0, :] = sim.children_count_isym
+
+    summary.visit_expo_counts.append(sim.visit_expo_counts)
 
     for thres in sim.tracing_stats.keys():
         for sitetype in sim.tracing_stats[thres].keys():
@@ -167,6 +171,7 @@ def pp_launch(r, kwargs, distributions, params, initial_counts, testing_params, 
         'children_count_iasy': sim.children_count_iasy,
         'children_count_ipre': sim.children_count_ipre,
         'children_count_isym': sim.children_count_isym,
+        'visit_expo_counts' : sim.visit_expo_counts,
         'tracing_stats' : sim.tracing_stats,
         'num_site_exposures': sim.num_site_exposures,
         'num_household_exposures': sim.num_household_exposures
@@ -239,6 +244,8 @@ def launch_parallel_simulations(mob_settings, distributions, random_repeats, cpu
         summary.children_count_iasy[r, :] = result['children_count_iasy']
         summary.children_count_ipre[r, :] = result['children_count_ipre']
         summary.children_count_isym[r, :] = result['children_count_isym']
+
+        summary.visit_expo_counts.append(result['visit_expo_counts'])
 
         for thres in result['tracing_stats'].keys():
             for sitetype in result['tracing_stats'][thres].keys():

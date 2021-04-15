@@ -1861,6 +1861,68 @@ class Plotter(object):
         if NO_PLOT:
             plt.close()
 
+    def plot_visit_nbinom_distributions(self, *, path, figsize=FIG_SIZE_TRIPLE_TALL, figformat='triple',
+                                  label_range=[], ymax=None, filename='visit_nbinom_dist', t0=50 * 24.0):
+        """
+        Plot the distribution of number of secondary cases along with their Negative-Binomial fits
+        for the experiment summary in `result` for several ranges of times.
+        A pre-computed dataframe `df` can also be provided
+        """
+
+        # Compute statistics
+        assert isinstance(path, str), '`path` must be a string.'
+        data = load_condensed_summary(path)
+        metadata = data['metadata']
+
+        df = data['visit_nbinom_dist']
+        x_range = np.arange(0, 20)
+
+        # Aggregate results by time
+        df_agg = df.groupby('t0').agg({'nbinom_pmf': list,
+                                    'Rt': ['mean', 'std'],
+                                    'kt': ['mean', 'std']})
+        # Set triple figure params
+        self._set_matplotlib_params(format=figformat)
+
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+        # Extract data for the plot
+        row_df = df.loc[df.t0 == t0]
+        row_df_agg = df_agg.loc[t0]
+        y_nbinom = np.nanmean(np.vstack(row_df_agg['nbinom_pmf']), axis=0)
+        # Plot histogram
+        plt.hist(np.hstack(row_df['visit_expo_counts']),
+                bins=x_range, density=True,
+                color='darkgray',
+                align='left', width=0.8,
+                label='Empirical')
+        # Plot NB pmf
+        plt.plot(x_range, y_nbinom,
+                color='k',
+                label='NB')
+        # Write estimates in text
+        text_x = 0.999
+        text_y = 0.28
+        plt.text(text_x, text_y + 0.15, transform=ax.transAxes, horizontalalignment='right',
+                s=r'$\mu_t ~=~' + f"{row_df_agg['Rt']['mean']:.2f} \pm ({row_df_agg['Rt']['std']:.2f})$")
+        plt.text(text_x, text_y, transform=ax.transAxes, horizontalalignment='right',
+                s=r'$k_t ~=~' + f"{row_df_agg['kt']['mean']:.2f} \pm ({row_df_agg['kt']['std']:.2f})$")
+        # Set layout and labels
+        plt.ylim(top=ymax)
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(0.2))
+        plt.xlabel('Number of Exposures per Visit')
+        plt.ylabel('Probability')
+        plt.legend(loc='upper right')
+        # Set default axis style
+        self._set_default_axis_settings(ax=ax)
+        plt.subplots_adjust(left=0.22, bottom=0.22, right=0.99, top=0.95)
+        # Save figure
+        fpath = f"plots/prob-visit-exposures-{filename}.pdf"
+        print('Save:', fpath)
+        plt.savefig(fpath)
+        os.system(f'pdfcrop "${fpath}" tmp.pdf && mv tmp.pdf "${fpath}"')
+        if NO_PLOT:
+            plt.close()
+
     def plot_rt_over_population_infected(self, path_list, baseline_path=None, titles=None,
                                area_population=None, p_population=None, show_reduction=True, log_xscale=True, ylim=(0, 100),
                                figformat='double', filename='reff', figsize=None,

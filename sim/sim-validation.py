@@ -42,7 +42,7 @@ if __name__ == '__main__':
     calibration_regions = [('CH', 'JU'), ('CH', 'BE')]
     assert (cal_country, cal_area) in calibration_regions
     validation_regions = {'JU': [('CH', 'JU'), ('GER', 'SB'), ('GER', 'RH')],
-                          'BE': [('CH', 'BE'), ('GER', 'TU'), ('GER', 'KL')]}
+                          'BE': [('CH', 'BE'), ('GER', 'TU'), ('GER', 'KL'), ('CH', 'BS')]}
 
     if args.smoke_test:
         random_repeats = 1

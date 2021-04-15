@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 from sympy import Symbol, integrate, lambdify, exp, Max, Min, Piecewise, log
 import pprint
+from collections import Counter
 
 from lib.priorityqueue import PriorityQueue
 from lib.measures import * 
@@ -822,6 +823,9 @@ class DiseaseModel(object):
 
 
         # print('% exposed in risk buckets: ', 100.0 * self.risk_got_exposed / (self.risk_got_exposed + self.risk_got_not_exposed))
+
+        '''Compute infection hotspot statistics'''
+        self.visit_expo_counts = self.compute_infection_hotspot_stats(slider_size=24.0, window_size=24. * 7, end_cutoff=0.0)
    
         '''Compute ROC statistics'''
         # tracing_stats [threshold][policy][action][stat]
@@ -840,6 +844,56 @@ class DiseaseModel(object):
         # free memory
         self.valid_contacts_for_tracing = None
         self.queue = None
+
+
+    def compute_infection_hotspot_stats(self, *, slider_size, window_size, end_cutoff):
+        '''        
+        Counts the number of exposures caused per infectious visit in time window
+        Returns:
+            dict: (t0, t1) -> count array of exposures caused by each visit of an infectious individual in (t0, t1)
+        '''
+
+        # Build the range of time intervals to count for
+        t0_range = np.arange(0.0, self.max_time - window_size - end_cutoff, slider_size)
+        t1_range = t0_range + window_size
+        interval_range = list(zip(t0_range, t1_range))
+
+        # Collect infector visit id of each contact exposure in the simulation
+        visit_exposure_count = Counter()
+        for j in range(self.n_people):
+            if self.contact_caused_expo[j] is not None:
+                id_infector = self.contact_caused_expo[j].indiv_j
+                visit_id_infector = self.contact_caused_expo[j].id_tup[1]
+                visit_exposure_count[(id_infector, visit_id_infector)] += 1
+
+        # Count exposures for each infectious visit in time interval
+        total_expo_counts = dict()
+        for t0, t1 in interval_range:
+            expo_counts = []
+            for visit in self.mob.mob_traces.find((t0, t1)):
+                t = visit.t_from
+                if t < t0:
+                    continue 
+
+                # check whether individual was isolated/skipped visit
+                if self.is_person_home_from_visit_due_to_measure(t=t, i=visit.indiv, visit_id=visit.id, site_type=self.site_dict[self.site_type[visit.site]]):
+                    assert((visit.indiv, visit.id) not in visit_exposure_count)
+                    continue
+
+                # check whether individual was infectious at time of visit
+                indiv_is_infectious = (
+                    ((t >= self.state_started_at['iasy'][visit.indiv]) & (t < self.state_ended_at['iasy'][visit.indiv])) |
+                    ((t >= self.state_started_at['ipre'][visit.indiv]) & (t < self.state_ended_at['ipre'][visit.indiv])) |
+                    ((t >= self.state_started_at['isym'][visit.indiv]) & (t < self.state_ended_at['isym'][visit.indiv])) 
+                )
+
+                # record exposures caused during visit, only if infectious
+                if indiv_is_infectious:
+                    expo_counts.append(visit_exposure_count[(visit.indiv, visit.id)])
+
+            total_expo_counts[(t0, t1)] = np.array(sorted(expo_counts)) # only sorted for debugging purposes
+        
+        return total_expo_counts
 
 
     def compute_roc_stats(self, *, threshold_isolate, threshold_test):

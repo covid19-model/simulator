@@ -6,15 +6,15 @@ from lib.measures import UpperBoundCasesBetaMultiplier, SocialDistancingForAllMe
     SocialDistancingByAgeMeasure, SocialDistancingForPositiveMeasure, SocialDistancingForSmartTracingHousehold, \
     SocialDistancingSymptomaticAfterSmartTracing, SocialDistancingSymptomaticAfterSmartTracingHousehold
 import pickle
-from lib.rt_nbinom import estimate_daily_nbinom_dists
+from lib.rt_nbinom import estimate_daily_secondary_infection_nbinom_dists, estimate_daily_visit_infection_nbinom_dists
 
 
 TO_HOURS = 24.0
 TEST_LAG = 48.0 # hours
 
 Result = namedtuple('Result', (
-    'metadata',    # metadata of summaryulation that was run, here a `summaryulation` namedtuple
-    'summary',     # result summary of summaryulation
+    'metadata',    # metadata of simulation that was run, here a `Simulation` namedtuple
+    'summary',     # result summary of simulation
 ))
 
 
@@ -109,12 +109,7 @@ def condense_summary(summary, metadata=None, acc=500):
     _, cumu_dead_mu, cumu_dead_sig = comp_state_cumulative(summary, state=['dead'], acc=acc)
 
     # Tracing/containment statistics
-    # print('Start computing containment')
     # _, contained_mu, contained_sig = comp_contained_over_time(summary, acc)
-    # print(contained_mu)
-
-    # lockdowns = None
-    # mean_lockdown_time = 0
     lockdowns, mean_lockdown_time = get_lockdown_times(summary)
 
     posi_mu_age, posi_sig_age = [], []
@@ -130,18 +125,28 @@ def condense_summary(summary, metadata=None, acc=500):
     except AttributeError:
         tracing_stats = None
 
-    # # Collect data for nbinomial plots
-    x_range = np.arange(0, 20)
-    t0_range = [50 * 24.0]
-    window_size = 10.0 * 24
-    interval_range = [(t0, t0 + window_size) for t0 in t0_range]
+    # Collect data for secondary infection nbinomial plots
     try:
-        nbinom_dist = estimate_daily_nbinom_dists(result, x_range=x_range,
-            slider_size=24.0, window_size=24. * 7, end_cutoff=24. * 10)
-            
+        nbinom_dist = estimate_daily_secondary_infection_nbinom_dists(result, x_range=np.arange(0, 20),
+            slider_size=24.0, window_size=24. * 7, end_cutoff=0.0) #end_cutoff=24. * 10)   
     except KeyError:
         print('Could not save secondary infection statistics due to the time window being to small.')
         nbinom_dist = None
+
+    # Collect data for visit exposures nbinomial plots
+    try:
+        visit_nbinom_dist = estimate_daily_visit_infection_nbinom_dists(result, x_range=np.arange(0, 20))
+    except KeyError:
+        print('Could not save visit infection statistics due to the time window being to small.')
+        visit_nbinom_dist = None
+
+    # print('\nsummary.visit_expo_counts')
+    # for d in summary.visit_expo_counts:
+    #     for k, v in d.items():
+    #         print(f'{k} : {v}')
+    #     print()
+
+    # print(visit_nbinom_dist)
 
     r_eff_mu, r_eff_sig, r_eff_samples = compute_effectiv_reproduction_number(summary)
 
@@ -169,6 +174,7 @@ def condense_summary(summary, metadata=None, acc=500):
             'posi_sig_age': posi_sig_age,
             'tracing_stats': tracing_stats,
             'nbinom_dist': nbinom_dist,
+            'visit_nbinom_dist': visit_nbinom_dist,
             'r_eff_samples': r_eff_samples,
             'r_eff_mu': r_eff_mu,
             'r_eff_sig': r_eff_sig,

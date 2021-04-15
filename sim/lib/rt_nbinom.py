@@ -54,7 +54,7 @@ def get_sec_cases_in_window(sim, r, t0, t1):
     Helper function to extract the number of secondary cases from a simulation
     summary object `sim` within interval [t0, t1) for the random repeat `r`.
     """
-    # Get the infices of new infections (both asymptotic and symptotic)
+    # Get the indices of new infections (both asymptomatic and symptomatic)
     new_inf_indices = (
         ((sim.state_started_at['iasy'][r] >= t0) & (sim.state_started_at['iasy'][r] < t1)) |
         ((sim.state_started_at['ipre'][r] >= t0) & (sim.state_started_at['ipre'][r] < t1)))
@@ -65,19 +65,28 @@ def get_sec_cases_in_window(sim, r, t0, t1):
     return num_children
 
 
-def estimate_daily_nbinom_dists(result, x_range, slider_size, window_size, end_cutoff):
+def estimate_daily_secondary_infection_nbinom_dists(result, x_range, slider_size, window_size, end_cutoff):
+    """
+    Estimates Negative Binomial distribution parameters for number of secondary infections caused by
+    infectious individuals in a sequence of time windows of length `window_size`, every `slider_size` units of time.
+    
+    `x_range` indicates the finite range buckets of the NBin count data
+    """
+    
     # Extract summary from result
     sim = result.summary
+    
     # Build the range of time interval to estimate for
     t0_range = np.arange(0.0, sim.max_time - window_size - end_cutoff, slider_size)
     t1_range = t0_range + window_size
     interval_range = list(zip(t0_range, t1_range))
+    
     # Run the estimation
     res_data = []
     rand_rep_range = list(range(result.metadata.random_repeats))
     for r, (t0, t1) in itertools.product(rand_rep_range, interval_range):
-        print(f"\rEstimating r={r+1:2>d}/{len(rand_rep_range)}, interval=[{t0:>6.2f}, {t1:>6.2f}]...", end='')
-        data = get_sec_cases_in_window(sim, r, t0, t1)
+        print(f"\rEstimating secondary NBin r={r+1:2>d}/{len(rand_rep_range)}, interval=[{t0:>6.2f}, {t1:>6.2f}]...", end='')
+        data = get_sec_cases_in_window(sim, r, t0, t1)        
         fitter = NegativeBinomialFitter()
         fitter.fit(data)
         res_data.append({'r': r, 't0': t0, 't1': t1,
@@ -87,6 +96,7 @@ def estimate_daily_nbinom_dists(result, x_range, slider_size, window_size, end_c
 
     # Format the results
     df = pd.DataFrame(res_data)
+
     # Ignore simulations with not enough data for fitting
     df['len_data'] = df['num_sec_cases'].apply(len)
     df['sum_data'] = df['num_sec_cases'].apply(sum)
@@ -100,3 +110,49 @@ def estimate_daily_nbinom_dists(result, x_range, slider_size, window_size, end_c
     df['nbinom_pmf'] = df.apply(lambda row: sps.nbinom.pmf(x_range, n=row['param_n'], p=row['param_p']), axis=1)
     
     return df
+
+
+def estimate_daily_visit_infection_nbinom_dists(result, x_range):
+    """
+    Estimates Negative Binomial distribution parameters for number of infections occurring in a single visit
+    by infectious individuals. For computational reasons, the window size etc. (as in estimate_daily_secondary_infection_nbinom_dists) 
+    are computed in `dynamics.py` and computed online.
+    
+    `x_range` indicates the finite range buckets of the NBin count data
+    """
+    
+    # Extract summary from result
+    visit_expo_counts = result.summary.visit_expo_counts
+    
+    # Run the estimation
+    res_data = []
+    rand_rep_range = list()
+    for r in range(result.metadata.random_repeats): 
+        for (t0, t1), data in visit_expo_counts[r].items():
+            print(f"\rEstimating visit NBin r={r+1:2>d}/{len(rand_rep_range)}, interval=[{t0:>6.2f}, {t1:>6.2f}]...", end='')
+            fitter = NegativeBinomialFitter()
+            fitter.fit(data)
+            res_data.append({'r': r, 't0': t0, 't1': t1,
+                        'Rt': fitter.r_, 'kt': fitter.k_,
+                        'visit_expo_counts': data})
+    print()
+
+    # Format the results
+    df = pd.DataFrame(res_data)
+
+    # Ignore simulations with not enough data for fitting
+    df['len_data'] = df['visit_expo_counts'].apply(len)
+    df['sum_data'] = df['visit_expo_counts'].apply(sum)
+    df.loc[(df['len_data'] < 10) + (df['sum_data'] < 10),'kt'] = np.nan
+    df.loc[(df['len_data'] == 0),'Rt'] = 0.0  # if no cases observed
+
+    # Compute NB parameters
+    df['param_n'] = df['kt']
+    df['param_p'] = df['kt'] / (df['kt'] + df['Rt'])
+    # Computer NB PMF
+    df['nbinom_pmf'] = df.apply(lambda row: sps.nbinom.pmf(x_range, n=row['param_n'], p=row['param_p']), axis=1)
+    
+    return df
+
+
+
