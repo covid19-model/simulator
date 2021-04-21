@@ -9,7 +9,7 @@ from lib.calibrationSettings import *
 def make_calibration_parser():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--seed", help="set seed")
+    parser.add_argument("--seed", help="set seed", required=True)
     parser.add_argument("--filename", help="set filename; default is `calibartion_{seed}` ")
     parser.add_argument("--not_verbose", action="store_true", help="not verbose; default is verbose")
     parser.add_argument("--smoke_test", action="store_true", help="debug mode; stops quickly")
