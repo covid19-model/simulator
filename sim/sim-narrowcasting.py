@@ -105,9 +105,7 @@ if __name__ == '__main__':
         d['trigger_tracing_after_posi_trace_test'] = False
         return d
 
-    simulation_info = options_to_str(
-                mob_red=True,
-            )
+    simulation_info = ''
 
     experiment.add(
         simulation_info=simulation_info,

@@ -58,7 +58,7 @@ if __name__ == '__main__':
     if args.test_lag is not None:
         test_lags = [args.test_lag]
     else:
-        test_lags = [48.0, 24.0, 3.0, 1.0]
+        test_lags = [48.0, 24.0, 3.0, 0.5]
 
     if args.p_adoption is not None:
         ps_adoption = [args.p_adoption]
