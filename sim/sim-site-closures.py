@@ -32,7 +32,7 @@ if __name__ == '__main__':
     condensed_summary = True
 
     # experiment parameters
-    closures = [('social'), ('office'), ('education'),
+    closures = [('social', ), ('office', ), ('education', ),
                 ('social', 'office'), ('social', 'education'),
                 ('social', 'education', 'office')]
 

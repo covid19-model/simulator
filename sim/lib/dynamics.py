@@ -875,9 +875,11 @@ class DiseaseModel(object):
                 if t < t0:
                     continue 
 
-                # check whether individual was isolated/skipped visit
-                if self.is_person_home_from_visit_due_to_measure(t=t, i=visit.indiv, visit_id=visit.id, site_type=self.site_dict[self.site_type[visit.site]]):
-                    assert((visit.indiv, visit.id) not in visit_exposure_count)
+                # check whether individual was isolated/skipped visit; proxy: check visit interval end times
+                if (self.is_person_home_from_visit_due_to_measure(t=visit.t_from, i=visit.indiv, visit_id=visit.id, site_type=self.site_dict[self.site_type[visit.site]])
+                        and self.is_person_home_from_visit_due_to_measure(t=visit.t_to, i=visit.indiv, visit_id=visit.id, site_type=self.site_dict[self.site_type[visit.site]])):
+                    # no `assert` since it can raise `false negative` exception for KGroups measure due to frequent boundary effects of the above (imperfect) check for isolation
+                    # assert (visit.indiv, visit.id) not in visit_exposure_count, f'Even though individual was home, an exposure occurred at: {visit}'                        
                     continue
 
                 # check whether individual was infectious at time of visit
@@ -888,6 +890,7 @@ class DiseaseModel(object):
                 )
 
                 # record exposures caused during visit, only if infectious
+                # this appends zero (0) if the visit did not cause any exposures
                 if indiv_is_infectious:
                     expo_counts.append(visit_exposure_count[(visit.indiv, visit.id)])
 
