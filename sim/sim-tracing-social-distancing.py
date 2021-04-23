@@ -61,11 +61,14 @@ if __name__ == '__main__':
         test_lags = [0.5]
 
     if args.p_adoption is not None:
-        p_compliances = [args.p_adoption]
+        ps_adoption = [args.p_adoption]
     else:
-        p_compliances = [1.0, 0.75, 0.5, 0.25, 0.1, 0.05, 0.0]
+        ps_adoption = [1.0, 0.75, 0.5, 0.25, 0.1, 0.05, 0.0]
 
-    ps_adoption = [0.5, 0.25, 0.1, 0.05, 0.0]
+    if args.p_social_distancing is not None:
+        ps_social_distancing = [args.p_social_distancing]
+    else:
+        ps_social_distancing = [0.5, 0.25, 0.1, 0.05, 0.0]
 
     if args.smoke_test:
         start_date = '2021-01-01'
@@ -89,7 +92,7 @@ if __name__ == '__main__':
     )
 
     # contact tracing experiment for various options
-    for p_compliance in p_compliances:
+    for p_social_distancing in ps_social_distancing:
         for smart_tracing_threshold in smart_tracing_thresholds:
             for test_lag in test_lags:
                 for p_adoption in ps_adoption:
@@ -113,7 +116,7 @@ if __name__ == '__main__':
 
                         SocialDistancingForAllMeasure(
                             t_window=Interval(0.0, TO_HOURS * max_days),
-                            p_stay_home=p_compliance),
+                            p_stay_home=p_social_distancing),
                         ]
 
                     # set testing params via update function of standard testing parameters
@@ -136,8 +139,8 @@ if __name__ == '__main__':
                         return d
 
                     simulation_info = options_to_str(
-                        p_adoption=p_adoption,
-                        p_social_distancing=p_compliance,
+                        p_tracing=p_adoption,
+                        p_social_distancing=p_social_distancing,
                         test_lag=test_lag,
                         tracing_threshold=smart_tracing_threshold,
                     )

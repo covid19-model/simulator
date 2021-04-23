@@ -121,6 +121,8 @@ def process_command_line(return_parser=False):
                         help="set maximum of newly isolated people per day")
     parser.add_argument("--beta_normalization", type=float,
                         help="")
+    parser.add_argument("--p_social_distancing", type=float,
+                        help="mobility reduction for all")
 
     parser.add_argument("--calibration_state", type=str,
                         help="specify path of calibration state")
