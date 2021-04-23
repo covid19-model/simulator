@@ -41,6 +41,7 @@ from lib.calibrationFunctions import (
 )
 
 from lib.data import collect_data_from_df
+import copy
 
 import botorch.utils.transforms as transforms
 
@@ -2187,8 +2188,14 @@ class Plotter(object):
             # self._set_default_axis_settings(ax=ax)
             axs[plt_index].set_aspect('equal', 'box')
             axs[plt_index].yaxis.set_major_formatter(FormatStrFormatter('%.2f'))
-            if p_adoption:
+
+            if p_adoption is not None:
                 axs[plt_index].set_title(f'{int(p_adoption*100)}\% adoption')
+                start, end = axs[plt_index].get_xlim()
+                #axs[plt_index].xaxis.set_ticks(np.linspace(start, end, 3))
+
+                #axs[plt_index].locator_params('x', nbins=2)
+                #axs[plt_index].locator_params('y', nbins=3)
             # else:
             #     leg = axs[plt_index].legend(loc='lower right')
         # leg = axs[1].legend(loc='top right')
@@ -2202,6 +2209,14 @@ class Plotter(object):
             leg = axs[0].legend(loc='lower right')
         # subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         # plt.subplots_adjust(**subplot_adjust)
+
+        if p_adoption is not None:
+            axs[2].xaxis.set_ticks([0, 0.03, 0.06])
+            axs[0].yaxis.set_ticks([0.0, 0.1, 0.2, 0.3])
+            axs[1].yaxis.set_ticks([0.0, 0.05, 0.1, 0.15])
+            #axs[2].yaxis.set_ticks([0.04, 0.08])
+            #axs[3].yaxis.set_ticks([0.03, 0.06])
+
 
         plt.tight_layout()
         plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
