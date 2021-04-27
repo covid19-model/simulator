@@ -174,7 +174,7 @@ if __name__ == '__main__':
             'best_observed_obj': best_observed_obj,
             'best_observed_idx': best_observed_idx
         }
-        save_state(state, args.filename)
+        save_state(state, args.filename + '_' + subprocess.check_output(["git", "describe", "--always"]).strip().decode(sys.stdout.encoding))
 
     # print best parameters
     print()
