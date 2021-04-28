@@ -92,6 +92,10 @@ if __name__ == '__main__':
             ComplianceForAllMeasure(
                 t_window=Interval(0.0, TO_HOURS * max_days),
                 p_compliance=0.0),
+            SocialDistancingForSmartTracing(
+                t_window=Interval(0.0, TO_HOURS * max_days),
+                p_stay_home=1.0,
+                smart_tracing_isolation_duration=TO_HOURS * 14.0),
             SocialDistancingForSmartTracingHousehold(
                 t_window=Interval(0.0, TO_HOURS * max_days),
                 p_isolate=1.0,
