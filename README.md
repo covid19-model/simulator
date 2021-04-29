@@ -21,8 +21,8 @@ Motivated by several lines of evidence suggesting for *superspreading events* or
 Bayesian optimization is used to estimate mobility-related exposure parameters by fitting the model to  true observed case counts in a considered area. In our work on COVID-19, we study several regions in Germany and Switzerland, whose models were fit to real case counts over two-month windows before and during the "lockdown" in spring 2020:
 
 <p align="center">
-<img width="35%" src="./img/BE-fit-1.jpg">
-<img width="40%" src="./img/BE-estimation-1.jpg">
+<img width="35%" src="./img/BE-fit-1.jpg" class="center">
+<img width="40%" src="./img/BE-estimation-1.jpg" class="center">
 </p>
 
 Using the estimated parameters of the region-specific models, the sampling algorithm allows for analyses of counterfactual scenarios under various local circumstances. 
