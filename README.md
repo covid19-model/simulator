@@ -1,37 +1,58 @@
+
+
+
+
 # Quantifying the Effects of Contact Tracing, Testing, and Containment Measures in the Presence of Infection Hotspots
 
 This repository contains the code base to run the sampling algorithm of a high-resolution spatiotemporal epidemic model at large scale, which can be used to predict and analyze the spread of epidemics such as COVID-19 in any real-world city and region. Different testing & tracing strategies, social distancing measures and business restrictions can be employed, amended, and extended arbitrarily in a modular fashion. Details about the relevant theory and methods can be found in our [paper](https://arxiv.org/abs/2004.07641).
 
 ## Project description
 
-Motivated by several lines of evidence suggesting for *superspreading events* or infection hotspots to play a key role in the transmission dynamics of COVID-19, we introduce an epidemiological modeling framework that explicitly represents sites where infections occur or hotspots may emerge. We use temporal point processes to represent the state of each individual over time with respect to their mobility patterns, health, and testing status. The model leverages the locations of real-world sites and high-resolution population density data in a heuristic mobility model of a given region, which can be arbitrarily generalized.
-
-Bayesian optimization is used to estimate mobility-related exposure parameters by fitting the model to  true observed case counts in a considered area. In our work on COVID-19, we study six regions in Germany and Switzerland, whose models were fit to real case counts over two-month windows before and during the "lockdown" in spring 2020:
-
-<p align="center">
-<img width="100%" src="./img/modelfit-panel.jpg">
-</p>
-
-
-
-Using the estimated parameters of the region-specific models, the sampling algorithm allows for analyses of counterfactual scenarios under various local circumstances, e.g. in urban and rural as well as lightly and severely affected areas. 
-
-Amongst several other things, this framework allows to study the effects of:  the effective reproduction number e.g. during a shorter "lockdown" (top left), overdispersion in the number of secondary infections per individual (top middle), compliance with contact tracing (top right), and narrowcasting of the empirical exposure probability to sites (bottom); here: first two for Bern (CH) and second two for Tübingen (GER).
+Motivated by several lines of evidence suggesting for *superspreading events* or infection hotspots to play a key role in the transmission dynamics of COVID-19, we introduce an epidemiological modeling framework that explicitly represents visits to sites where infections occur or hotspots may emerge. We use temporal point processes to represent the state of each individual over time with respect to their mobility patterns, health, and testing status. The model leverages the locations of publicly available data on real-world sites and population density in a heuristic mobility model of a given region (below: Bern, Switzerland), whose assumptions can be arbitrarily generalized.
 
 
 
 <p align="center">
-<img width="28%" src="./img/r-bern-early-ending-lockdown.jpg">
-<img width="25%" src="./img/k-bern-early-ending-lockdown.jpg">
-<img width="30%" src="./img/tracing-compliance-tubingen.jpg">
+<img width="80%" src="./img/BE-sites.jpg">
 </p>
 
+
+
+Bayesian optimization is used to estimate mobility-related exposure parameters by fitting the model to  true observed case counts in a considered area. In our work on COVID-19, we study several regions in Germany and Switzerland, whose models were fit to real case counts over two-month windows before and during the "lockdown" in spring 2020:
+
+<p align="center">
+<img width="35%" src="./img/BE-fit-1.jpg">
+<img width="40%" src="./img/BE-estimation-1.jpg">
+</p>
+
+Using the estimated parameters of the region-specific models, the sampling algorithm allows for analyses of counterfactual scenarios under various local circumstances. 
+
+Contrary to existing agent-based epidemiological models, under our framework, the number of infections caused by infected individuals naturally emerges to be *overdispersed*, i.e., exhibiting greater variance than expected under the common Poisson assumption (here: fitted negative binomial distribution of the secondary infections overall and during a single site visit, respectively).
 
 
 
 <p align="center">
-<img width="80%" src="./img/narrowcasting-tubingen.png">
+<img width="45%" src="./img/BE-nbin-secondary-1.jpg">
+<img width="45%" src="./img/BE-nbin-visit-exposures-1.jpg">
 </p>
+
+
+
+Amongst several other things, this framework allows for studying the effects of: the effective reproduction number, infections, hospitalizations, and fatalities over time during, e.g., mobility reduction, contact tracing, and testing measures, targeting not only the broader population, but also specific sites or individuals.
+
+
+
+<p align="center">
+<img width="45%" src="./img/BE-mobility-reduction-reff-1.jpg">
+<img width="45%" src="./img/BE-mobility-reduction-hosp-1.jpg">
+</p>
+
+
+
+<p align="center">
+<img width="95%" src="./img/BE-tracing-infected-over-time-1.jpg">
+</p>
+
 
 ## Organization
 
@@ -65,7 +86,7 @@ If you use parts of the code in this repository for your own research purposes, 
 
     @article{lorch2020quantifying,
         title={Quantifying the Effects of Contact Tracing, Testing, and Containment Measures in the Presence of Infection Hotspots},
-        author={Lars Lorch and Heiner Kremer and William Trouleau and Stratis Tsirtsis and Aron Szanto and Bernhard Sch\"olkopf and Manuel Gomez-Rodriguez},
+        author={Lars Lorch and Heiner Kremer and William Trouleau and Stratis Tsirtsis and Aron Szanto and Bernhard Sch{\"o}lkopf and Manuel Gomez-Rodriguez},
         journal={arXiv preprint arXiv:2004.07641},
         year={2020}
     }

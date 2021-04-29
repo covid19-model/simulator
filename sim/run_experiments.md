@@ -10,5 +10,4 @@ python sim-lockdown.py --country GER --area TU
 python sim-k-groups.py --country GER --area TU
 python sim-vulnerable-groups.py --country GER --area TU
 python sim-tracing.py --country GER --area TU
-python sim-narrowcasting.py --country GER --area TU
 ```
