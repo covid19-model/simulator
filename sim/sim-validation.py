@@ -39,11 +39,16 @@ if __name__ == '__main__':
     np.random.seed(c)
     rd.seed(c)
 
-    calibration_regions = [('CH', 'JU'), ('CH', 'BE')]
+    calibration_regions = [('CH', 'JU'), ('CH', 'BE'), ('GER', 'TU'), ('GER', 'KL'), ('GER', 'RH')]
     assert (cal_country, cal_area) in calibration_regions
-    validation_regions = {'JU': [('CH', 'JU'), ('GER', 'SB'), ('GER', 'RH')],
-                          'BE': [('CH', 'BE'), ('GER', 'TU'), ('GER', 'KL'), ('CH', 'BS')]}
-
+    validation_regions = {
+        'BE': [('CH', 'BE')],
+        'JU': [('CH', 'JU')],
+        'TU': [('GER', 'TU')],
+        'KL': [('GER', 'KL')],
+        'RH': [('GER', 'RH')],
+    }
+       
     if args.smoke_test:
         random_repeats = 1
         full_scale = False

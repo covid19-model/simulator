@@ -18,7 +18,7 @@ https://doi.org/10.1101/2020.08.19.20178111
 import itertools
 import pandas as pd
 from scipy import stats as sps
-
+from collections import defaultdict
 
 import scipy.optimize as spo
 import scipy.special as spsp
@@ -65,11 +65,13 @@ def get_sec_cases_in_window(sim, r, t0, t1):
     return num_children
 
 
-def estimate_daily_secondary_infection_nbinom_dists(result, x_range, slider_size, window_size, end_cutoff):
+def estimate_daily_secondary_infection_nbinom_dists(result, x_range, slider_size=14 * 24.0, window_size=24.0 * 7, end_cutoff=0.0):
     """
     Estimates Negative Binomial distribution parameters for number of secondary infections caused by
     infectious individuals in a sequence of time windows of length `window_size`, every `slider_size` units of time.
-    
+
+    Default: every 14 days, for a 7-day window, until the end of the simulation
+
     `x_range` indicates the finite range buckets of the NBin count data
     """
     
@@ -154,5 +156,62 @@ def estimate_daily_visit_infection_nbinom_dists(result, x_range):
     
     return df
 
+
+
+def overdispersion_test(df, count_data_str, chi2_max_count=10):
+    """
+    Tests for overdisperison (var > mean) in count data
+
+    Overview:
+    https://www.jstor.org/stable/pdf/2681062.pdf?refreqid=excelsior%3Ad4e9e29ea50a0054d892f92a6171cfc2
+    https://www.jstor.org/stable/pdf/25051417.pdf?refreqid=excelsior%3Aed5d7ced6c9071cd3737ddbfac3ed121
+
+    """
+    counts = df[['r', 't0', 't1', count_data_str]]
+
+    # aggregate count data over all random restarts for statistical test
+    counts_agg_over_restarts = defaultdict(list)
+    for i, row in counts.iterrows():
+        print(f'{i+1:7d} / {len(counts)}', end='\r')
+        t0, t1 = row['t0'], row['t1']
+        counts_agg_over_restarts[(t0, t1)] += row[count_data_str].tolist()
+    print()
+    
+    # perform tests
+    stats = []
+    for i, ((t0, t1), c_list) in enumerate(counts_agg_over_restarts.items()):
+
+        print(f'{i+1:7d} / {len(counts_agg_over_restarts)}', end='\r')
+
+        c = np.array(c_list)
+        num_obs = len(c)
+
+        # basics 
+        mean = np.mean(c)
+        var = np.var(c)
+        maxx = np.max(c)
+
+        # chi squared goodness of fit test
+        # aggregate counts higher than max count
+        c_ceil = np.where(c > chi2_max_count, chi2_max_count, c)
+        observed_freq = np.bincount(c_ceil, minlength=chi2_max_count+1).astype(np.float64)
+        expected_freq = (sps.poisson.pmf(np.arange(chi2_max_count+1), mean) * num_obs).astype(np.float64)
+
+        # chi2_pval = sps.distributions.chi2.sf(np.sum(((observed_freq - expected_freq) ** 2) / expected_freq), num_obs - 2)
+        chi2_pval = sps.chisquare(f_obs=observed_freq, f_exp=expected_freq, ddof=1, axis=0)[1]
+
+        # variance test / Poisson dispersion test
+        vt = (num_obs - 1) * var / mean
+        vt_pval = sps.distributions.chi2.sf(vt.astype(np.float64), num_obs - 1)
+
+        stats.append({
+            't0': t0, 't1': t1,
+            'mean': mean.item(), 'var': var.item(), 'max': maxx.item(),
+            'chi2_pval': chi2_pval.item(),
+            'vt_pval': vt_pval.item(),
+        })
+
+    stats_df = pd.DataFrame(stats)
+    return stats_df
 
 

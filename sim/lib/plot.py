@@ -4,7 +4,6 @@ import collections
 import numpy as np
 import pandas as pd
 import torch
-import torch
 from scipy import stats as sps
 from scipy.interpolate import interp1d
 import seaborn as sns
@@ -52,6 +51,7 @@ from lib.calibrationSettings import (
 )
 
 from lib.rt import compute_daily_rts, R_T_RANGE
+from lib.rt_nbinom import overdispersion_test
 from lib.summary import *
 
 TO_HOURS = 24.0
@@ -379,6 +379,9 @@ class Plotter(object):
             '#253494',
         ]
 
+        self.color_model_fit_light =  '#bdbdbd'
+        self.color_model_fit_dark =  '#636363'
+
         # 2D visualization
         self.density_alpha = 0.7
 
@@ -391,7 +394,7 @@ class Plotter(object):
         self.size_home = 80
         self.size_site = 300
 
-    def _set_matplotlib_params(self, format='dobule'):
+    def _set_matplotlib_params(self, format='double'):
         # matplotlib.backend_bases.register_backend('pdf', FigureCanvasPgf)
         if format == 'double':
             plt.rcParams.update(SIGCONF_RCPARAMS_DOUBLE)
@@ -1328,13 +1331,16 @@ class Plotter(object):
             ts = days_to_datetime(ts, start_date=start_date)
 
             # lines
-            ax.fill_between(ts, posi_mu - 2 * posi_sig, posi_mu + 2 * posi_sig,
-                            color=self.color_different_scenarios[i],
-                            alpha=self.filling_alpha, linewidth=0.0)
+            ax.fill_between(ts, posi_mu - 2 * posi_sig, posi_mu - 1 * posi_sig,
+                            color=self.color_model_fit_light,
+                            linewidth=0.0, alpha=0.7)
+            ax.fill_between(ts, posi_mu + 1 * posi_sig, posi_mu + 2 * posi_sig,
+                            color=self.color_model_fit_light,
+                            linewidth=0.0, alpha=0.7)
             ax.fill_between(ts, posi_mu - 1 * posi_sig, posi_mu + 1 * posi_sig,
-                            color=self.color_different_scenarios[i],
-                            alpha=1.25 * self.filling_alpha, linewidth=0.0)
-            ax.plot(ts, posi_mu, label=labels[i], c=self.color_different_scenarios[i])
+                            color=self.color_model_fit_dark, label=labels[i],
+                            linewidth=0.0, alpha=0.7)
+            ax.plot(ts, posi_mu, c='black')
 
         # target
         if small_figure:
@@ -1345,6 +1351,7 @@ class Plotter(object):
             ymax = 1.5 * np.max(posi_mu)
         ax.set_ylim((0, ymax))
         ax.set_ylabel(r'Positive cases')
+
         # lockdown
         if lockdown_at is not None:
             if small_figure:
@@ -1353,9 +1360,9 @@ class Plotter(object):
             else:
                 xshift = 2.5 * pd.to_timedelta(pd.to_datetime(ts[-1]) - pd.to_datetime(start_date), 'd') / 54
                 text_off = True
-            # lockdown_widget(ax, lockdown_at, start_date,
-            #                 lockdown_label_y,
-            #                 lockdown_label, xshift=0.0, text_off=text_off)
+            lockdown_widget(ax, lockdown_at, start_date,
+                            lockdown_label_y,
+                            lockdown_label, xshift=0.0, text_off=text_off)
         # Default axes style
         self._set_default_axis_settings(ax=ax)
         # y-ticks
@@ -1372,14 +1379,19 @@ class Plotter(object):
         #set major ticks format
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
         fig.autofmt_xdate(bottom=0.2, rotation=0, ha='center')
+        
+        # sort both labels and handles (so simulated cases is above real cases in legend)
+        handles, labels = ax.get_legend_handles_labels()
+        labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0], reverse=True))
+
         # legend
         if show_legend:
             if small_figure:
-                ax.legend(loc='upper left',
+                ax.legend(handles, labels, loc='upper left',
                           bbox_to_anchor=(0.025, 0.99),
                           bbox_transform=ax.transAxes,)
             else:
-                ax.legend(loc='upper left', borderaxespad=0.5)
+                ax.legend(handles, labels, loc='upper left', borderaxespad=0.5)
         # Save fig
         if cluster_compatible:
             plt.savefig('plots/' + filename + '.png', format='png', facecolor=None,
@@ -1800,7 +1812,7 @@ class Plotter(object):
             plt.close()
 
     def plot_nbinom_distributions(self, *, path, figsize=FIG_SIZE_TRIPLE_TALL, figformat='triple',
-                                  label_range=[], ymax=None, filename='nbinom_dist', t0=50 * 24.0):
+                                  label_range=[], ymax=None, filename='nbinom_dist', t0=28 * 24.0):
         """
         Plot the distribution of number of secondary cases along with their Negative-Binomial fits
         for the experiment summary in `result` for several ranges of times.
@@ -1815,46 +1827,65 @@ class Plotter(object):
         df = data['nbinom_dist']
         x_range = np.arange(0, 20)
 
+        # dispersion statistics
+        df_stats = overdispersion_test(
+            df=df, count_data_str='num_sec_cases',
+            chi2_max_count=10) # overall sec cases (important for chi2)
+
         # Aggregate results by time
         df_agg = df.groupby('t0').agg({'nbinom_pmf': list,
                                     'Rt': ['mean', 'std'],
                                     'kt': ['mean', 'std']})
         # Set triple figure params
         self._set_matplotlib_params(format=figformat)
-
         fig, ax = plt.subplots(1, 1, figsize=figsize)
+
         # Extract data for the plot
         row_df = df.loc[df.t0 == t0]
         row_df_agg = df_agg.loc[t0]
+        row_stats = df_stats.loc[df_stats.t0 == t0]
         y_nbinom = np.nanmean(np.vstack(row_df_agg['nbinom_pmf']), axis=0)
+
         # Plot histogram
         plt.hist(np.hstack(row_df['num_sec_cases']),
                 bins=x_range, density=True,
                 color='darkgray',
                 align='left', width=0.8,
                 label='Empirical')
+                
         # Plot NB pmf
         plt.plot(x_range, y_nbinom,
                 color='k',
-                label='NB')
+                label=r'$\mathrm{NBin}(r, k)$')
+
         # Write estimates in text
         text_x = 0.999
         text_y = 0.28
+        plt.text(text_x, text_y + 0.28, transform=ax.transAxes, horizontalalignment='right',
+                s=r'$r ~=~' + f"{row_df_agg['Rt']['mean']:.2f} \pm ({row_df_agg['Rt']['std']:.2f})$")
         plt.text(text_x, text_y + 0.15, transform=ax.transAxes, horizontalalignment='right',
-                s=r'$R_t ~=~' + f"{row_df_agg['Rt']['mean']:.2f} \pm ({row_df_agg['Rt']['std']:.2f})$")
-        plt.text(text_x, text_y, transform=ax.transAxes, horizontalalignment='right',
-                s=r'$k_t ~=~' + f"{row_df_agg['kt']['mean']:.2f} \pm ({row_df_agg['kt']['std']:.2f})$")
+                s=r'$k ~=~' + f"{row_df_agg['kt']['mean']:.2f} \pm ({row_df_agg['kt']['std']:.2f})$")
+
+        print('Poisson/dispersion statistics:')
+        print(row_stats)
+        print()
+        print(f'Chi-squared test: p = {row_stats["chi2_pval"].values[0]:.8f}')
+        print(f'Variance test:    p = {row_stats["vt_pval"].values[0]:.8f}')
+        print()
+
         # Set layout and labels
         plt.ylim(top=ymax)
         ax.yaxis.set_major_locator(ticker.MultipleLocator(0.2))
-        plt.xlabel('Number of Secondary Cases')
+        # plt.xlabel('Number of Secondary Infections')
         plt.ylabel('Probability')
         plt.legend(loc='upper right')
+
         # Set default axis style
         self._set_default_axis_settings(ax=ax)
         plt.subplots_adjust(left=0.22, bottom=0.22, right=0.99, top=0.95)
+
         # Save figure
-        fpath = f"plots/prob-secondaryCases-{filename}.pdf"
+        fpath = f"plots/nbin-secondary-exposures-{filename}.pdf"
         print('Save:', fpath)
         plt.savefig(fpath)
         os.system(f'pdfcrop "${fpath}" tmp.pdf && mv tmp.pdf "${fpath}"')
@@ -1862,7 +1893,7 @@ class Plotter(object):
             plt.close()
 
     def plot_visit_nbinom_distributions(self, *, path, figsize=FIG_SIZE_TRIPLE_TALL, figformat='triple',
-                                  label_range=[], ymax=None, filename='visit_nbinom_dist', t0=50 * 24.0):
+                                  label_range=[], ymax=None, filename='visit_nbinom_dist', t0=28 * 24.0):
         """
         Plot the distribution of number of secondary cases along with their Negative-Binomial fits
         for the experiment summary in `result` for several ranges of times.
@@ -1877,46 +1908,65 @@ class Plotter(object):
         df = data['visit_nbinom_dist']
         x_range = np.arange(0, 20)
 
+        # dispersion statistics
+        df_stats = overdispersion_test(
+            df=df, count_data_str='visit_expo_counts',
+            chi2_max_count=5) # max sec cases per visit
+
         # Aggregate results by time
         df_agg = df.groupby('t0').agg({'nbinom_pmf': list,
                                     'Rt': ['mean', 'std'],
                                     'kt': ['mean', 'std']})
         # Set triple figure params
         self._set_matplotlib_params(format=figformat)
-
         fig, ax = plt.subplots(1, 1, figsize=figsize)
+
         # Extract data for the plot
         row_df = df.loc[df.t0 == t0]
         row_df_agg = df_agg.loc[t0]
+        row_stats = df_stats.loc[df_stats.t0 == t0]
         y_nbinom = np.nanmean(np.vstack(row_df_agg['nbinom_pmf']), axis=0)
+
         # Plot histogram
         plt.hist(np.hstack(row_df['visit_expo_counts']),
                 bins=x_range, density=True,
                 color='darkgray',
                 align='left', width=0.8,
                 label='Empirical')
+                
         # Plot NB pmf
         plt.plot(x_range, y_nbinom,
                 color='k',
-                label='NB')
+                label=r'$\mathrm{NBin}(r, k)$')
+
         # Write estimates in text
         text_x = 0.999
         text_y = 0.28
+        plt.text(text_x, text_y + 0.28, transform=ax.transAxes, horizontalalignment='right',
+                s=r'$r ~=~' + f"{row_df_agg['Rt']['mean']:.2f} \pm ({row_df_agg['Rt']['std']:.2f})$")
         plt.text(text_x, text_y + 0.15, transform=ax.transAxes, horizontalalignment='right',
-                s=r'$\mu_t ~=~' + f"{row_df_agg['Rt']['mean']:.2f} \pm ({row_df_agg['Rt']['std']:.2f})$")
-        plt.text(text_x, text_y, transform=ax.transAxes, horizontalalignment='right',
-                s=r'$k_t ~=~' + f"{row_df_agg['kt']['mean']:.2f} \pm ({row_df_agg['kt']['std']:.2f})$")
+                s=r'$k ~=~' + f"{row_df_agg['kt']['mean']:.2f} \pm ({row_df_agg['kt']['std']:.2f})$")
+
+        print('Poisson/dispersion statistics:')
+        print(row_stats)
+        print()
+        print(f'Chi-squared test: p = {row_stats["chi2_pval"].values[0]:.8f}')
+        print(f'Variance test:    p = {row_stats["vt_pval"].values[0]:.8f}')
+        print()
+
         # Set layout and labels
         plt.ylim(top=ymax)
         ax.yaxis.set_major_locator(ticker.MultipleLocator(0.2))
-        plt.xlabel('Number of Exposures per Visit')
+        # plt.xlabel('Number of Secondary Infections per Visit')
         plt.ylabel('Probability')
         plt.legend(loc='upper right')
+
         # Set default axis style
         self._set_default_axis_settings(ax=ax)
         plt.subplots_adjust(left=0.22, bottom=0.22, right=0.99, top=0.95)
+
         # Save figure
-        fpath = f"plots/prob-visit-exposures-{filename}.pdf"
+        fpath = f"plots/nbin-visit-exposures-{filename}.pdf"
         print('Save:', fpath)
         plt.savefig(fpath)
         os.system(f'pdfcrop "${fpath}" tmp.pdf && mv tmp.pdf "${fpath}"')
@@ -2830,6 +2880,8 @@ class Plotter(object):
                                figsize=(3, 3), cmap='viridis_r', levels=None, scatter=False, ceil=None, xmin=None,
                                xmax=None, ymin=None, ymax=None):
 
+        self._set_matplotlib_params(format='neurips-double')
+
         param_bounds = calibration_model_param_bounds_single
         sim_bounds = pdict_to_parr(
             pdict=param_bounds,
@@ -2862,7 +2914,7 @@ class Plotter(object):
         def objective(G):
             return - (G - G_obs_aggregate).pow(2).sum(dim=-1) / n_days
 
-        bo_result = np.zeros((train_theta.shape[0], 3))
+        bo_result = np.zeros((train_theta.shape[0] + 4, 3))
         for t in range(train_theta.shape[0]):
             theta = train_theta[t]
             G = train_G[t]
@@ -2872,9 +2924,34 @@ class Plotter(object):
             bo_result[t, 0:2] = real_theta
             bo_result[t, 2] = - obj
 
+        # fill corners with closest points
+
+        for t, (x_coord, y_coord) in enumerate([
+            (sim_bounds[0, 0], sim_bounds[0, 0]),
+            (sim_bounds[0, 0], sim_bounds[1, 0]),
+            (sim_bounds[1, 0], sim_bounds[0, 1]),
+            (sim_bounds[1, 0], sim_bounds[1, 1]),
+        ]):
+            idx = t - 4 # fill last 4 rows
+
+            # find closest point
+            dist_to_pt = (x_coord - bo_result[:-4, 0]) ** 2 + (y_coord - bo_result[:-4, 1]) ** 2
+            argmin = np.argmin(dist_to_pt)
+
+            # fill corner with closest known objective
+            bo_result[idx, 0] = x_coord
+            bo_result[idx, 1] = y_coord
+            bo_result[idx, 2] = bo_result[argmin, 2]
+
+        
+        # ceil
+        if ceil is not None:
+            bo_result[:, 2] = np.minimum(bo_result[:, 2], ceil)
+
+        # plot
         dim_names = {
-            0: r'$\beta_{site}$',
-            1: r'$\beta_{house}$',
+            0: r'$\beta$',
+            1: r'$\xi$',
         }
 
         fig, ax = plt.subplots(1, 1, figsize=figsize)
@@ -2882,10 +2959,6 @@ class Plotter(object):
 
         x = bo_result[:, 0]
         y = bo_result[:, 1]
-
-        # ceil
-        if ceil is not None:
-            bo_result[:, 2] = np.minimum(bo_result[:, 2], ceil)
 
         # z = bo_result[:, 2]
         # z = np.sqrt(bo_result[:, 2])
@@ -2906,7 +2979,12 @@ class Plotter(object):
             contourplot = ax.contourf(xi, yi, zi, cmap=cmap)
 
         if scatter:
-            ax.scatter(bo_result[:, 0], bo_result[:, 1], color='white')
+            np.set_printoptions(precision=4, suppress=True)
+            top_points = np.where((bo_result[:, 2] <= 1000000) & (np.arange(bo_result.shape[0]) >= 10))
+            print('BO evaluations')
+
+            print(bo_result[top_points])
+            ax.scatter(bo_result[top_points, 0], bo_result[top_points, 1], color='blue', s=5)
 
         # colorbar
         # fig.subplots_adjust(right=0.8)
@@ -2915,17 +2993,17 @@ class Plotter(object):
         fig.colorbar(contourplot)
 
         # axis
-        ax.set_xlabel(dim_names[0])
-        ax.set_ylabel(dim_names[1])
-        ax.set_xlim((xmin or (sim_bounds[0, 0] + 0.01),
-                     xmax or (sim_bounds[1, 0] - 0.01)))
-        ax.set_ylim((ymin or (sim_bounds[0, 1] + 0.01),
-                     ymax or (sim_bounds[1, 1] - 0.01)))
+        ax.set_xlabel(dim_names[0], labelpad=2)
+        ax.set_ylabel(dim_names[1], labelpad=5)
+        ax.set_xlim((xmin or (sim_bounds[0, 0] + 0.001),
+                     xmax or (sim_bounds[1, 0] - 0.001)))
+        ax.set_ylim((ymin or (sim_bounds[0, 1] + 0.001),
+                     ymax or (sim_bounds[1, 1] - 0.001)))
 
-        ax.set_title('log MSE {}-{}'.format(country, area), y=0.98)
+        ax.set_title(r'$\log f(\theta)$', y=1.0)
 
         plt.tight_layout()
-        plt.savefig(f'plots/bo-result-{country}-{area}.png', format='png', facecolor=None, dpi=200)
+        plt.savefig(f'plots/bo-result-{country}-{area}.pdf', format='pdf', facecolor=None, dpi=DPI, bbox_inches='tight')
 
         plt.show()
 

@@ -825,7 +825,8 @@ class DiseaseModel(object):
         # print('% exposed in risk buckets: ', 100.0 * self.risk_got_exposed / (self.risk_got_exposed + self.risk_got_not_exposed))
 
         '''Compute infection hotspot statistics'''
-        self.visit_expo_counts = self.compute_infection_hotspot_stats(slider_size=24.0, window_size=24. * 7, end_cutoff=0.0)
+        # every 14 days, for a 7-day window, until the end of the simulation
+        self.visit_expo_counts = self.compute_infection_hotspot_stats(slider_size=14 * 24.0, window_size=24.0 * 7, end_cutoff=0.0)
    
         '''Compute ROC statistics'''
         # tracing_stats [threshold][policy][action][stat]

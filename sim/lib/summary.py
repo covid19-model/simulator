@@ -127,8 +127,7 @@ def condense_summary(summary, metadata=None, acc=500):
 
     # Collect data for secondary infection nbinomial plots
     try:
-        nbinom_dist = estimate_daily_secondary_infection_nbinom_dists(result, x_range=np.arange(0, 20),
-            slider_size=24.0, window_size=24. * 7, end_cutoff=0.0) #end_cutoff=24. * 10)   
+        nbinom_dist = estimate_daily_secondary_infection_nbinom_dists(result, x_range=np.arange(0, 20))
     except KeyError:
         print('Could not save secondary infection statistics due to the time window being to small.')
         nbinom_dist = None
