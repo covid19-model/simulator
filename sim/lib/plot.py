@@ -918,7 +918,7 @@ class Plotter(object):
         # Set double figure format
         self._set_matplotlib_params(format=figformat)
         # Draw figure
-        fig, axs = plt.subplots(len(sims), 1, figsize=figsize)
+        fig, axs = plt.subplots(1, len(sims), figsize=figsize)
         if not multiplot:
             axs = [axs]
         for j, (paths, ax) in enumerate(zip(sims, axs)):
@@ -959,7 +959,8 @@ class Plotter(object):
                 ax.set_xlabel(r'$t$ [days]')
 
             ylabel = labeldict[mode][quantity]
-            ax.set_ylabel(ylabel)
+            if j == 0:
+                ax.set_ylabel(ylabel)
 
             if lockdown_at is not None:
                 lockdown_widget(ax, lockdown_at, start_date,
@@ -972,21 +973,21 @@ class Plotter(object):
 
             if show_legend:
                 # legend
-                if legend_is_left:
+                if legend_is_left is True:
                     leg = ax.legend(loc='upper left',
                               bbox_to_anchor=(0.001, 0.999),
                               bbox_transform=ax.transAxes,
                             #   prop={'size': 5.6}
                               )
-                else:
+                elif legend_is_left is False:
                     leg = ax.legend(loc='upper right',
                               bbox_to_anchor=(0.999, 0.999),
                               bbox_transform=ax.transAxes,
                             #   prop={'size': 5.6}
                               )
-                # if titles:
-                #     axs[0].legend(loc='lower left', bbox_to_anchor=(1.1, 0.18),
-                #                 borderaxespad=0, frameon=True)
+        if titles:
+            axs[-1].legend(loc='lower left', bbox_to_anchor=(1.08, 0.22),
+                        borderaxespad=0, frameon=True)
 
         subplot_adjust = subplot_adjust or {'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         plt.subplots_adjust(**subplot_adjust)
@@ -2545,6 +2546,127 @@ class Plotter(object):
             plt.close()
         return
 
+    def relative_quantity_heatmap_acm(self, mode, xlabel, ylabel, paths, path_labels, baseline_path, zmax=None,
+                                      xlim=None, ylim=None, interpolate='linear',    # or `cubic`
+                                      figformat='double', filename='reff_heatmap_0', figsize=None, acc=500,
+                                      width_ratio=4, cmap='jet'):
+        ''''
+        Plots heatmap of average R_t
+            paths:              list with tuples (x, y, path)
+            relative_window:    relative range of max_time used for R_t average
+        '''
+        if mode == 'cumu_infected':
+            key = 'cumu_infected_'
+            colorbar_label = r'\% reduction of infections'
+        elif mode == 'hosp':
+            key = 'hosp_'
+            colorbar_label = r'\% reduction of peak hosp.'
+        elif mode == 'dead':
+            key = 'cumu_dead_'
+            colorbar_label = r'\% reduction of deaths'
+
+        # set double figure format
+        self._set_matplotlib_params(format=figformat)
+
+        # draw figure
+        fig, axs = plt.subplots(1, 1, figsize=figsize)
+
+        baseline_data = load_condensed_summary(baseline_path)
+        baseline_series = baseline_data[key + 'mu']
+
+        # extract data
+        zval_means_all = []
+        for p in paths:
+
+            zval_means = []
+            for xval, yval, path in p:
+                data = load_condensed_summary(path, acc)
+
+                # extract z value given (x, y)
+                series = data[key + 'mu']
+                if 'cumu' in key:
+                    # last
+                    zval = (1 - series[-1] / baseline_series[-1]) * 100
+                else:
+                    # peak
+                    zval = (1 - series.max() / baseline_series.max()) * 100
+
+                zval_means.append(((xval * 100 if xval is not None else xval), yval * 100, zval.item()))
+
+            zval_means_all.append(zval_means)
+
+        # define min and max for both plots
+        if zmax:
+            zmin, zmax_color, zmax_colorbar = 0, zmax, zmax
+        else:
+            zmin, zmax_color, zmax_colorbar = 0, 90, 90
+        stepsize = 5
+        norm = colors.Normalize(vmin=zmin, vmax=zmax_color)
+        levels = np.arange(zmin, zmax_colorbar + stepsize, stepsize)
+
+        # generate heatmaps
+        x, y, z = zip(*zval_means_all[0])
+
+        xbounds = min(x), max(x)
+        ybounds = min(y), max(y)
+
+        axs.set_xlabel(xlabel)
+
+        # x ticks
+        # @ticker.FuncFormatter
+        # def major_formatter(x_, pos):
+        #     return r"{:3.0f}".format(np.exp(x_))
+
+        # for some reason, FixedLocator makes tick labels falsely bold
+        # axs[t].xaxis.set_major_locator(ticker.FixedLocator(x))
+        #axs.xaxis.set_major_locator(CustomSitesProportionFixedLocator())
+        #axs.xaxis.set_major_formatter(major_formatter)
+
+        # contour interpolation
+        xi = np.linspace(xbounds[0], xbounds[1], 100)
+        yi = np.linspace(ybounds[0], ybounds[1], 100)
+        zi = griddata((x, y), z, (xi[None,:], yi[:,None]), method=interpolate)
+
+        # contour plot
+        axs.contour(xi, yi, zi, linewidths=0.5, colors='k', norm=norm, levels=levels)
+        contourplot = axs.contourf(xi, yi, zi, cmap=cmap, norm=norm, levels=levels)
+
+        # axis
+        axs.set_xlim(xbounds)
+        axs.set_ylim(ybounds)
+        # axs.set_title(title)
+
+        axs.set_yticks(list(axs.get_yticks())[1:] + [ybounds[0]])
+        #axs.set_yticks([0, 10, 25, 40, 55, 70, 85, 100])
+        axs.set_yticks([0, 20, 40, 60, 80, 100])
+        axs.set_xticks([0, 10, 20, 30, 40, 50])
+
+        axs.set_ylabel(ylabel)
+
+        # layout and color bar
+        fig.tight_layout()
+        fig.subplots_adjust(right=0.8)
+
+        # [left, bottom, width, height]
+        # [0.84, 0.255, 0.025, 0.5]
+        # [0.87, 0.17, 0.05, 0.7]
+        cbar_ax = fig.add_axes([0.86, 0.16, 0.05, 0.77])
+        cbar = matplotlib.colorbar.ColorbarBase(
+            cbar_ax, cmap=plt.cm.RdYlGn,
+            norm=norm,
+            boundaries=levels,
+            ticks=levels[::2],
+            orientation='vertical')
+        cbar.set_label(colorbar_label, labelpad=5.0)
+
+        # save
+        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+                    dpi=DPI, bbox_inches='tight')
+
+        if NO_PLOT:
+            plt.close()
+        return
+
     def manual_tracing_heatmap(self, mode, xlabel, ylabel, paths, path_labels, baseline_path, figformat='double',
                                   filename='manual_tracing_heatmap_0', figsize=None, acc=500, interpolate='linear',  # or `cubic`
                                   width_ratio=4, cmap='jet'):
@@ -2677,7 +2799,7 @@ class Plotter(object):
             plt.close()
         return
 
-    def compare_peak_reduction(self, path_list, baseline_path=None, ps_adoption=None, labels=None, title=None,
+    def compare_peak_reduction(self, path_list, baseline_path=None, ps_adoption=None, labels=None, title=None, xlabel=None,
                                mode='cumu_infected', show_reduction=True, log_xscale=True, log_yscale=False, ylim=None,
                                area_population=None, colors=None, show_baseline=True, combine_summaries=False,
                                show_significance=None, sig_options=None,
@@ -2769,7 +2891,7 @@ class Plotter(object):
             ax.get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
 
         if mode == 'r_eff':
-            ax.set_yticks([1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0])
+            ax.set_yticks([0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0])
 
         ax.set_ylim(ymax=ylim[1], ymin=ylim[0])
 
@@ -2784,12 +2906,15 @@ class Plotter(object):
             ax.margins(x=0.15)
 
         ax.set_ylabel(ylabel)
-        ax.set_xlabel('\% adoption')
+        if xlabel:
+            ax.set_xlabel(xlabel)
+        else:
+            ax.set_xlabel('\% adoption')
 
         if title:
             ax.set_title(title)
 
-        if show_significance is not None:
+        if box_plot and (show_significance is not None):
             sig_options_updated = {'lhs_xshift': 0.013,
                         'rhs_xshift': 0.13,
                         'height': 1.0,

@@ -87,13 +87,26 @@ if __name__ == '__main__':
                                                 max_pos_tests_per_week_per_100k=max_incidence,
                                                 intervention_times=None,
                                                 init_active=False),
+                # standard tracing measures
+                ComplianceForAllMeasure(
+                    t_window=Interval(0.0, TO_HOURS * max_days),
+                    p_compliance=0.0),
+                SocialDistancingForSmartTracing(
+                    t_window=Interval(0.0, TO_HOURS * max_days),
+                    p_stay_home=1.0,
+                    smart_tracing_isolation_duration=TO_HOURS * 14.0),
+                SocialDistancingForSmartTracingHousehold(
+                    t_window=Interval(0.0, TO_HOURS * max_days),
+                    p_isolate=1.0,
+                    smart_tracing_isolation_duration=TO_HOURS * 14.0),
             ]
+
 
             # set testing params via update function of standard testing parameters
             def test_update(d):
                 d['smart_tracing_households_only'] = True
-                d['smart_tracing_actions'] = ['test']
-                d['test_reporting_lag'] = 48.0
+                d['smart_tracing_actions'] = ['test', 'isolate']
+                d['test_reporting_lag'] = 0.5
 
                 # isolation
                 d['smart_tracing_policy_isolate'] = 'basic'
