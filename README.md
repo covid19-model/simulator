@@ -120,10 +120,10 @@ If you use parts of the code in this repository for your own research purposes, 
     
 or
 
-    @article {barthe2020pancast,
-	author = {Barthe, Gilles and De Viti, Roberta and Druschel, Peter and Garg, Deepak and Gomez-Rodriguez, Manuel and Ingo, Pierfrancesco and Kremer, Heiner and Lentz, Matthew and Lorch, Lars and Mehta, Aastha and Sch{\"o}lkopf, Bernhard},
+    @article{barthe2020pancast,
+	author = {Barthe, Gilles and De Viti, Roberta and Druschel, Peter and Garg, Deepak and Gomez-Rodriguez, Manuel and Ingo, Pierfrancesco and Kremer, Heiner 	and Lentz, Matthew and Lorch, Lars and Mehta, Aastha and Sch{\"o}lkopf, Bernhard},
 	title = {Listening to Bluetooth Beacons for Epidemic Risk Mitigation},
 	year = {2021},
 	URL = {https://www.medrxiv.org/content/early/2021/01/26/2021.01.21.21250209},
 	journal = {medRxiv}
-}
+	}
