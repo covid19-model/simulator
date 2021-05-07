@@ -118,11 +118,12 @@ If you use parts of the code in this repository for your own research purposes, 
         year={2020}
     }
     
-or for PanCast specific aspects:
+or
 
-    @article{barthe2020pancast,
-      title={PanCast: Listening to Bluetooth Beacons for Epidemic Risk Mitigation}, 
-      author={Gilles Barthe and Roberta De Viti and Peter Druschel and Deepak Garg and Manuel Gomez-Rodriguez and Pierfrancesco Ingo and Matthew Lentz and Aastha Mehta and Bernhard Schölkopf},
-      journal={arXiv preprint arXiv:2011.08069}
-      year={2020},
-    }
+    @article {barthe2020pancast,
+	author = {Barthe, Gilles and De Viti, Roberta and Druschel, Peter and Garg, Deepak and Gomez-Rodriguez, Manuel and Ingo, Pierfrancesco and Kremer, Heiner and Lentz, Matthew and Lorch, Lars and Mehta, Aastha and Sch{\"o}lkopf, Bernhard},
+	title = {Listening to Bluetooth Beacons for Epidemic Risk Mitigation},
+	year = {2021},
+	URL = {https://www.medrxiv.org/content/early/2021/01/26/2021.01.21.21250209},
+	journal = {medRxiv}
+}
