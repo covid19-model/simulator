@@ -5,6 +5,7 @@ Settings for town generation
 '''
 
 town_name = 'Lausanne'
+country = 'CH'
 
 # Make sure to download country-specific population density data
 # from https://data.humdata.org/organization/facebook

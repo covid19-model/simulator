@@ -799,6 +799,7 @@ class MobilitySimulator:
 
         self.mob_traces_by_indiv = self._group_mob_traces_by_indiv(all_mob_traces)
         self.mob_traces_by_site = self._group_mob_traces_by_site(all_mob_traces)
+        self.mob_traces = InterLap(ranges=all_mob_traces)
 
         # Initialize empty contact array
         self.contacts = {i: defaultdict(InterLap) for i in range(self.num_people)}

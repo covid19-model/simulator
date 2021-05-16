@@ -10,8 +10,8 @@ from collections import namedtuple, defaultdict
 import botorch.utils.transforms as transforms
 import argparse
 from lib.calibrationFunctions import (
-    pdict_to_parr, parr_to_pdict, save_state, load_state, 
-    get_calibrated_params, gen_initial_seeds, get_test_capacity, downsample_cases)
+    pdict_to_parr, parr_to_pdict, save_state, load_state,
+    get_calibrated_params, gen_initial_seeds, get_test_capacity, downsample_cases, extract_seeds_from_summary)
 from lib.mobilitysim import MobilitySimulator
 from lib.parallel import launch_parallel_simulations
 from lib.distributions import CovidDistributions
@@ -100,6 +100,8 @@ def process_command_line(return_parser=False):
                         help="update default number of cpus used for parallel simulation rollouts")
     parser.add_argument("--smoke_test", action="store_true",
                         help="flag to quickly finish runs to see if something breaks")
+    parser.add_argument("--append_name", type=str,
+                        help="appends name to experiment")
 
     parser.add_argument("--p_adoption", type=float,
                         help="only run experiment with a single adoption level")
@@ -109,7 +111,21 @@ def process_command_line(return_parser=False):
                         help="only run experiment with a single beacon proportion")
     parser.add_argument("--beacon_mode",
                         help="only run experiment with a single beacon mode")
-                        
+    parser.add_argument("--test_lag", type=float,
+                        help="only run experiment with the specified test lag")
+    parser.add_argument("--background_exposures", type=float,
+                        help="set number of background exposures per week")
+    parser.add_argument("--tracing_threshold", type=float,
+                        help="set smart tracing threshold")
+    parser.add_argument("--isolation_cap", type=float,
+                        help="set maximum of newly isolated people per day")
+    parser.add_argument("--beta_normalization", type=float,
+                        help="")
+    parser.add_argument("--p_social_distancing", type=float,
+                        help="mobility reduction for all")
+
+    parser.add_argument("--calibration_state", type=str,
+                        help="specify path of calibration state")
     parser.add_argument("--mobility_reduction", action="store_true",
                         help="flag to turn off mobility reduction")
     parser.add_argument("--continued", action="store_true",
@@ -155,7 +171,7 @@ class Experiment(object):
         verbose,
         cpu_count=None,
         multi_beta_calibration=False,
-        condensed_summary=False,
+        condensed_summary=True,
         continued_run=False):
 
         self.experiment_info = experiment_info
@@ -203,7 +219,6 @@ class Experiment(object):
         country,
         area,        
         measure_list,
-        lockdown_measures_active=True,
         full_scale=True,
         test_update=None,
         seed_summary_path=None,
@@ -212,6 +227,7 @@ class Experiment(object):
         expected_daily_base_expo_per100k=0,
         beacon_config=None,
         thresholds_roc=None,
+        estimate_mobility_reduction=False,
         store_mob=False):
 
         # Set time window based on experiment start and end date
@@ -283,13 +299,13 @@ class Experiment(object):
         if set_initial_seeds_to is not None:
             initial_seeds = set_initial_seeds_to
 
-        # Load calibrated model parameters for this area
-        calibrated_params = get_calibrated_params(
-            country=country, area=area, multi_beta_calibration=self.multi_beta_calibration)
         if set_calibrated_params_to is not None:
-            calibrated_params = set_calibrated_params_to 
-            
-        p_stay_home_calibrated = calibrated_params['p_stay_home']
+            calibrated_params = set_calibrated_params_to
+        else:
+            # Load calibrated model parameters for this area
+            calibrated_params = get_calibrated_params(
+                country=country, area=area, multi_beta_calibration=self.multi_beta_calibration,
+                estimate_mobility_reduction=estimate_mobility_reduction)
 
         if self.multi_beta_calibration:
             betas = calibrated_params['betas']
@@ -316,31 +332,9 @@ class Experiment(object):
                 t_window=Interval(0.0, max_time), p_isolate=1.0),
         ]
 
-        # Add standard measures if simulation is happening during lockdown
-        # Set lockdown_measures_active to False to explore counterfactual scenarios
-        if lockdown_measures_active:
-            measure_list += [
-
-                # social distancing factor during lockdown: calibrated
-                SocialDistancingForAllMeasure(
-                    t_window=Interval(TO_HOURS * days_until_lockdown_start,
-                                    TO_HOURS * days_until_lockdown_end),
-                    p_stay_home=p_stay_home_calibrated),
-
-                # site specific measures: fixed in advance, outside of calibration
-                BetaMultiplierMeasureByType(
-                    t_window=Interval(TO_HOURS * days_until_lockdown_start,
-                                    TO_HOURS * days_until_lockdown_end),
-                    beta_multiplier=calibration_lockdown_beta_multipliers)
-            ]
-
         measure_list = MeasureList(measure_list)
 
-        # Set testing conditions
-        scaled_test_capacity = get_test_capacity(
-            country, area, mob_settings, end_date_string=self.end_date)
         testing_params = copy.deepcopy(calibration_testing_params)
-        testing_params['tests_per_batch'] = scaled_test_capacity
         testing_params['testing_t_window'] = [0.0, max_time]
         if test_update:
             testing_params = test_update(testing_params)
@@ -397,7 +391,8 @@ class Experiment(object):
 
         # generate experiment folder
         current_directory = os.getcwd()
-        directory = os.path.join(current_directory, ROOT, self.experiment_info)        
+        directory = os.path.join(current_directory, ROOT, self.experiment_info + '-' + get_version_tag())
+        # directory = os.path.join(current_directory, ROOT, self.get_sim_path(self.sims[0]))
         if not os.path.exists(directory):
             os.makedirs(directory)
         

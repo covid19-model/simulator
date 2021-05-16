@@ -9,9 +9,11 @@ from lib.calibrationSettings import *
 def make_calibration_parser():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--seed", help="set seed")
+    parser.add_argument("--seed", help="set seed", required=True)
     parser.add_argument("--filename", help="set filename; default is `calibartion_{seed}` ")
     parser.add_argument("--not_verbose", action="store_true", help="not verbose; default is verbose")
+    parser.add_argument("--smoke_test", action="store_true", help="debug mode; stops quickly")
+    parser.add_argument("--plot-fit", action="store_true", help="plots model fit at each improvement and stores inside `logs/`")
 
     # BO
     parser.add_argument("--ninit", type=int, default=calibration_simulation['n_init_samples'],
@@ -24,15 +26,34 @@ def make_calibration_parser():
         help="update default number of cpus used for parallel simulation rollouts")
     parser.add_argument("--load", 
         help="specify path to a BO state to be loaded as initial observations, e.g. 'logs/calibration_0_state.pk'")
+    parser.add_argument("--continued", action="store_true",
+                        help="checks if calibration state exists and continues from there")
+
+    parser.add_argument("--model-multi-output-simulator", action="store_true",
+                        help="flag to model every day of simulator output individually using an GP")
+    parser.add_argument("--model-noise-via-sem", action="store_true",
+                        help="model simulator noise using standard error of mean")
+    parser.add_argument("--normalize-cases", action="store_true",
+                        help="use unnormalized case numbers; if not passed, divides all case numbers by target on t=T")
+    parser.add_argument("--estimate-mobility-reduction", action="store_true",
+                        help="whether to estimate p_stay_home; if not set, uses Google mobility report")
+
     parser.add_argument("--multi-beta-calibration", action="store_true",
                         help="flag to calibrate an individual beta parameter for each site category/type")
     parser.add_argument("--per-age-group-objective", action="store_true",
                         help="flag to calibrate based on per age-group objective")
+    parser.add_argument("--lockdown-beta-multipliers", action="store_true",
+                        help="adds fixed beta multipliers at sites during the lockdown period")
+    parser.add_argument("--init-explore-corner-settings", action="store_true",
+                        help="flag to also evaluate at corners of bounds during initial exploration")
     parser.add_argument("--log-objective", action="store_true",
                         help="log-MSE instead of MSE")
+    
     # data
     parser.add_argument("--mob", 
         help="update path to mobility settings for trace generation")
+    parser.add_argument("--downscale-mobility-model", action="store_true",
+                        help="uses downscaled mobility model")
     parser.add_argument("--country", required=True,
         help="specify country indicator for data import")
     parser.add_argument("--area",  required=True,
@@ -47,9 +68,8 @@ def make_calibration_parser():
     # simulation
     parser.add_argument("--no_households", action="store_true",
                         help="no households should be used for simulation")
-    parser.add_argument("--testingcap", type=int,
-                        help="overwrite default unscaled testing capacity as provided by MobilitySimulator")
-
+    parser.add_argument("--testingcap", action="store_true",
+                        help="limits daily testing capacity to maximum daily increase in real cases; default is unlimited test capacity")
 
     # acquisition function optimization
     parser.add_argument("--acqf_opt_num_fantasies", type=int, default=calibration_acqf['acqf_opt_num_fantasies'],

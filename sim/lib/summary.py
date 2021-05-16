@@ -6,15 +6,15 @@ from lib.measures import UpperBoundCasesBetaMultiplier, SocialDistancingForAllMe
     SocialDistancingByAgeMeasure, SocialDistancingForPositiveMeasure, SocialDistancingForSmartTracingHousehold, \
     SocialDistancingSymptomaticAfterSmartTracing, SocialDistancingSymptomaticAfterSmartTracingHousehold
 import pickle
-from lib.rt_nbinom import estimate_daily_nbinom_rts, compute_nbinom_distributions
+from lib.rt_nbinom import estimate_daily_secondary_infection_nbinom_dists, estimate_daily_visit_infection_nbinom_dists
 
 
 TO_HOURS = 24.0
 TEST_LAG = 48.0 # hours
 
 Result = namedtuple('Result', (
-    'metadata',    # metadata of summaryulation that was run, here a `summaryulation` namedtuple
-    'summary',     # result summary of summaryulation
+    'metadata',    # metadata of simulation that was run, here a `Simulation` namedtuple
+    'summary',     # result summary of simulation
 ))
 
 
@@ -79,7 +79,7 @@ def condense_summary(summary, metadata=None, acc=500):
     result = Result(metadata=metadata, summary=summary)
     try:    # For compatibility reasons
         n_age_groups = metadata.num_age_groups
-    except KeyError:
+    except (KeyError, AttributeError):
         n_age_groups = None
 
     if acc > summary.max_time:
@@ -109,12 +109,7 @@ def condense_summary(summary, metadata=None, acc=500):
     _, cumu_dead_mu, cumu_dead_sig = comp_state_cumulative(summary, state=['dead'], acc=acc)
 
     # Tracing/containment statistics
-    # print('Start computing containment')
     # _, contained_mu, contained_sig = comp_contained_over_time(summary, acc)
-    # print(contained_mu)
-
-    # lockdowns = None
-    # mean_lockdown_time = 0
     lockdowns, mean_lockdown_time = get_lockdown_times(summary)
 
     posi_mu_age, posi_sig_age = [], []
@@ -130,18 +125,29 @@ def condense_summary(summary, metadata=None, acc=500):
     except AttributeError:
         tracing_stats = None
 
-    # # Collect data for nbinomial plots
-    x_range = np.arange(0, 20)
-    t0_range = [50 * 24.0]
-    window_size = 10.0 * 24
-    interval_range = [(t0, t0 + window_size) for t0 in t0_range]
+    # Collect data for secondary infection nbinomial plots
     try:
-        nbinom_dist = compute_nbinom_distributions(result, x_range, interval_range)
-        nbinom_rts = estimate_daily_nbinom_rts(result, slider_size=24.0, window_size=24. * 7,
-                                                        end_cutoff=24. * 10)
+        nbinom_dist = estimate_daily_secondary_infection_nbinom_dists(result, x_range=np.arange(0, 20))
     except KeyError:
         print('Could not save secondary infection statistics due to the time window being to small.')
-        nbinom_dist, nbinom_rts = None, None
+        nbinom_dist = None
+
+    # Collect data for visit exposures nbinomial plots
+    try:
+        visit_nbinom_dist = estimate_daily_visit_infection_nbinom_dists(result, x_range=np.arange(0, 20))
+    except KeyError:
+        print('Could not save visit infection statistics due to the time window being to small.')
+        visit_nbinom_dist = None
+
+    # print('\nsummary.visit_expo_counts')
+    # for d in summary.visit_expo_counts:
+    #     for k, v in d.items():
+    #         print(f'{k} : {v}')
+    #     print()
+
+    # print(visit_nbinom_dist)
+
+    r_eff_mu, r_eff_sig, r_eff_samples = compute_effectiv_reproduction_number(summary)
 
     data = {'metadata': metadata,
             'acc': acc,
@@ -167,10 +173,37 @@ def condense_summary(summary, metadata=None, acc=500):
             'posi_sig_age': posi_sig_age,
             'tracing_stats': tracing_stats,
             'nbinom_dist': nbinom_dist,
-            'nbinom_rts': nbinom_rts,
+            'visit_nbinom_dist': visit_nbinom_dist,
+            'r_eff_samples': r_eff_samples,
+            'r_eff_mu': r_eff_mu,
+            'r_eff_sig': r_eff_sig,
             }
 
     return data
+
+
+def compute_effectiv_reproduction_number(summary):
+    if summary.max_time > 10 * 7 * TO_HOURS:
+        tmax = summary.max_time - 14 * TO_HOURS
+    else:
+        tmax = summary.max_time
+
+    r_eff_samples = []
+    for r in range(summary.random_repeats):
+        infectious_individuals_r = state_started_before(summary, r, 'isym', tmax)
+        infectious_individuals_r += state_started_before(summary, r, 'iasy', tmax)
+        infectious_individuals_r += state_started_before(summary, r, 'ipre', tmax)
+        infectious_individuals = infectious_individuals_r > 0
+
+        children = (summary.children_count_iasy[r] +
+                    summary.children_count_ipre[r] +
+                    summary.children_count_isym[r])
+        valid_children = children[infectious_individuals]
+        r_eff_samples.append(np.mean(valid_children))
+
+    r_eff_mu = np.mean(r_eff_samples)
+    r_eff_sig = np.std(r_eff_samples)
+    return r_eff_mu, r_eff_sig, r_eff_samples
 
 
 def is_state_at(summary, r, state, t):
@@ -356,27 +389,83 @@ def get_lockdown_times(summary):
     return interventions, mean_lockdown_time
 
 
-def get_plot_data(data, quantity, mode):#, labeldict):
+def get_plot_data(data, quantity, mode):
 
     if mode == 'daily':
-        line_cases = data[f'new_{quantity}_mu']
-        error_cases = data[f'new_{quantity}_sig']
-        # ylabel = f'Daily {labeldict[quantity]}'
+        # line_cases = data[f'new_{quantity}_mu']
+        # error_cases = data[f'new_{quantity}_sig']
+
+        # New way
+        length = len(data[f'new_{quantity}_mu'])
+        cumu_cases = data[f'cumu_{quantity}_mu']
+        stepsize = len(cumu_cases)//length
+        daily_cases = np.zeros(length)
+        for i in range(length):
+            daily_cases[i] = cumu_cases[(i+1)*stepsize] - cumu_cases[i * stepsize]
+        line_cases = daily_cases
+        error_cases = np.zeros(len(line_cases))
+
     elif mode == 'cumulative':
         line_cases = data[f'cumu_{quantity}_mu']
         error_cases = data[f'cumu_{quantity}_sig']
-        # ylabel = f'Cumulative {labeldict[quantity]}'
     elif mode == 'total':
         if quantity == 'infected':
             line_cases = data['iasy_mu'] + data['ipre_mu'] + data['isym_mu']
             error_cases = np.sqrt(np.square(data['iasy_sig']) +
                                   np.square(data['ipre_sig']) +
                                   np.square(data['isym_sig']))
-            # ylabel = 'Infected'
         else:
             line_cases = data[f'{quantity}_mu']
             error_cases = data[f'{quantity}_sig']
-            # ylabel = labeldict[quantity]
+    elif mode == 'weekly incidence':
+        # Calculate daily new cases
+        length = len(data[f'new_{quantity}_mu'])
+        cumu_cases = data[f'cumu_{quantity}_mu']
+        stepsize = len(cumu_cases) // length
+        daily_cases = np.zeros(length)
+        for i in range(length):
+            daily_cases[i] = cumu_cases[(i + 1) * stepsize] - cumu_cases[i * stepsize]
+
+        # Calculate running 7 day incidence
+        incidence = np.zeros(length)
+        for i in range(length):
+            incidence[i] = np.sum(daily_cases[max(i - 6, 0):i])
+        line_cases = incidence
+        error_cases = np.zeros(length)
     else:
         NotImplementedError()
-    return line_cases, error_cases# , ylabel
+    return line_cases, error_cases
+
+
+def get_rt(data, p_infected, area_population, average_up_to_p_infected=False):
+    proportion_infected = data['cumu_infected_mu'] / area_population
+    closest_element = np.argmin(np.abs(np.asarray(proportion_infected) - p_infected))
+    time = data['ts'][closest_element]
+    index = np.argmin(np.abs(np.asarray(data['nbinom_dist'].t1) / 24.0 - time))
+    rts = data['nbinom_dist'].groupby('t1').agg({'Rt': ['mean', 'std']})
+    if average_up_to_p_infected:
+        start_index = 25
+        rt_list = list(rts.Rt['mean'])[start_index:index]
+        rt = np.mean(rt_list)
+        rt_stds = np.asarray(list(rts.Rt['std'])[start_index:index])
+        rt_std = np.sqrt(np.mean(np.square(rt_stds)) + np.mean(np.square(rt_list)) - np.square(np.mean(rt_list)))
+    else:
+        rt = list(rts.Rt['mean'])[index]
+        rt_std = list(rts.Rt['std'])[index]
+    return rt, rt_std
+
+
+def get_tracing_probability(mode, p_adoption, p_manual_reachability, p_recall, p_beacon=0.0):
+    if mode == 'SPECTS':
+        p_digital = p_adoption ** 2
+        p_manual = p_recall * p_manual_reachability * (1 - p_digital)
+        p_tracing = p_digital + p_manual
+    elif mode == 'PanCast':
+        p_digital = (p_adoption ** 2) * p_beacon
+        p_manual = p_recall * p_manual_reachability * (1 - p_digital)
+        p_digital_manual = p_beacon * p_adoption * p_manual_reachability * (1 - p_digital - p_manual)
+        p_manual_digital = p_beacon * p_adoption * p_recall * (1 - p_digital - p_manual - p_digital_manual)
+        p_tracing = p_digital + p_manual + p_digital_manual + p_manual_digital
+    else:
+        NotImplementedError('`mode` can only be in ["SPECTs", "PanCast"]')
+    return p_tracing
