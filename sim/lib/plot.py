@@ -2604,7 +2604,7 @@ class Plotter(object):
             key = 'cumu_dead_'
             ylabel = r'\% reduction of fatalities' if show_reduction else 'Fatalities'
         elif mode == 'r_eff':
-            ylabel = r'\% reduction of $R_{\textrm{eff}}$' if show_reduction else r'$R_{\textrm{eff}}$'
+            ylabel = r'\% reduction of $\langle R_t \rangle$' if show_reduction else r'$\langle R_t \rangle$'
             assert area_population is not None, 'Requires argument area_population for R_eff plots'
 
         # Set double figure format
