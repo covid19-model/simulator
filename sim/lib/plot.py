@@ -56,7 +56,7 @@ from lib.rt import compute_daily_rts, R_T_RANGE
 from lib.summary import *
 
 TO_HOURS = 24.0
-DPI = 200
+DPI = 300
 NO_PLOT = False
 TEST_LAG = 48.0 # hours
 
@@ -884,7 +884,7 @@ class Plotter(object):
                          start_date='1970-01-01', xtick_interval=3, x_axis_dates=False,
                          figformat='double', filename='compare_epidemics', figsize=None,
                          lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
-                         show_legend=True, legend_is_left=False, subplot_adjust=None):
+                         show_legend=True, legend_is_left=False, subplot_adjust=None, format='pdf'):
         ''''
         Plots `quantity` in `mode` for each simulation, named as provided by `titles`
         to compare different measures/interventions taken. Colors taken as defined in __init__, and
@@ -991,7 +991,7 @@ class Plotter(object):
         if multiplot:
             plt.tight_layout()
 
-        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+        plt.savefig('plots/' + filename + f'.{format}', format=format, facecolor=None,
                     dpi=DPI, bbox_inches='tight')
 
         if NO_PLOT:
@@ -1619,7 +1619,8 @@ class Plotter(object):
                               figsize=None, figformat='double', ymax=None, label=None, small_figure=False,
                               cmap_range=(0.5, 1.5), subplots_adjust={'bottom':0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96},
                               lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
-                              x_axis_dates=False, xtick_interval=2, xlim=None, show_legend=True, legend_is_left=False):
+                              x_axis_dates=False, xtick_interval=2, xlim=None, show_legend=True, legend_is_left=False,
+                              format='pdf'):
         # Set this plot with double figures parameters
         self._set_matplotlib_params(format=figformat)
 
@@ -1712,8 +1713,8 @@ class Plotter(object):
         plt.subplots_adjust(**subplots_adjust)
         # Save plot
         # fpath = f"plots/daily-nbinom-rts-{filename}.pdf"
-        fpath = f'plots/{filename}.pdf'
-        plt.savefig(fpath, format='pdf')
+        fpath = f'plots/{filename}.{format}'
+        plt.savefig(fpath, format=format, dpi=DPI)
         print("Save:", fpath)
         if NO_PLOT:
             plt.close()
@@ -1723,7 +1724,8 @@ class Plotter(object):
                               cmap_range=(0.5, 1.5),
                               subplots_adjust={'bottom': 0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96},
                               lockdown_label='Lockdown', lockdown_at=None, lockdown_label_y=None, lockdown_xshift=0.0,
-                              x_axis_dates=False, xtick_interval=2, xlim=None, show_legend=True, legend_is_left=False):
+                              x_axis_dates=False, xtick_interval=2, xlim=None, show_legend=True, legend_is_left=False,
+                             format='pdf'):
         # Set this plot with double figures parameters
         self._set_matplotlib_params(format=figformat)
         fig, axs = plt.subplots(2, 2, figsize=figsize)
@@ -1789,8 +1791,8 @@ class Plotter(object):
         # Save plot
         # fpath = f"plots/daily-nbinom-rts-{filename}.pdf"
         plt.tight_layout()
-        fpath = f'plots/{filename}.pdf'
-        plt.savefig(fpath, format='pdf')
+        fpath = f'plots/{filename}.{format}'
+        plt.savefig(fpath, format=format, dpi=DPI)
         print("Save:", fpath)
         if NO_PLOT:
             plt.close()
@@ -1948,7 +1950,7 @@ class Plotter(object):
 
     def plot_roc_curve(self, summaries=None, paths=None, action='isolate', figformat='double',
                        p_adoption=None, p_recall=None, p_manual_reachability=None, p_beacon=None, sitetype=None,
-                       filename='roc_example', figsize=None, use_medical_labels=False, verbose=True):
+                       filename='roc_example', figsize=None, use_medical_labels=False, verbose=True, format='pdf'):
         ''''
         ROC curve
         '''
@@ -2219,7 +2221,7 @@ class Plotter(object):
 
 
         plt.tight_layout()
-        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+        plt.savefig('plots/' + filename + f'.{format}', format=format, facecolor=None,
                     dpi=DPI, bbox_inches='tight')
         # plt.tight_layout()
         if NO_PLOT:
@@ -2313,7 +2315,7 @@ class Plotter(object):
     
     def relative_quantity_heatmap(self, mode, xlabel, ylabel, paths, path_labels, baseline_path, zmax=None, figformat='double',
                      filename='reff_heatmap_0', figsize=None, acc=500, interpolate='linear', # or `cubic`
-                     width_ratio=4, cmap='jet'):
+                     width_ratio=4, cmap='jet', format='pdf'):
         ''''
         Plots heatmap of average R_t
             paths:              list with tuples (x, y, path)
@@ -2441,7 +2443,7 @@ class Plotter(object):
         cbar.set_label(colorbar_label, labelpad=5.0)
 
         # save
-        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+        plt.savefig('plots/' + filename + f'.{format}', format=format, facecolor=None,
                     dpi=DPI, bbox_inches='tight')
 
         if NO_PLOT:
@@ -2585,7 +2587,7 @@ class Plotter(object):
                                area_population=None, colors=None, show_baseline=True, combine_summaries=False,
                                show_significance=None, sig_options=None,
                                figformat='double', filename='cumulative_reduction', figsize=None,
-                               show_legend=True, legend_is_left=False, subplot_adjust=None, box_plot=False):
+                               show_legend=True, legend_is_left=False, subplot_adjust=None, box_plot=False, format='pdf'):
 
         show_reduction = show_reduction and (baseline_path is not None)
 
@@ -2772,7 +2774,7 @@ class Plotter(object):
         subplot_adjust = subplot_adjust or {'bottom': 0.14, 'top': 0.98, 'left': 0.12, 'right': 0.96}
         plt.subplots_adjust(**subplot_adjust)
 
-        plt.savefig('plots/' + filename + '.pdf', format='pdf', facecolor=None,
+        plt.savefig('plots/' + filename + f'.{format}', format=format, facecolor=None,
                 dpi=DPI, bbox_inches='tight')
 
         if NO_PLOT:
