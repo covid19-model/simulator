@@ -83,11 +83,11 @@ The results of a set of simulations such as `sim-*.py` are stored inside `sim/su
 
 If you use parts of the code in this repository for your own research purposes, please consider citing:
 
-    @article{lorch2020quantifying,
+    @article{lorch2022quantifying,
         title={Quantifying the Effects of Contact Tracing, Testing, and Containment Measures in the Presence of Infection Hotspots},
         author={Lars Lorch and Heiner Kremer and William Trouleau and Stratis Tsirtsis and Aron Szanto and Bernhard Sch{\"o}lkopf and Manuel Gomez-Rodriguez},
-        journal={arXiv preprint arXiv:2004.07641},
-        year={2020}
+        journal={ACM Transactions on Spatial Algorithms and Systems},
+        year={2022}
     }
 
 ## Dependencies
