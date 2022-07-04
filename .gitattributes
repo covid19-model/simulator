@@ -1,0 +1,2 @@
+# ingore html files from GitHub language statistics
+sim/maps/* linguist-vendored
