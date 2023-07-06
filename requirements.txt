@@ -2,7 +2,7 @@ numba==0.48.0
 numpy==1.22.0
 pandas==1.0.3
 networkx==2.4
-scipy==1.4.1
+scipy==1.10.0
 interlap==0.2.6
 seaborn==0.10.0
 bayesian-optimization==1.1.0
