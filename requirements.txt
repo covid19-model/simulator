@@ -11,7 +11,7 @@ geopy==1.21.0
 pathos==0.2.5
 requests==2.31.0
 folium==0.10.1
-torch==1.5.0
+torch==1.13.1
 sobol-seq==0.1.2
 gpytorch==1.1.1
 botorch==0.2.1
