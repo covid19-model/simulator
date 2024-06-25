@@ -9,7 +9,7 @@ bayesian-optimization==1.1.0
 joblib==1.2.0
 geopy==1.21.0
 pathos==0.2.5
-requests==2.31.0
+requests==2.32.2
 folium==0.10.1
 torch==1.13.1
 sobol-seq==0.1.2
